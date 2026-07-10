@@ -56,6 +56,7 @@ async function createWindow() {
     minWidth: 960,
     minHeight: 600,
     autoHideMenuBar: true,
+    icon: path.join(__dirname, "..", isDev ? "public" : "build", "app-icon.png"),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

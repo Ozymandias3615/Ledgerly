@@ -106,6 +106,7 @@
     "eslint-plugin-react-hooks": "5.2.0",
     "globals": "15.15.0",
     "postcss": "8.5.10",
+    "rcedit": "^5.0.2",
     "tailwindcss": "3.4.17",
     "wait-on": "8.0.1"
   },
@@ -118,15 +119,18 @@
       "electron/**/*"
     ],
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build-resources"
     },
     "win": {
       "target": [
         "nsis",
         "portable"
       ],
+      "icon": "build-resources/icon.ico",
       "signAndEditExecutable": false
-    }
+    },
+    "afterPack": "./scripts/afterPack.js"
   },
   "resolutions": {
     "react-router": "7.15.0",
