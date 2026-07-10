@@ -1,0 +1,43 @@
+{
+  "summary": "Latency-sensitive first-finish smoke test for Ledgerly. Backend auth, transactions, invoices (incl. PDF), employees, payroll run/list, reports (dashboard/P&L/tax), and exports (CSV+XLSX) all working. Frontend login flow + dashboard KPIs/charts render correctly; nav to Transactions/Reports/Insights pages show expected data-testids. Only blocker: AI Insights endpoint returns 500 due to EMERGENT_LLM_KEY budget exceeded (infra/key issue, not code).",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "POST /api/auth/login (admin creds) -> 200, sets cookie, returns user",
+    "GET /api/auth/me -> 200 with cookie",
+    "POST /api/transactions (expense) -> 200, correct fields",
+    "GET /api/transactions -> 200, list returned",
+    "POST /api/invoices -> 200, subtotal=200, tax=20, total=220 (10% tax) computed correctly",
+    "GET /api/invoices/{id}/pdf -> 200, content-type application/pdf, 2217 bytes binary",
+    "POST /api/employees -> 200",
+    "POST /api/payroll/run (period_start/period_end) -> 200, payslip gross=3000 tax=450 net=2550 (15%)",
+    "GET /api/payroll -> 200, list returned",
+    "GET /api/reports/dashboard -> 200 with totals/monthly/categories",
+    "GET /api/reports/pnl -> 200 income=5000 expense=150 net=4850",
+    "GET /api/reports/tax -> 200 tax_collected=500 net_tax_liability=500",
+    "GET /api/export/transactions?format=csv -> 200 text/csv",
+    "GET /api/export/transactions?format=xlsx -> 200 spreadsheetml.sheet 5032 bytes",
+    "Frontend /login renders and login-submit-button navigates to /dashboard",
+    "Dashboard renders KPIs (Revenue $5,000, Expenses $3,150, Net $1,850, Outstanding $220) and Recharts line/donut charts",
+    "Nav links visible: dashboard, transactions, invoices, payroll, reports, insights",
+    "Transactions/Reports/Insights pages load with expected data-testids (add-transaction-button, run-report-button, generate-insight-button)"
+  ],
+  "failed": [
+    {
+      "area": "AI Insights",
+      "issue": "POST /api/insights/generate returns 500. Backend log: 'litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 0.0, Max budget: 0.0' via emergentintegrations chat.send_message.",
+      "evidence": "curl POST /api/insights/generate -> HTTP 500 'Internal Server Error'; /var/log/supervisor/backend.err.log shows litellm BadRequestError from server.py line 676",
+      "priority": "HIGH"
+    }
+  ],
+  "action_items": [
+    "AI Insights: EMERGENT_LLM_KEY (sk-emergent-6D5E68740A7EcFf928) has budget=0. Either request a fresh/funded key from Emergent or add graceful 402/503 error handling in POST /api/insights/generate so the UI surfaces a user-friendly message instead of 500."
+  ],
+  "success_rate": {"backend": "93%", "frontend": "100%"},
+  "retest_needed": true,
+  "full_testing_deferred": true,
+  "notes": {
+    "auth": "HTTP-only cookie auth (access_token) works end-to-end.",
+    "logout_and_update_delete_not_exercised": "PUT/DELETE for transactions/invoices/employees and POST /api/auth/logout were not exercised in this smoke pass; defer to full testing.",
+    "google_oauth": "Skipped live Google flow as instructed."
+  }
+}

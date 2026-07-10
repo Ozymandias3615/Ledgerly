@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: ledgerly-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DB_NAME
+        value: ledgerly
+      - key: FIREBASE_PROJECT_ID
+        value: ledgerly-98458
+      # Secrets - set these in the Render dashboard, never committed to git
+      - key: JWT_SECRET
+        sync: false
+      - key: MONGO_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

@@ -1,0 +1,113 @@
+{
+  "theme": "Light theme by default with a clean, high-contrast Dark theme toggle. Prioritize legibility and trust (Role-Metric-Density-Action framework).",
+  "typography": {
+    "fonts": {
+      "headings": {
+        "family": "Manrope",
+        "instruction": "Use Manrope for all headings. DO NOT use Inter for headings."
+      },
+      "body": {
+        "family": "IBM Plex Sans",
+        "instruction": "Clean, highly legible monospace-adjacent sans for data tables, lists, and standard text."
+      }
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-extrabold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl font-bold",
+      "h4": "text-lg font-semibold",
+      "body": "text-sm md:text-base",
+      "labels": "text-xs uppercase tracking-[0.2em] font-medium text-muted-foreground"
+    }
+  },
+  "colors": {
+    "archetype": "Swiss & High-Contrast",
+    "palette": {
+      "primary": "hsl(220, 100%, 50%)", 
+      "primary_foreground": "hsl(0, 0%, 100%)",
+      "background_light": "hsl(0, 0%, 100%)",
+      "background_dark": "hsl(240, 10%, 4%)",
+      "surface_light": "hsl(240, 5%, 96%)",
+      "surface_dark": "hsl(240, 4%, 10%)",
+      "border": "hsl(240, 6%, 90%)",
+      "success": "hsl(142, 76%, 36%)",
+      "warning": "hsl(48, 96%, 53%)",
+      "destructive": "hsl(0, 84%, 60%)"
+    },
+    "rules": [
+      "Use high-contrast for all text (APCA standard).",
+      "Tint neutral greys slightly with blue to feel alive.",
+      "Color is for function only. Use Primary blue only for major actions (e.g., 'Create Invoice').",
+      "FORBIDDEN COLOR: teal green or teal blue (#1B93A4).",
+      "No transparent background in header, overlays, or dropdowns."
+    ]
+  },
+  "visual_enhancers": {
+    "surfaces": "Use 'Grid Borders (Technical)' for data-heavy sections like ledgers and tables. Dashboard widgets should use flat backgrounds with a 1px subtle border and no shadow.",
+    "borders": "1px solid borders for definition. No soft/muddy shadows.",
+    "radius": "Subtle roundness, max 8px border-radius (`rounded-md` or `rounded-lg`)."
+  },
+  "grids": {
+    "dashboard_mode": "High Density Grid Protocol",
+    "structure": "Mobile-first: grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with gap-4 or gap-6.",
+    "span_logic": [
+      "Summary Metrics: col-span-1",
+      "Main Chart (Cash Flow/Revenue): col-span-2 row-span-2 or col-span-3",
+      "Recent Invoices / Feed: col-span-1 row-span-2"
+    ]
+  },
+  "layouts": {
+    "general": "Optical alignment over geometrical. Left-align dense content. Numbers/Currency right-aligned in tables for scannability.",
+    "spacing": "Generous spacing philosophy (p-6, p-8) inside containers. Ensure borders have padding."
+  },
+  "component_name": {
+    "navigation": "Visible sidebar or top nav. No hamburger menus on desktop. Solid background.",
+    "cards": "Dense styles, rectangular, cardless-feel or 1px border. No oversized shadows.",
+    "tables": "Shadcn Table component. Clean layout for bookkeeping and payroll.",
+    "forms": "Shadcn Form, Input, Select components.",
+    "charts": "Shadcn Chart (Recharts under the hood).",
+    "toasts": "sonner (already configured in Shadcn)."
+  },
+  "motion": {
+    "interactions": "Hover states on all interactive elements. Subtle `-translate-y-1` and shadow elevation for cards on hover.",
+    "transitions": "Use specific transition properties (e.g. `transition-transform`, `transition-colors duration-200 ease-out`). NEVER use `transition: all`.",
+    "accessibility": "Respect prefers-reduced-motion."
+  },
+  "accessibility": {
+    "testing": "All interactive and key informational elements MUST include a `data-testid` attribute in kebab-case, role-based format (e.g., `data-testid='create-invoice-button'`).",
+    "contrast": "Maintain 4.5:1 for standard text. Explicitly set text color on hover and focus states."
+  },
+  "media": {
+    "icons": "Use @phosphor-icons/react for dense, highly legible dashboard icons.",
+    "images": "High-contrast, contextually relevant. Empty states should use minimalist UI illustrations."
+  },
+  "3d_libraries": {
+    "recommendation": "Not strictly necessary for a dense bookkeeping dashboard. Use Visx or Recharts for 2D data storytelling instead of full 3D rendering to prioritize clarity.",
+    "steps": []
+  },
+  "image_urls": [
+    {
+      "url": "https://images.unsplash.com/photo-1454117096348-e4abbeba002c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwZ2VvbWV0cmljJTIwYWJzdHJhY3QlMjB3aGl0ZSUyMGdyYXklMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc4MzM4NDI2M3ww&ixlib=rb-4.1.0&q=85",
+      "category": "background",
+      "description": "Minimalist geometric background for the login/signup screen to add subtle texture."
+    }
+  ],
+  "instructions_to_main_agent": [
+    "Install Phosphor icons: `yarn add @phosphor-icons/react`",
+    "Install Recharts if not present: `yarn add recharts`",
+    "For the dashboard, use the 'Role-Metric-Density-Action' framework. Place the most critical metric (e.g., Cash Runway or MRR) at the top left.",
+    "Make sure all files created/edited are `.jsx` or `.js` files, not `.tsx`.",
+    "Implement a theme toggle (Dark/Light) utilizing the Tailwind `dark:` classes.",
+    "Use standard HTML structure within React components. No `transparent` backgrounds over content.",
+    "Ensure Shadcn components are properly utilized and customized for the 'Swiss' clean look."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Do not use generic centered layouts or simplistic gradients.",
+    "DO NOT add '.App { text-align: center; }' to CSS. This disrupts natural reading flow.",
+    "Create depth with explicit z-index hierarchy and layering.",
+    "Use modern pill-shaped or sharp button styles with interaction animations.",
+    "Do not use AI assistant Emoji characters (\ud83e\udd16\ud83e\udde0\ud83d\udca1).",
+    "Add interactions to everything clickable. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable."
+  ]
+}
