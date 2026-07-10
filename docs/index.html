@@ -53,7 +53,7 @@
   .nav-links a:not(.nav-cta)::after { content: ""; position: absolute; left: 0; right: 100%; bottom: -1px; height: 1px; background: var(--black); transition: right .2s ease; }
   .nav-links a:not(.nav-cta):hover::after { right: 0; }
   .nav-links a:not(.nav-cta):hover { color: var(--black); }
-  .nav-cta { background: var(--black); color: #fff !important; padding: 9px 16px; border-radius: 7px; font-weight: 600; font-size: 13px; transition: transform .15s ease, background .15s ease; }
+  .nav-links a.nav-cta { display: inline-flex; align-items: center; background: var(--black); color: #fff !important; padding: 9px 16px; border-radius: 7px; font-weight: 600; font-size: 13px; transition: transform .15s ease, background .15s ease; }
   .nav-cta:hover { background: var(--gray-800, #27272a); transform: translateY(-1px); }
   @media (max-width: 720px) { .nav-links a:not(.nav-cta) { display: none; } }
 
