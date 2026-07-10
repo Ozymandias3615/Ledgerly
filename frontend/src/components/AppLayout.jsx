@@ -4,6 +4,7 @@ import { House, Receipt, FileText, Users, ChartLine, Sparkle, Gear, SignOut, Wal
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import BusinessSwitcher from "@/components/BusinessSwitcher";
+import RefreshButton from "@/components/RefreshButton";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", Icon: House, testId: "nav-dashboard" },
@@ -15,9 +16,13 @@ const nav = [
 ];
 
 export default function AppLayout({ children }) {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshNonce } = useAuth();
   const navigate = useNavigate();
   const visibleNav = nav.filter((item) => item.to !== "/payroll" || user?.role !== "staff");
+  // Remounts the routed page whenever the active business changes (automatic
+  // refresh) or the manual refresh button is clicked, so every page re-fetches
+  // its data instead of showing stale content from the previous business.
+  const pageKey = `${user?.business_id || "none"}:${refreshNonce}`;
 
   const handleLogout = async () => {
     await logout();
@@ -75,7 +80,12 @@ export default function AppLayout({ children }) {
           </Button>
         </div>
       </aside>
-      <main className="flex-1 min-w-0 overflow-auto">{children}</main>
+      <main className="flex-1 min-w-0 overflow-auto flex flex-col">
+        <div className="shrink-0 h-14 border-b border-slate-200 flex items-center justify-end px-6 sticky top-0 bg-white/90 backdrop-blur z-10">
+          <RefreshButton />
+        </div>
+        <div key={pageKey} className="flex-1 min-h-0">{children}</div>
+      </main>
     </div>
   );
 }

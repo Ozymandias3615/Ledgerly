@@ -6,6 +6,9 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Bumped whenever page data should be re-fetched (manual refresh, or as a
+  // fallback alongside business_id changing when the active business is switched).
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const checkAuth = useCallback(async () => {
     try {
@@ -17,6 +20,11 @@ export function AuthProvider({ children }) {
       setLoading(false);
     }
   }, []);
+
+  const bumpRefresh = useCallback(async () => {
+    await checkAuth();
+    setRefreshNonce((n) => n + 1);
+  }, [checkAuth]);
 
   useEffect(() => {
     // If returning from OAuth callback, skip /me and let AuthCallback handle it
@@ -51,7 +59,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, loginWithFirebaseToken, refresh: checkAuth, setUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, loginWithFirebaseToken, refresh: checkAuth, bumpRefresh, refreshNonce, setUser }}>
       {children}
     </AuthContext.Provider>
   );
