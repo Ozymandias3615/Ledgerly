@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ledgerly — Business Finance OS for Windows</title>
+<meta name="description" content="Ledgerly is a free Windows desktop app for small-business bookkeeping: transactions, invoices, payroll, reports, team roles, and AI-powered insights." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --slate-950: #020617; --slate-900: #0f172a; --slate-700: #334155;
+    --slate-500: #64748b; --slate-400: #94a3b8; --slate-200: #e2e8f0;
+    --slate-100: #f1f5f9; --slate-50: #f8fafc;
+    --emerald: #059669; --emerald-dark: #047857; --red: #dc2626;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'IBM Plex Sans', system-ui, sans-serif; color: var(--slate-900); background: #fff; line-height: 1.6; }
+  h1, h2, h3 { font-family: 'Manrope', sans-serif; letter-spacing: -0.02em; }
+  a { color: inherit; }
+  .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: var(--slate-500); font-weight: 600; }
+
+  /* Nav */
+  nav { border-bottom: 1px solid var(--slate-200); }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 20px; }
+  .mark { width: 32px; height: 32px; border-radius: 7px; background: var(--slate-900); display: grid; place-items: center; }
+  .mark svg { width: 17px; height: 17px; fill: #fff; }
+  .nav-links { display: flex; gap: 26px; font-size: 14px; font-weight: 500; color: var(--slate-700); }
+  .nav-links a { text-decoration: none; }
+  .nav-links a:hover { color: var(--slate-900); }
+
+  /* Hero */
+  .hero { padding: 90px 0 80px; text-align: center; background:
+    radial-gradient(60% 60% at 50% 0%, var(--slate-50) 0%, #fff 100%); }
+  .hero h1 { font-size: clamp(38px, 6vw, 62px); font-weight: 800; line-height: 1.05; max-width: 760px; margin: 18px auto 0; }
+  .hero p.sub { font-size: 18px; color: var(--slate-500); max-width: 620px; margin: 22px auto 0; }
+  .cta-row { margin-top: 38px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 15px 30px; border-radius: 10px;
+    font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 16px; text-decoration: none; transition: all .15s; }
+  .btn-dark { background: var(--slate-900); color: #fff; }
+  .btn-dark:hover { background: var(--slate-700); transform: translateY(-1px); }
+  .btn-ghost { border: 1px solid var(--slate-200); color: var(--slate-700); font-size: 14px; padding: 14px 22px; }
+  .btn-ghost:hover { background: var(--slate-50); }
+  .hero .meta { margin-top: 16px; font-size: 13px; color: var(--slate-400); }
+
+  /* Sections */
+  section { padding: 76px 0; }
+  section.alt { background: var(--slate-50); }
+  .section-head { text-align: center; max-width: 640px; margin: 0 auto 50px; }
+  .section-head h2 { font-size: 34px; font-weight: 800; margin-top: 10px; }
+  .section-head p { color: var(--slate-500); margin-top: 12px; }
+
+  /* Features */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+  .card { border: 1px solid var(--slate-200); border-radius: 12px; padding: 26px; background: #fff; }
+  .card h3 { font-size: 17px; font-weight: 700; margin: 14px 0 8px; }
+  .card p { font-size: 14px; color: var(--slate-500); }
+  .icon { width: 40px; height: 40px; border-radius: 9px; background: var(--slate-100); display: grid; place-items: center; font-size: 19px; }
+
+  /* Steps */
+  .steps { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .step { display: flex; gap: 20px; border: 1px solid var(--slate-200); border-radius: 12px; padding: 24px; background: #fff; }
+  .step-num { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; background: var(--slate-900); color: #fff;
+    display: grid; place-items: center; font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 15px; }
+  .step h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .step p { font-size: 14px; color: var(--slate-500); }
+  .step code, .callout code { background: var(--slate-100); border: 1px solid var(--slate-200); border-radius: 5px; padding: 1px 7px; font-size: 13px; }
+  .callout { max-width: 720px; margin: 22px auto 0; border-left: 3px solid var(--emerald); background: #fff;
+    border-radius: 0 10px 10px 0; padding: 18px 22px; font-size: 14px; color: var(--slate-700);
+    border-top: 1px solid var(--slate-200); border-right: 1px solid var(--slate-200); border-bottom: 1px solid var(--slate-200); }
+  .callout.warn { border-left-color: #d97706; }
+  .callout strong { color: var(--slate-900); }
+
+  /* FAQ */
+  .faq { max-width: 720px; margin: 0 auto; }
+  .faq details { border-bottom: 1px solid var(--slate-200); padding: 18px 4px; }
+  .faq summary { cursor: pointer; font-weight: 600; font-size: 15px; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+  .faq summary::after { content: "+"; font-size: 20px; color: var(--slate-400); font-weight: 400; }
+  .faq details[open] summary::after { content: "–"; }
+  .faq details p { margin-top: 12px; font-size: 14px; color: var(--slate-500); }
+
+  footer { background: var(--slate-950); color: var(--slate-400); padding: 44px 0; font-size: 13px; }
+  .footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+  .footer-brand { display: flex; align-items: center; gap: 9px; color: #fff; font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 16px; }
+  .footer-brand .mark { width: 26px; height: 26px; background: #fff; }
+  .footer-brand .mark svg { fill: var(--slate-900); width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="container nav-inner">
+    <div class="brand">
+      <span class="mark"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M216,72H56a8,8,0,0,1,0-16H192a8,8,0,0,0,0-16H56A24,24,0,0,0,32,64V192a24,24,0,0,0,24,24H216a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72Zm-36,80a12,12,0,1,1,12-12A12,12,0,0,1,180,152Z"/></svg></span>
+      Ledgerly
+    </div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#get-started">Get started</a>
+      <a href="#ai-key">AI Insights</a>
+      <a href="#faq">FAQ</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="container">
+    <div class="label">Business Finance OS &middot; Free for Windows</div>
+    <h1>Your books, invoices, payroll &amp; team — in one desktop app.</h1>
+    <p class="sub">Ledgerly is a free Windows app for small-business bookkeeping. Track cash flow, send branded invoices, run payroll, export polished reports, and get AI-powered insight into your numbers.</p>
+    <div class="cta-row">
+      <a class="btn btn-dark" href="https://github.com/Ozymandias3615/Ledgerly/releases/latest/download/Ledgerly-Setup.exe">
+        &#8595;&nbsp; Download for Windows
+      </a>
+      <a class="btn btn-ghost" href="#get-started">Installation guide</a>
+    </div>
+    <div class="meta">Windows 10/11 (64-bit) &middot; ~125 MB &middot; Free &middot; Internet connection required</div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="container">
+    <div class="section-head">
+      <div class="label">Everything included</div>
+      <h2>One app for the whole back office</h2>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="icon">&#128202;</div><h3>Live dashboard</h3><p>Revenue, expenses, net profit, and cash-flow trends at a glance — plus a live currency exchange-rate monitor.</p></div>
+      <div class="card"><div class="icon">&#129534;</div><h3>Bookkeeping</h3><p>Record income and expenses by category with taxes tracked per transaction. Export to CSV, Excel, or PDF anytime.</p></div>
+      <div class="card"><div class="icon">&#128196;</div><h3>Invoices</h3><p>Create professional invoices and download branded PDFs — with your own business logo on every document.</p></div>
+      <div class="card"><div class="icon">&#128101;</div><h3>Payroll</h3><p>Manage employees, run payroll with automatic tax and net-pay calculations, and log the expense in one click.</p></div>
+      <div class="card"><div class="icon">&#128200;</div><h3>Financial reports</h3><p>Profit &amp; Loss and tax summaries for any date range, exported as clean, statement-style PDFs.</p></div>
+      <div class="card"><div class="icon">&#129309;</div><h3>Teams &amp; roles</h3><p>Invite teammates with a code. Owners and admins manage everything; staff can work the books without seeing payroll.</p></div>
+      <div class="card"><div class="icon">&#10024;</div><h3>AI Insights</h3><p>Chat with an AI financial analyst grounded in your live business data. Ask anything about your numbers.</p></div>
+      <div class="card"><div class="icon">&#127970;</div><h3>Multiple businesses</h3><p>Belong to several businesses with one account and switch between them like workspaces.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="get-started" class="alt">
+  <div class="container">
+    <div class="section-head">
+      <div class="label">Setup takes 2 minutes</div>
+      <h2>Getting started</h2>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div>
+        <h3>Download &amp; install</h3>
+        <p>Grab <a href="https://github.com/Ozymandias3615/Ledgerly/releases/latest/download/Ledgerly-Setup.exe">Ledgerly-Setup.exe</a> and double-click it. Installation finishes in seconds and puts Ledgerly on your desktop and Start Menu.</p>
+      </div></div>
+      <div class="step"><div class="step-num">2</div><div>
+        <h3>Click past the Windows warning</h3>
+        <p>The first time you run the installer, Windows SmartScreen shows <em>"Windows protected your PC."</em> This is normal for new independent apps — click <strong>More info</strong>, then <strong>Run anyway</strong>.</p>
+      </div></div>
+      <div class="step"><div class="step-num">3</div><div>
+        <h3>Create your account</h3>
+        <p>Open Ledgerly and sign up with email &amp; password or Google. Enter your business name and primary currency — that creates your business and makes you its owner.</p>
+      </div></div>
+      <div class="step"><div class="step-num">4</div><div>
+        <h3>Joining someone else's business?</h3>
+        <p>If a business owner gave you an <strong>invite code</strong>, enter it on the sign-up form (or, if you already have an account, click the business name in the top-left of the app and use <em>"Join another business"</em>). You'll join their business with the role they assigned.</p>
+      </div></div>
+      <div class="step"><div class="step-num">5</div><div>
+        <h3>Make it yours</h3>
+        <p>In <strong>Settings &rarr; Business</strong>, upload your logo — it will appear on every PDF you export. Then head to <strong>Settings &rarr; Team</strong> to generate invite codes for your teammates.</p>
+      </div></div>
+    </div>
+    <div class="callout warn">
+      <strong>First login of the day can take up to a minute</strong> while the server wakes up. After that, everything is fast. If a login seems stuck, give it a moment and try once more.
+    </div>
+  </div>
+</section>
+
+<section id="ai-key">
+  <div class="container">
+    <div class="section-head">
+      <div class="label">AI Insights</div>
+      <h2>Unlock unlimited AI analysis</h2>
+      <p>AI Insights works out of the box on a shared free quota of <strong>10 messages per day</strong> per business. For unlimited use, connect your own free Google Gemini API key — it takes about a minute and doesn't require a credit card.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div>
+        <h3>Open Google AI Studio</h3>
+        <p>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in with any Google account.</p>
+      </div></div>
+      <div class="step"><div class="step-num">2</div><div>
+        <h3>Create an API key</h3>
+        <p>Click <strong>"Create API key"</strong>. Google generates a long key instantly — click the copy button next to it. (Free, no payment method needed.)</p>
+      </div></div>
+      <div class="step"><div class="step-num">3</div><div>
+        <h3>Paste it into Ledgerly</h3>
+        <p>In the app, open <strong>Settings &rarr; Business &rarr; AI Insights</strong>, paste your key, and hit <strong>Save</strong>. (Only business owners and admins can do this.)</p>
+      </div></div>
+      <div class="step"><div class="step-num">4</div><div>
+        <h3>Chat away</h3>
+        <p>That's it — your whole team now has unlimited AI Insights, covered by your key's own generous free tier. Usage is tied to your Google account, and your key is never shown to anyone after saving.</p>
+      </div></div>
+    </div>
+    <div class="callout">
+      <strong>Tip:</strong> ask things like <em>"Where am I spending the most, and what can I cut?"</em> or <em>"How is my cash flow trending month over month?"</em> — the AI answers using your real, current books.
+    </div>
+  </div>
+</section>
+
+<section id="faq" class="alt">
+  <div class="container">
+    <div class="section-head">
+      <div class="label">Good to know</div>
+      <h2>Frequently asked questions</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>Is Ledgerly free?</summary>
+        <p>Yes. The app is free to download and use. AI Insights includes a free shared quota, and you can connect your own free Gemini key for unlimited use.</p>
+      </details>
+      <details>
+        <summary>Where is my data stored?</summary>
+        <p>Your data is stored securely in a cloud database and synced through an encrypted (HTTPS) connection — so your books are the same on any computer you sign in from, and nothing is lost if your PC dies.</p>
+      </details>
+      <details>
+        <summary>What are the roles, and what can each one do?</summary>
+        <p><strong>Owner</strong> — created the business; full control. <strong>Admin</strong> — everything the owner can do day-to-day: manage the team, payroll, business settings. <strong>Staff</strong> — can work with transactions, invoices, and reports, but cannot see or run payroll or manage the team.</p>
+      </details>
+      <details>
+        <summary>Can I belong to more than one business?</summary>
+        <p>Yes. Redeem an invite code from another business (click the business name in the top-left of the app → "Join another business") and switch between businesses anytime from that same menu.</p>
+      </details>
+      <details>
+        <summary>Why does Windows warn me when installing?</summary>
+        <p>Ledgerly isn't yet code-signed with a paid certificate, so Windows SmartScreen is cautious with it. The installer is safe — click <strong>More info → Run anyway</strong>.</p>
+      </details>
+      <details>
+        <summary>Does it work offline?</summary>
+        <p>No — Ledgerly needs an internet connection, since your data lives in the cloud and syncs in real time.</p>
+      </details>
+      <details>
+        <summary>How do currencies work?</summary>
+        <p>Your business has a primary currency used for dashboards and reports, and each record keeps the currency it was created in. The dashboard also shows live exchange rates for reference. If you switch your primary currency, Settings offers a one-click relabel of existing records.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="mark"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M216,72H56a8,8,0,0,1,0-16H192a8,8,0,0,0,0-16H56A24,24,0,0,0,32,64V192a24,24,0,0,0,24,24H216a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72Zm-36,80a12,12,0,1,1,12-12A12,12,0,0,1,180,152Z"/></svg></span>
+      Ledgerly
+    </div>
+    <div>&copy; 2026 Ledgerly — Business Finance OS &middot; <a href="https://github.com/Ozymandias3615/Ledgerly/releases/latest/download/Ledgerly-Setup.exe" style="color:#94a3b8">Download for Windows</a></div>
+  </div>
+</footer>
+
+</body>
+</html>
