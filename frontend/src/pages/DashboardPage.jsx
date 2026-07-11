@@ -353,8 +353,8 @@ function CashFlowChart({ cur }) {
           <YAxis stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
           <Tooltip content={<ChartTooltip cur={cur} />} cursor={{ fill: "#f1f5f9" }} />
           <ReferenceLine y={0} stroke="#cbd5e1" />
-          <Bar dataKey="income" name="Revenue" fill="#059669" radius={[3, 3, 0, 0]} isAnimationActive={false} />
-          <Bar dataKey="expense" name="Expenses" fill="#dc2626" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+          <Bar dataKey="income" name="Revenue" fill="#059669" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="expense" name="Expenses" fill="#dc2626" radius={[3, 3, 0, 0]} />
           {big && <Legend wrapperStyle={{ fontSize: 13 }} />}
         </BarChart>
       </ResponsiveContainer>
@@ -391,7 +391,6 @@ function ExpensesPieChart({ cur }) {
               label={({ percent }) => (percent * 100 >= 6 ? `${(percent * 100).toFixed(0)}%` : "")}
               labelLine={false}
               fontSize={big ? 14 : 10}
-              isAnimationActive={false}
             >
               {data.categories.expense.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="#fff" strokeWidth={1.5} />)}
             </Pie>
@@ -423,7 +422,7 @@ function ProfitLossChart({ cur }) {
           <YAxis stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
           <Tooltip content={<ChartTooltip cur={cur} />} cursor={{ fill: "#f1f5f9" }} />
           <ReferenceLine y={0} stroke="#cbd5e1" />
-          <Bar dataKey="net" name="Net profit" radius={[4, 4, 4, 4]} isAnimationActive={false}>
+          <Bar dataKey="net" name="Net profit" radius={[4, 4, 4, 4]}>
             {data.series.map((d, i) => <Cell key={i} fill={d.net >= 0 ? "#059669" : "#dc2626"} />)}
           </Bar>
         </BarChart>
@@ -450,7 +449,7 @@ function SalesChart({ cur }) {
           <XAxis dataKey="label" stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
           <YAxis stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
           <Tooltip content={<ChartTooltip cur={cur} />} />
-          <Line type="monotone" dataKey="income" name="Sales" stroke="#059669" strokeWidth={big ? 3 : 2.5} dot={{ r: big ? 5 : 3 }} isAnimationActive={false} />
+          <Line type="monotone" dataKey="income" name="Sales" stroke="#059669" strokeWidth={big ? 3 : 2.5} dot={{ r: big ? 5 : 3 }} />
         </LineChart>
       </ResponsiveContainer>
     </div>
