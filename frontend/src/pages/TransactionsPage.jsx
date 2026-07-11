@@ -1,17 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CURRENCIES, fmt, fmtDate, downloadBlob } from "@/lib/utils_app";
 import { Plus, Download, DotsThreeVertical, PencilSimple, Trash } from "@phosphor-icons/react";
 import { toast } from "sonner";
+
+const NEW_CATEGORY = "__new_category__";
 
 const CATS_INCOME = ["Sales", "Services", "Consulting", "Interest", "Refunds", "Other Income"];
 const CATS_EXPENSE = ["Rent", "Payroll", "Utilities", "Software", "Marketing", "Travel", "Meals", "Supplies", "Professional Fees", "Taxes", "Other Expense"];
@@ -24,6 +26,7 @@ export default function TransactionsPage() {
   const emptyForm = { type: "income", amount: "", category: CATS_INCOME[0], description: "", date: new Date().toISOString().slice(0, 10), currency: user?.currency || "USD", tax_amount: "" };
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
+  const [addingCategory, setAddingCategory] = useState(false);
 
   const load = async () => {
     const { data } = await api.get("/transactions");
@@ -32,10 +35,23 @@ export default function TransactionsPage() {
   };
   useEffect(() => { load(); }, []);
 
-  const openNew = () => { setEditing(null); setForm(emptyForm); setOpen(true); };
+  // Categories a business has actually used (beyond the defaults) resurface as
+  // options too, so a custom category typed once stays available afterward.
+  const knownIncomeCats = useMemo(
+    () => Array.from(new Set([...CATS_INCOME, ...items.filter((i) => i.type === "income").map((i) => i.category)])),
+    [items]
+  );
+  const knownExpenseCats = useMemo(
+    () => Array.from(new Set([...CATS_EXPENSE, ...items.filter((i) => i.type === "expense").map((i) => i.category)])),
+    [items]
+  );
+
+  const openNew = () => { setEditing(null); setForm(emptyForm); setAddingCategory(false); setOpen(true); };
   const openEdit = (t) => {
     setEditing(t);
     setForm({ ...t, amount: String(t.amount), tax_amount: String(t.tax_amount || 0) });
+    const known = t.type === "income" ? knownIncomeCats : knownExpenseCats;
+    setAddingCategory(!known.includes(t.category));
     setOpen(true);
   };
 
@@ -65,7 +81,7 @@ export default function TransactionsPage() {
     downloadBlob(r.data, `transactions.${format}`);
   };
 
-  const cats = form.type === "income" ? CATS_INCOME : CATS_EXPENSE;
+  const cats = form.type === "income" ? knownIncomeCats : knownExpenseCats;
 
   return (
     <div className="p-8 space-y-6" data-testid="transactions-page">
@@ -98,7 +114,7 @@ export default function TransactionsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>Type</Label>
-                    <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v, category: v === "income" ? CATS_INCOME[0] : CATS_EXPENSE[0] })}>
+                    <Select value={form.type} onValueChange={(v) => { setAddingCategory(false); setForm({ ...form, type: v, category: v === "income" ? CATS_INCOME[0] : CATS_EXPENSE[0] }); }}>
                       <SelectTrigger data-testid="tx-type-select"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="income">Income</SelectItem>
@@ -128,12 +144,38 @@ export default function TransactionsPage() {
                 </div>
                 <div>
                   <Label>Category</Label>
-                  <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-                    <SelectTrigger data-testid="tx-category-select"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {cats.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  {addingCategory ? (
+                    <div className="flex gap-2">
+                      <Input
+                        autoFocus
+                        value={form.category}
+                        onChange={(e) => setForm({ ...form, category: e.target.value })}
+                        placeholder="New category name"
+                        required
+                        data-testid="tx-category-input"
+                      />
+                      <Button type="button" variant="outline" onClick={() => { setAddingCategory(false); setForm({ ...form, category: cats[0] }); }} data-testid="tx-category-cancel">
+                        Choose existing
+                      </Button>
+                    </div>
+                  ) : (
+                    <Select
+                      value={form.category}
+                      onValueChange={(v) => {
+                        if (v === NEW_CATEGORY) { setAddingCategory(true); setForm({ ...form, category: "" }); }
+                        else setForm({ ...form, category: v });
+                      }}
+                    >
+                      <SelectTrigger data-testid="tx-category-select"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {cats.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        <SelectSeparator />
+                        <SelectItem value={NEW_CATEGORY} className="font-medium" data-testid="tx-category-new">
+                          <span className="flex items-center gap-1.5"><Plus size={13} /> Add new category</span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
                 <div>
                   <Label>Tax amount</Label>
