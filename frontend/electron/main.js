@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, ipcMain, dialog } = require("electron");
 const path = require("path");
 const http = require("http");
 const fs = require("fs");
@@ -49,6 +49,8 @@ function startStaticServer(buildDir) {
   });
 }
 
+let mainWindow = null;
+
 async function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -63,6 +65,8 @@ async function createWindow() {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+  mainWindow = win;
+  win.on("closed", () => { if (mainWindow === win) mainWindow = null; });
 
   if (isDev) {
     win.loadURL("http://localhost:3000");
@@ -90,22 +94,19 @@ ipcMain.handle("google-sign-in", async () => {
   });
 });
 
-// Writes an exported file straight to the OS Downloads folder (no save
-// dialog, matching the previous browser-download behavior) and returns the
-// path actually used, de-duplicating like a browser would if the name
-// already exists there.
+// Lets the user rename the export and pick where it's saved, via the native
+// Save dialog (defaulting to the OS Downloads folder with the suggested
+// name). Returns the chosen path, or null if the dialog was cancelled.
 ipcMain.handle("save-file", async (event, filename, data) => {
   const downloadsDir = app.getPath("downloads");
-  const ext = path.extname(filename);
-  const base = path.basename(filename, ext);
-  let destPath = path.join(downloadsDir, filename);
-  let i = 1;
-  while (fs.existsSync(destPath)) {
-    destPath = path.join(downloadsDir, `${base} (${i})${ext}`);
-    i++;
-  }
-  await fs.promises.writeFile(destPath, Buffer.from(data));
-  return destPath;
+  const ext = path.extname(filename).replace(/^\./, "");
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: path.join(downloadsDir, filename),
+    filters: ext ? [{ name: `${ext.toUpperCase()} file`, extensions: [ext] }] : undefined,
+  });
+  if (result.canceled || !result.filePath) return null;
+  await fs.promises.writeFile(result.filePath, Buffer.from(data));
+  return result.filePath;
 });
 
 ipcMain.handle("open-file", async (event, filePath) => {

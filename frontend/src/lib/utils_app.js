@@ -60,8 +60,10 @@ export function savePersisted(key, value) {
 }
 
 // Saves a blob to disk. In the packaged Electron app this hands the bytes to
-// the main process (via the preload bridge) and returns the real path it was
-// written to, so it can be reopened later. In a plain browser (e.g. running
+// the main process (via the preload bridge), which opens a native Save
+// dialog (defaulting to the Downloads folder with the suggested name) so the
+// user can rename the file and/or choose where it goes; returns the chosen
+// path, or null if they cancelled. In a plain browser (e.g. running
 // `npm start` for dev) there's no filesystem access, so it falls back to the
 // standard anchor-click download and returns the blob: URL instead.
 async function saveBlobToDisk(blob, filename) {
@@ -84,15 +86,27 @@ function openSavedFile(saved) {
   else window.open(saved, "_blank");
 }
 
+function baseName(savedPath) {
+  const parts = String(savedPath).split(/[\\/]/);
+  return parts[parts.length - 1];
+}
+
 // Wraps any file export/download in a toast: shown as "Downloading..." for
 // the whole fetch+save, then updated in place to "Downloaded" with an Open
-// action once the file has actually landed on disk.
+// action once the file has actually landed on disk. If the user cancels the
+// save dialog, the loading toast is just dismissed rather than treated as a
+// failure.
 export async function exportAndDownload(fetchBlob, filename) {
   const toastId = toast.loading(`Downloading ${filename}...`);
   try {
     const blob = await fetchBlob();
     const saved = await saveBlobToDisk(blob, filename);
-    toast.success(`Downloaded ${filename}`, {
+    if (saved == null) {
+      toast.dismiss(toastId);
+      return;
+    }
+    const savedName = saved.startsWith("blob:") ? filename : baseName(saved);
+    toast.success(`Downloaded ${savedName}`, {
       id: toastId,
       action: { label: "Open", onClick: () => openSavedFile(saved) },
     });
