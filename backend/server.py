@@ -10,8 +10,10 @@ import csv
 import uuid
 import string
 import base64
+import calendar
 import logging
 import secrets
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
 
@@ -1063,6 +1065,162 @@ async def dashboard_report(user=Depends(get_current_user)):
         "categories": {
             "income": [{"name": k, "value": round(v, 2)} for k, v in cats_income.items()],
             "expense": [{"name": k, "value": round(v, 2)} for k, v in cats_expense.items()],
+        },
+        "transactions_count": len(txs),
+    }
+
+def _weeks_in_month(year: int, month: int) -> int:
+    return -(-calendar.monthrange(year, month)[1] // 7)  # ceil(days_in_month / 7)
+
+@api_router.get("/reports/series")
+async def dashboard_series(
+    granularity: Literal["day", "week", "month", "year"] = Query("month"),
+    date: Optional[str] = Query(None, description="Exact day, for granularity=day"),
+    year: Optional[int] = Query(None, description="For week/month/year"),
+    month: Optional[int] = Query(None, ge=1, le=12, description="For week/month"),
+    week: Optional[int] = Query(None, ge=1, le=6, description="Which week of the month, for granularity=week"),
+    user=Depends(get_current_user),
+):
+    """Bucketed cash flow / invoices / category data for one dashboard chart,
+    for one exact period at the given granularity (not a range):
+    day -> that single day, week -> that week-of-month (daily buckets),
+    month -> that month (weekly buckets), year -> that year (monthly buckets)."""
+    today = now_utc()
+
+    if granularity == "day":
+        try:
+            start = datetime.fromisoformat(date) if date else today
+        except Exception:
+            start = today
+        start = start.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+        end = start
+        buckets = [start.date().isoformat()]
+
+        def bucket_key(d: datetime) -> str:
+            return d.date().isoformat()
+
+        label = f"{calendar.month_abbr[start.month]} {start.day}, {start.year}"
+    elif granularity == "week":
+        y = year or today.year
+        m = month or today.month
+        days_in_month = calendar.monthrange(y, m)[1]
+        w = max(1, min(week or 1, _weeks_in_month(y, m)))
+        start_day = (w - 1) * 7 + 1
+        end_day = min(w * 7, days_in_month)
+        start = datetime(y, m, start_day)
+        end = datetime(y, m, end_day)
+        buckets = [(start + timedelta(days=i)).date().isoformat() for i in range((end - start).days + 1)]
+
+        def bucket_key(d: datetime) -> str:
+            return d.date().isoformat()
+
+        label = f"Week {w} of {calendar.month_name[m]} {y}"
+    elif granularity == "month":
+        y = year or today.year
+        m = month or today.month
+        start = datetime(y, m, 1)
+        days_in_month = calendar.monthrange(y, m)[1]
+        end = datetime(y, m, days_in_month)
+        num_weeks = _weeks_in_month(y, m)
+        buckets = [f"{y}-{m:02d}-W{w}" for w in range(1, num_weeks + 1)]
+
+        def bucket_key(d: datetime) -> str:
+            return f"{d.year}-{d.month:02d}-W{(d.day - 1) // 7 + 1}"
+
+        label = f"{calendar.month_name[m]} {y}"
+    else:  # year
+        y = year or today.year
+        start = datetime(y, 1, 1)
+        end = datetime(y, 12, 31)
+        buckets = [f"{y}-{mm:02d}" for mm in range(1, 13)]
+
+        def bucket_key(d: datetime) -> str:
+            return f"{d.year}-{d.month:02d}"
+
+        label = str(y)
+
+    start_s, end_s = start.date().isoformat(), end.date().isoformat()
+
+    def bucket_label(b: str) -> str:
+        if granularity == "day":
+            return label
+        if granularity == "week":
+            d = datetime.fromisoformat(b)
+            return calendar.day_abbr[d.weekday()]
+        if granularity == "month":
+            return f"Week {b.rsplit('W', 1)[1]}"
+        mm = int(b.split("-")[1])
+        return calendar.month_abbr[mm]
+
+    series = {b: {"income": 0.0, "expense": 0.0, "invoices": {"draft": 0.0, "sent": 0.0, "paid": 0.0, "overdue": 0.0}} for b in buckets}
+
+    txs = await db.transactions.find(
+        {"business_id": user["business_id"], "date": {"$gte": start_s, "$lte": end_s}}, {"_id": 0}
+    ).to_list(20000)
+    cats_income, cats_expense = defaultdict(float), defaultdict(float)
+    total_income = total_expense = tax = 0.0
+    for t in txs:
+        try:
+            d = datetime.fromisoformat(t["date"])
+        except Exception:
+            continue
+        key = bucket_key(d)
+        if key not in series:
+            continue
+        amt = t["amount"]
+        if t["type"] == "income":
+            series[key]["income"] += amt
+            total_income += amt
+            cats_income[t["category"]] += amt
+        else:
+            series[key]["expense"] += amt
+            total_expense += amt
+            cats_expense[t["category"]] += amt
+        tax += t.get("tax_amount", 0) or 0
+
+    invoices = await db.invoices.find(
+        {"business_id": user["business_id"], "issue_date": {"$gte": start_s, "$lte": end_s}}, {"_id": 0}
+    ).to_list(5000)
+    outstanding = paid_total = 0.0
+    for i in invoices:
+        try:
+            d = datetime.fromisoformat(i["issue_date"])
+        except Exception:
+            continue
+        key = bucket_key(d)
+        status = i.get("status", "draft")
+        total = i.get("total", 0) or 0
+        if key in series and status in series[key]["invoices"]:
+            series[key]["invoices"][status] += total
+        if status == "paid":
+            paid_total += total
+        else:
+            outstanding += total
+
+    return {
+        "window": {"start": start_s, "end": end_s, "granularity": granularity, "label": label},
+        "series": [
+            {
+                "period": b,
+                "label": bucket_label(b),
+                "income": round(series[b]["income"], 2),
+                "expense": round(series[b]["expense"], 2),
+                "net": round(series[b]["income"] - series[b]["expense"], 2),
+                "invoices": {k: round(v, 2) for k, v in series[b]["invoices"].items()},
+            }
+            for b in buckets
+        ],
+        "categories": {
+            "income": [{"name": k, "value": round(v, 2)} for k, v in cats_income.items()],
+            "expense": [{"name": k, "value": round(v, 2)} for k, v in cats_expense.items()],
+        },
+        "totals": {
+            "income": round(total_income, 2),
+            "expenses": round(total_expense, 2),
+            "net": round(total_income - total_expense, 2),
+            "tax_collected": round(tax, 2),
+            "invoices_outstanding": round(outstanding, 2),
+            "invoices_paid": round(paid_total, 2),
         },
         "transactions_count": len(txs),
     }
