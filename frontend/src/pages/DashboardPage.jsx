@@ -206,9 +206,10 @@ export default function DashboardPage() {
                     cy="45%"
                     outerRadius={80}
                     innerRadius={45}
-                    label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                    label={({ percent }) => (percent * 100 >= 6 ? `${(percent * 100).toFixed(0)}%` : "")}
                     labelLine={false}
                     fontSize={11}
+                    isAnimationActive={false}
                   >
                     {data.categories.expense.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="#fff" strokeWidth={1.5} />)}
                   </Pie>
