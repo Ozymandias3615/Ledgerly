@@ -1,3 +1,5 @@
+import { toast } from "sonner";
+
 export function formatApiError(err) {
   const d = err?.response?.data?.detail;
   if (d == null) return err?.message || "Something went wrong.";
@@ -36,7 +38,37 @@ export function fmtDate(iso) {
   return `${m}-${d}-${y}`;
 }
 
-export function downloadBlob(blob, filename) {
+// Reads a JSON value previously saved with savePersisted, falling back to
+// `fallback` if it's missing, unparsable, or storage is unavailable (e.g.
+// private browsing) so callers never have to guard this themselves.
+export function loadPersisted(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw == null) return fallback;
+    return JSON.parse(raw);
+  } catch (e) {
+    return fallback;
+  }
+}
+
+export function savePersisted(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    // ignore (e.g. storage disabled or full)
+  }
+}
+
+// Saves a blob to disk. In the packaged Electron app this hands the bytes to
+// the main process (via the preload bridge) and returns the real path it was
+// written to, so it can be reopened later. In a plain browser (e.g. running
+// `npm start` for dev) there's no filesystem access, so it falls back to the
+// standard anchor-click download and returns the blob: URL instead.
+async function saveBlobToDisk(blob, filename) {
+  if (window.electronAPI?.saveFile) {
+    const buf = await blob.arrayBuffer();
+    return window.electronAPI.saveFile(filename, buf);
+  }
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -44,5 +76,27 @@ export function downloadBlob(blob, filename) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  window.URL.revokeObjectURL(url);
+  return url;
+}
+
+function openSavedFile(saved) {
+  if (window.electronAPI?.openFile) window.electronAPI.openFile(saved);
+  else window.open(saved, "_blank");
+}
+
+// Wraps any file export/download in a toast: shown as "Downloading..." for
+// the whole fetch+save, then updated in place to "Downloaded" with an Open
+// action once the file has actually landed on disk.
+export async function exportAndDownload(fetchBlob, filename) {
+  const toastId = toast.loading(`Downloading ${filename}...`);
+  try {
+    const blob = await fetchBlob();
+    const saved = await saveBlobToDisk(blob, filename);
+    toast.success(`Downloaded ${filename}`, {
+      id: toastId,
+      action: { label: "Open", onClick: () => openSavedFile(saved) },
+    });
+  } catch (e) {
+    toast.error(`Failed to download ${filename}`, { id: toastId });
+  }
 }

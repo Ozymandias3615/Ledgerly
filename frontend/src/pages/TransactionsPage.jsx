@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, Sele
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CURRENCIES, fmt, fmtDate, downloadBlob } from "@/lib/utils_app";
+import { CURRENCIES, fmt, fmtDate, exportAndDownload } from "@/lib/utils_app";
 import { Plus, Download, DotsThreeVertical, PencilSimple, Trash } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -76,10 +76,10 @@ export default function TransactionsPage() {
     load();
   };
 
-  const exportFile = async (format) => {
-    const r = await api.get(`/export/transactions?format=${format}`, { responseType: "blob" });
-    downloadBlob(r.data, `transactions.${format}`);
-  };
+  const exportFile = (format) => exportAndDownload(
+    async () => (await api.get(`/export/transactions?format=${format}`, { responseType: "blob" })).data,
+    `transactions.${format}`,
+  );
 
   const cats = form.type === "income" ? knownIncomeCats : knownExpenseCats;
 

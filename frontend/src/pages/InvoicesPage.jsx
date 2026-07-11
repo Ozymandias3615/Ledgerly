@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CURRENCIES, fmt, fmtDate, downloadBlob } from "@/lib/utils_app";
+import { CURRENCIES, fmt, fmtDate, exportAndDownload } from "@/lib/utils_app";
 import { Plus, Download, DotsThreeVertical, PencilSimple, Trash, FilePdf, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -73,15 +73,15 @@ export default function InvoicesPage() {
     load();
   };
 
-  const downloadPdf = async (inv) => {
-    const r = await api.get(`/invoices/${inv.id}/pdf`, { responseType: "blob" });
-    downloadBlob(r.data, `${inv.invoice_number}.pdf`);
-  };
+  const downloadPdf = (inv) => exportAndDownload(
+    async () => (await api.get(`/invoices/${inv.id}/pdf`, { responseType: "blob" })).data,
+    `${inv.invoice_number}.pdf`,
+  );
 
-  const exportFile = async (format) => {
-    const r = await api.get(`/export/invoices?format=${format}`, { responseType: "blob" });
-    downloadBlob(r.data, `invoices.${format}`);
-  };
+  const exportFile = (format) => exportAndDownload(
+    async () => (await api.get(`/export/invoices?format=${format}`, { responseType: "blob" })).data,
+    `invoices.${format}`,
+  );
 
   const statusColor = (s) => ({
     draft: "bg-slate-100 text-slate-700",

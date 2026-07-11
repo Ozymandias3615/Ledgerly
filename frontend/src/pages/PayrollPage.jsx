@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CURRENCIES, fmt, fmtDate, downloadBlob } from "@/lib/utils_app";
+import { CURRENCIES, fmt, fmtDate, exportAndDownload } from "@/lib/utils_app";
 import { Plus, Download, Trash, Play } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -53,10 +53,10 @@ export default function PayrollPage() {
     }
   };
 
-  const exportPayroll = async (format) => {
-    const r = await api.get(`/export/payroll?format=${format}`, { responseType: "blob" });
-    downloadBlob(r.data, `payroll.${format}`);
-  };
+  const exportPayroll = (format) => exportAndDownload(
+    async () => (await api.get(`/export/payroll?format=${format}`, { responseType: "blob" })).data,
+    `payroll.${format}`,
+  );
 
   if (user?.role === "staff") {
     return (

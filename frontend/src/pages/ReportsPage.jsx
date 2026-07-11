@@ -7,20 +7,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { fmt, fmtDate, downloadBlob } from "@/lib/utils_app";
+import { fmt, fmtDate, exportAndDownload, loadPersisted, savePersisted } from "@/lib/utils_app";
 import { Play, Download } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 const firstDayOfYear = () => `${new Date().getFullYear()}-01-01`;
 const today = () => new Date().toISOString().slice(0, 10);
+const REPORTS_RANGE_KEY = "ledgerly:reports:range";
 
 export default function ReportsPage() {
   const { user } = useAuth();
   const cur = user?.currency || "USD";
-  const [range, setRange] = useState({ start: firstDayOfYear(), end: today() });
+  const [range, setRange] = useState(() => loadPersisted(REPORTS_RANGE_KEY, { start: firstDayOfYear(), end: today() }));
   const [pnl, setPnl] = useState(null);
   const [tax, setTax] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Remembers the last-chosen date range so returning to Reports restores it
+  // instead of resetting to the year-to-date default.
+  React.useEffect(() => { savePersisted(REPORTS_RANGE_KEY, range); }, [range]);
 
   const run = async () => {
     setLoading(true);
@@ -36,14 +41,10 @@ export default function ReportsPage() {
 
   React.useEffect(() => { run(); /* eslint-disable-next-line */ }, []);
 
-  const exportReport = async (kind, format) => {
-    try {
-      const r = await api.get(`/export/${kind}`, { params: { format, ...range }, responseType: "blob" });
-      downloadBlob(r.data, `${kind}.${format}`);
-    } catch (e) {
-      toast.error("Export failed");
-    }
-  };
+  const exportReport = (kind, format) => exportAndDownload(
+    async () => (await api.get(`/export/${kind}`, { params: { format, ...range }, responseType: "blob" })).data,
+    `${kind}.${format}`,
+  );
 
   return (
     <div className="p-8 space-y-6" data-testid="reports-page">

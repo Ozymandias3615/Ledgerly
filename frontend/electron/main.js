@@ -90,6 +90,28 @@ ipcMain.handle("google-sign-in", async () => {
   });
 });
 
+// Writes an exported file straight to the OS Downloads folder (no save
+// dialog, matching the previous browser-download behavior) and returns the
+// path actually used, de-duplicating like a browser would if the name
+// already exists there.
+ipcMain.handle("save-file", async (event, filename, data) => {
+  const downloadsDir = app.getPath("downloads");
+  const ext = path.extname(filename);
+  const base = path.basename(filename, ext);
+  let destPath = path.join(downloadsDir, filename);
+  let i = 1;
+  while (fs.existsSync(destPath)) {
+    destPath = path.join(downloadsDir, `${base} (${i})${ext}`);
+    i++;
+  }
+  await fs.promises.writeFile(destPath, Buffer.from(data));
+  return destPath;
+});
+
+ipcMain.handle("open-file", async (event, filePath) => {
+  return shell.openPath(filePath);
+});
+
 app.whenReady().then(() => {
   createWindow();
 

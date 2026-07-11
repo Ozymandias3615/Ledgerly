@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { fmt, currencySymbol, CURRENCIES } from "@/lib/utils_app";
+import { fmt, currencySymbol, CURRENCIES, loadPersisted, savePersisted } from "@/lib/utils_app";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, Cell, Legend, ReferenceLine,
@@ -205,10 +205,22 @@ function MonthYearPicker({ year, month, onChange, testPrefix }) {
   );
 }
 
-function useSeries(initialGranularity) {
-  const [granularity, setGranularity] = useState(initialGranularity);
-  const [period, setPeriod] = useState(() => defaultPeriod(initialGranularity));
+// Remembers each chart's last granularity/period in localStorage (keyed per
+// chart) so returning to the dashboard restores the last view instead of
+// resetting to today's default.
+function useSeries(chartId, initialGranularity) {
+  const storageKey = `ledgerly:dashboard:${chartId}`;
+  const [granularity, setGranularity] = useState(() => loadPersisted(storageKey, {}).granularity || initialGranularity);
+  const [period, setPeriod] = useState(() => {
+    const saved = loadPersisted(storageKey, {});
+    return saved.period || defaultPeriod(saved.granularity || initialGranularity);
+  });
   const [data, setData] = useState(null);
+
+  useEffect(() => {
+    savePersisted(storageKey, { granularity, period });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey, granularity, JSON.stringify(period)]);
 
   useEffect(() => {
     api.get("/reports/series", { params: { granularity, ...period } }).then((r) => setData(r.data));
@@ -342,7 +354,7 @@ function ChartCard({ testId, eyebrow, title, granularity, setGranularity, period
 }
 
 function CashFlowChart({ cur }) {
-  const { granularity, setGranularity, period, setPeriod, data } = useSeries("month");
+  const { granularity, setGranularity, period, setPeriod, data } = useSeries("cashflow", "month");
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-cashflow" />;
   const renderBody = (big) => (
     <div style={{ height: big ? BIG_CHART_HEIGHT : 176 }}>
@@ -370,7 +382,7 @@ function CashFlowChart({ cur }) {
 }
 
 function ExpensesPieChart({ cur }) {
-  const { granularity, setGranularity, period, setPeriod, data } = useSeries("month");
+  const { granularity, setGranularity, period, setPeriod, data } = useSeries("expenses-cat", "month");
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-expenses-cat" />;
   const expenseTotal = data.categories.expense.reduce((s, c) => s + c.value, 0);
   const renderBody = (big) => (
@@ -411,7 +423,7 @@ function ExpensesPieChart({ cur }) {
 }
 
 function ProfitLossChart({ cur }) {
-  const { granularity, setGranularity, period, setPeriod, data } = useSeries("month");
+  const { granularity, setGranularity, period, setPeriod, data } = useSeries("pnl", "month");
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-net" />;
   const renderBody = (big) => (
     <div style={{ height: big ? BIG_CHART_HEIGHT : 176 }}>
@@ -439,7 +451,7 @@ function ProfitLossChart({ cur }) {
 }
 
 function SalesChart({ cur }) {
-  const { granularity, setGranularity, period, setPeriod, data } = useSeries("month");
+  const { granularity, setGranularity, period, setPeriod, data } = useSeries("sales", "month");
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-sales" />;
   const renderBody = (big) => (
     <div style={{ height: big ? BIG_CHART_HEIGHT : 176 }}>
@@ -487,7 +499,7 @@ function SegmentedBar({ segments, cur, big }) {
 }
 
 function InvoicesChart({ cur }) {
-  const { granularity, setGranularity, period, setPeriod, data } = useSeries("month");
+  const { granularity, setGranularity, period, setPeriod, data } = useSeries("invoices", "month");
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-invoices" />;
 
   const statusTotals = { draft: 0, sent: 0, paid: 0, overdue: 0 };
