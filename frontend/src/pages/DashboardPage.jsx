@@ -20,6 +20,12 @@ const COLORS = [
 const INVOICE_STATUS_COLORS = { draft: "#94a3b8", sent: "#2563eb", paid: "#059669", overdue: "#dc2626" };
 const INVOICE_STATUS_LABELS = { draft: "Draft", sent: "Sent", paid: "Paid", overdue: "Overdue" };
 
+// The expanded dialog caps at 88vh (see ChartCard); its header + filter row +
+// padding measures ~130px regardless of chart type, so sizing the chart to
+// the remaining space (with a floor for very short windows) keeps the whole
+// chart visible without the dialog needing to scroll.
+const BIG_CHART_HEIGHT = "max(320px, calc(88vh - 130px))";
+
 function todayParts() {
   const d = new Date();
   return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
@@ -62,6 +68,26 @@ function ChartTooltip({ active, payload, label, cur }) {
             <span className="font-semibold text-slate-900">{fmt(p.value, cur)}</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// Recharts' Pie tooltip payload doesn't include each slice's percent (only
+// the sector's own rendering geometry does), so it's computed here directly
+// from the same category totals the chart already has.
+function PieTooltip({ active, payload, cur, total }) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0];
+  const percent = total ? Math.round((p.value / total) * 100) : 0;
+  return (
+    <div className="bg-white border border-slate-200 rounded-md shadow-lg px-3 py-2">
+      <div className="flex items-center justify-between gap-6 text-xs">
+        <span className="flex items-center gap-1.5 text-slate-500">
+          <span className="h-2 w-2 rounded-full shrink-0" style={{ background: p.payload?.fill }} />
+          {p.name}
+        </span>
+        <span className="font-semibold text-slate-900">{fmt(p.value, cur)} <span className="text-slate-400 font-normal">({percent}%)</span></span>
       </div>
     </div>
   );
@@ -302,7 +328,7 @@ function ChartCard({ testId, eyebrow, title, granularity, setGranularity, period
         {renderBody(false)}
       </Card>
       <Dialog open={expanded} onOpenChange={setExpanded}>
-        <DialogContent className="max-w-2xl" data-testid={`${testPrefix}-dialog`}>
+        <DialogContent className="max-w-5xl max-h-[88vh] overflow-y-auto" data-testid={`${testPrefix}-dialog`}>
           <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
           <div className="flex items-center justify-between gap-3 flex-wrap -mt-2 mb-1">
             {windowLabel && <div className="text-sm text-slate-500">{windowLabel}</div>}
@@ -319,17 +345,17 @@ function CashFlowChart({ cur }) {
   const { granularity, setGranularity, period, setPeriod, data } = useSeries("month");
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-cashflow" />;
   const renderBody = (big) => (
-    <div style={{ height: big ? 380 : 176 }}>
+    <div style={{ height: big ? BIG_CHART_HEIGHT : 176 }}>
       <ResponsiveContainer>
-        <BarChart data={data.series} margin={{ left: 4, right: 8 }}>
+        <BarChart data={data.series} margin={big ? { left: 8, right: 16, top: 8 } : { left: 4, right: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-          <XAxis dataKey="label" stroke="#64748b" fontSize={big ? 12 : 10} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
-          <YAxis stroke="#64748b" fontSize={big ? 12 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 56 : 48} />
+          <XAxis dataKey="label" stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
+          <YAxis stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
           <Tooltip content={<ChartTooltip cur={cur} />} cursor={{ fill: "#f1f5f9" }} />
           <ReferenceLine y={0} stroke="#cbd5e1" />
           <Bar dataKey="income" name="Revenue" fill="#059669" radius={[3, 3, 0, 0]} isAnimationActive={false} />
           <Bar dataKey="expense" name="Expenses" fill="#dc2626" radius={[3, 3, 0, 0]} isAnimationActive={false} />
-          {big && <Legend wrapperStyle={{ fontSize: 12 }} />}
+          {big && <Legend wrapperStyle={{ fontSize: 13 }} />}
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -346,30 +372,31 @@ function CashFlowChart({ cur }) {
 function ExpensesPieChart({ cur }) {
   const { granularity, setGranularity, period, setPeriod, data } = useSeries("month");
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-expenses-cat" />;
+  const expenseTotal = data.categories.expense.reduce((s, c) => s + c.value, 0);
   const renderBody = (big) => (
     data.categories.expense.length === 0 ? (
       <div className="text-sm text-slate-500 py-10 text-center">No expense data for this period</div>
     ) : (
-      <div style={{ height: big ? 400 : 208 }}>
+      <div style={{ height: big ? BIG_CHART_HEIGHT : 208 }}>
         <ResponsiveContainer>
-          <PieChart margin={{ top: 14, right: 8, left: 8, bottom: 0 }}>
+          <PieChart margin={big ? { top: 20, right: 8, left: 8, bottom: 0 } : { top: 14, right: 8, left: 8, bottom: 0 }}>
             <Pie
               data={data.categories.expense}
               dataKey="value"
               nameKey="name"
               cx="50%"
-              cy={big ? "46%" : "42%"}
-              outerRadius={big ? 130 : 58}
-              innerRadius={big ? 72 : 32}
+              cy={big ? "44%" : "42%"}
+              outerRadius={big ? "68%" : 58}
+              innerRadius={big ? "37%" : 32}
               label={({ percent }) => (percent * 100 >= 6 ? `${(percent * 100).toFixed(0)}%` : "")}
               labelLine={false}
-              fontSize={big ? 12 : 10}
+              fontSize={big ? 14 : 10}
               isAnimationActive={false}
             >
               {data.categories.expense.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="#fff" strokeWidth={1.5} />)}
             </Pie>
-            <Tooltip content={<ChartTooltip cur={cur} />} />
-            <Legend iconType="circle" iconSize={big ? 9 : 7} wrapperStyle={{ fontSize: big ? 12 : 10, lineHeight: big ? "20px" : "16px" }} />
+            <Tooltip content={<PieTooltip cur={cur} total={expenseTotal} />} />
+            <Legend iconType="circle" iconSize={big ? 10 : 7} wrapperStyle={{ fontSize: big ? 13 : 10, lineHeight: big ? "22px" : "16px" }} />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -388,12 +415,12 @@ function ProfitLossChart({ cur }) {
   const { granularity, setGranularity, period, setPeriod, data } = useSeries("month");
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-net" />;
   const renderBody = (big) => (
-    <div style={{ height: big ? 380 : 176 }}>
+    <div style={{ height: big ? BIG_CHART_HEIGHT : 176 }}>
       <ResponsiveContainer>
-        <BarChart data={data.series} margin={{ left: 4, right: 8 }}>
+        <BarChart data={data.series} margin={big ? { left: 8, right: 16, top: 8 } : { left: 4, right: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-          <XAxis dataKey="label" stroke="#64748b" fontSize={big ? 12 : 10} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
-          <YAxis stroke="#64748b" fontSize={big ? 12 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 56 : 48} />
+          <XAxis dataKey="label" stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
+          <YAxis stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
           <Tooltip content={<ChartTooltip cur={cur} />} cursor={{ fill: "#f1f5f9" }} />
           <ReferenceLine y={0} stroke="#cbd5e1" />
           <Bar dataKey="net" name="Net profit" radius={[4, 4, 4, 4]} isAnimationActive={false}>
@@ -416,14 +443,14 @@ function SalesChart({ cur }) {
   const { granularity, setGranularity, period, setPeriod, data } = useSeries("month");
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-sales" />;
   const renderBody = (big) => (
-    <div style={{ height: big ? 380 : 176 }}>
+    <div style={{ height: big ? BIG_CHART_HEIGHT : 176 }}>
       <ResponsiveContainer>
-        <LineChart data={data.series} margin={{ left: 4, right: 8 }}>
+        <LineChart data={data.series} margin={big ? { left: 8, right: 16, top: 8 } : { left: 4, right: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-          <XAxis dataKey="label" stroke="#64748b" fontSize={big ? 12 : 10} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
-          <YAxis stroke="#64748b" fontSize={big ? 12 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 56 : 48} />
+          <XAxis dataKey="label" stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
+          <YAxis stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
           <Tooltip content={<ChartTooltip cur={cur} />} />
-          <Line type="monotone" dataKey="income" name="Sales" stroke="#059669" strokeWidth={2.5} dot={{ r: big ? 4 : 3 }} isAnimationActive={false} />
+          <Line type="monotone" dataKey="income" name="Sales" stroke="#059669" strokeWidth={big ? 3 : 2.5} dot={{ r: big ? 5 : 3 }} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -443,15 +470,15 @@ function SegmentedBar({ segments, cur, big }) {
   const total = segments.reduce((s, x) => s + x.value, 0);
   return (
     <div>
-      <div className="flex justify-between items-end mb-1.5">
+      <div className="flex justify-between items-end mb-2">
         {segments.map((s) => (
           <div key={s.label}>
-            <div className={`font-extrabold ${big ? "text-2xl" : "text-base"}`} style={{ fontFamily: "Manrope, sans-serif" }}>{fmt(s.value, cur)}</div>
-            <div className={`text-slate-500 ${big ? "text-sm" : "text-xs"}`}>{s.label}</div>
+            <div className={`font-extrabold ${big ? "text-4xl" : "text-base"}`} style={{ fontFamily: "Manrope, sans-serif" }}>{fmt(s.value, cur)}</div>
+            <div className={`text-slate-500 ${big ? "text-base" : "text-xs"}`}>{s.label}</div>
           </div>
         ))}
       </div>
-      <div className={`flex ${big ? "h-3.5" : "h-2.5"} rounded-full overflow-hidden bg-slate-100`}>
+      <div className={`flex ${big ? "h-5" : "h-2.5"} rounded-full overflow-hidden bg-slate-100`}>
         {segments.map((s) => (
           <div key={s.label} style={{ width: `${total ? (s.value / total) * 100 : 50}%`, background: s.color }} />
         ))}
@@ -472,7 +499,7 @@ function InvoicesChart({ cur }) {
   const overdue = statusTotals.overdue;
 
   const renderBody = (big) => (
-    <div className={big ? "space-y-8 py-2" : "space-y-5"}>
+    <div className={big ? "space-y-14 py-6" : "space-y-5"}>
       <SegmentedBar
         cur={cur}
         big={big}
