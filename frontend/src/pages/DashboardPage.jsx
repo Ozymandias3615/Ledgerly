@@ -10,7 +10,8 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, Cell, Legend, ReferenceLine,
 } from "recharts";
-import { TrendUp, TrendDown, ArrowsDownUp, FileText, ArrowsClockwise, ArrowsOut } from "@phosphor-icons/react";
+import { TrendUp, TrendDown, ArrowsDownUp, FileText, ArrowsClockwise, ArrowsOut, Warning } from "@phosphor-icons/react";
+import { useNavigate } from "react-router-dom";
 
 const COLORS = [
   "#0f172a", "#1d4ed8", "#059669", "#d97706", "#7c3aed", "#dc2626", "#0891b2", "#65a30d",
@@ -539,6 +540,38 @@ function InvoicesChart({ cur }) {
   );
 }
 
+// Self-contained: fetches its own inventory data so it can render nothing
+// when nothing is low, instead of coupling the whole dashboard's load state
+// to an unrelated module.
+function LowStockBanner() {
+  const navigate = useNavigate();
+  const [lowItems, setLowItems] = useState([]);
+
+  useEffect(() => {
+    api.get("/inventory").then((r) => {
+      const low = r.data.filter((i) => Number(i.reorder_point) > 0 && Number(i.quantity) <= Number(i.reorder_point));
+      setLowItems(low);
+    });
+  }, []);
+
+  if (lowItems.length === 0) return null;
+
+  return (
+    <Card
+      className="p-4 border-red-200 bg-red-50 shadow-none flex items-center gap-3 cursor-pointer hover:bg-red-100/70 transition-colors"
+      onClick={() => navigate("/inventory")}
+      data-testid="dashboard-low-stock-banner"
+    >
+      <Warning size={20} weight="fill" className="text-red-600 shrink-0" />
+      <div className="text-sm text-red-700 flex-1">
+        <span className="font-semibold">{lowItems.length} inventory item{lowItems.length > 1 ? "s" : ""} running low: </span>
+        {lowItems.map((i) => i.name).join(", ")}
+      </div>
+      <span className="text-xs font-semibold text-red-700 shrink-0">View inventory →</span>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
@@ -559,6 +592,8 @@ export default function DashboardPage() {
         <h1 className="text-4xl font-extrabold tracking-tight mt-1" style={{ fontFamily: "Manrope, sans-serif" }}>Welcome, {user?.name?.split(" ")[0]}</h1>
         <div className="text-sm text-slate-500 mt-1">Financial pulse for {user?.business_name} — all-time totals</div>
       </div>
+
+      <LowStockBanner />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPI label="Revenue" value={fmt(t.income, cur)} Icon={TrendUp} tone="success" testId="kpi-income" />

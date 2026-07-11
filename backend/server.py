@@ -236,6 +236,14 @@ class PayrollRunIn(BaseModel):
     period_end: str
     employee_ids: Optional[List[str]] = None
 
+class InventoryItemIn(BaseModel):
+    name: str
+    category: Optional[str] = ""
+    quantity: float
+    unit: Optional[str] = "units"
+    reorder_point: float = 0
+    unit_cost: Optional[float] = 0
+
 class InsightIn(BaseModel):
     question: Optional[str] = "Give me an overview of my business financial health."
 
@@ -630,6 +638,37 @@ async def update_transaction(tx_id: str, payload: TransactionIn, user=Depends(ge
 @api_router.delete("/transactions/{tx_id}")
 async def delete_transaction(tx_id: str, user=Depends(get_current_user)):
     res = await db.transactions.delete_one({"id": tx_id, "business_id": user["business_id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"success": True}
+
+
+# ---- Inventory ----
+@api_router.get("/inventory")
+async def list_inventory(user=Depends(get_current_user)):
+    return await db.inventory.find({"business_id": user["business_id"]}, {"_id": 0}).sort("name", 1).to_list(2000)
+
+@api_router.post("/inventory")
+async def create_inventory_item(payload: InventoryItemIn, user=Depends(get_current_user)):
+    item = payload.model_dump()
+    item["id"] = str(uuid.uuid4())
+    item["user_id"] = user["user_id"]
+    item["business_id"] = user["business_id"]
+    item["created_at"] = now_utc().isoformat()
+    await db.inventory.insert_one(item)
+    item.pop("_id", None)
+    return item
+
+@api_router.put("/inventory/{item_id}")
+async def update_inventory_item(item_id: str, payload: InventoryItemIn, user=Depends(get_current_user)):
+    res = await db.inventory.update_one({"id": item_id, "business_id": user["business_id"]}, {"$set": payload.model_dump()})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return await db.inventory.find_one({"id": item_id}, {"_id": 0})
+
+@api_router.delete("/inventory/{item_id}")
+async def delete_inventory_item(item_id: str, user=Depends(get_current_user)):
+    res = await db.inventory.delete_one({"id": item_id, "business_id": user["business_id"]})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     return {"success": True}

@@ -1,7 +1,7 @@
 import React from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { House, Receipt, FileText, Users, ChartLine, Sparkle, Gear, SignOut, Wallet, Question } from "@phosphor-icons/react";
+import { House, Receipt, FileText, Package, Users, ChartLine, Sparkle, Gear, SignOut, Wallet, Question } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import BusinessSwitcher from "@/components/BusinessSwitcher";
@@ -11,6 +11,7 @@ const nav = [
   { to: "/dashboard", label: "Dashboard", Icon: House, testId: "nav-dashboard" },
   { to: "/transactions", label: "Bookkeeping", Icon: Receipt, testId: "nav-transactions" },
   { to: "/invoices", label: "Invoices", Icon: FileText, testId: "nav-invoices" },
+  { to: "/inventory", label: "Inventory", Icon: Package, testId: "nav-inventory" },
   { to: "/payroll", label: "Payroll", Icon: Users, testId: "nav-payroll" },
   { to: "/reports", label: "Reports", Icon: ChartLine, testId: "nav-reports" },
   { to: "/insights", label: "AI Insights", Icon: Sparkle, testId: "nav-insights" },
