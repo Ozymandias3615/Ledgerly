@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -82,7 +83,7 @@ export default function RegisterPage() {
             </div>
             <div>
               <Label>Password</Label>
-              <Input required type="password" value={form.password} onChange={(e) => update("password", e.target.value)} data-testid="register-password-input" />
+              <PasswordInput required value={form.password} onChange={(e) => update("password", e.target.value)} data-testid="register-password-input" />
             </div>
             <div>
               <Label>Invite code (optional)</Label>

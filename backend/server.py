@@ -1796,25 +1796,6 @@ async def on_startup():
     await db.user_sessions.create_index("session_token")
     await db.ai_conversations.create_index([("user_id", 1), ("business_id", 1), ("updated_at", -1)])
 
-    # Seed admin
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@ledgerly.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@12345")
-    existing = await db.users.find_one({"email": admin_email})
-    if not existing:
-        await db.users.insert_one({
-            "user_id": f"user_{uuid.uuid4().hex[:12]}",
-            "email": admin_email,
-            "name": "Admin",
-            "business_name": "Ledgerly Demo Co.",
-            "currency": "USD",
-            "role": "admin",
-            "password_hash": hash_password(admin_password),
-            "auth_provider": "password",
-            "created_at": now_utc().isoformat(),
-        })
-    elif not verify_password(admin_password, existing.get("password_hash", "")):
-        await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
-
     # Migrate any user without a membership row: convert their old flat
     # business_id/role (if present, from the earlier single-business model) into
     # a membership, or create a fresh business if they have neither. Idempotent -

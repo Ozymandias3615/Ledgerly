@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CURRENCIES, formatApiError } from "@/lib/utils_app";
@@ -136,8 +137,7 @@ function AiKeySection({ user, refresh }) {
         {user?.has_ai_key && <span className="text-emerald-700 font-medium"> Your own API key is currently configured.</span>}
       </div>
       <form onSubmit={save} className="flex gap-2">
-        <Input
-          type="password"
+        <PasswordInput
           placeholder={user?.has_ai_key ? "Enter a new key to replace it" : "Your Gemini API key"}
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
