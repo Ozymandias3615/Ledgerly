@@ -230,6 +230,7 @@ class InvoiceIn(BaseModel):
     client_name: str
     client_email: Optional[str] = ""
     client_address: Optional[str] = ""
+    client_id: Optional[str] = None
     issue_date: str
     due_date: str
     currency: str = "USD"
@@ -237,6 +238,14 @@ class InvoiceIn(BaseModel):
     notes: Optional[str] = ""
     items: List[InvoiceItem]
     status: Literal["draft", "sent", "paid", "overdue"] = "draft"
+
+class ClientIn(BaseModel):
+    name: str
+    type: Literal["client", "vendor"] = "client"
+    email: Optional[str] = ""
+    phone: Optional[str] = ""
+    address: Optional[str] = ""
+    notes: Optional[str] = ""
 
 class EmployeeIn(BaseModel):
     name: str
@@ -703,6 +712,37 @@ async def update_inventory_item(item_id: str, payload: InventoryItemIn, user=Dep
 @api_router.delete("/inventory/{item_id}")
 async def delete_inventory_item(item_id: str, user=Depends(get_current_user)):
     res = await db.inventory.delete_one({"id": item_id, "business_id": user["business_id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"success": True}
+
+
+# ---- Clients & vendors ----
+@api_router.get("/clients")
+async def list_clients(user=Depends(get_current_user)):
+    return await db.clients.find({"business_id": user["business_id"]}, {"_id": 0}).sort("name", 1).to_list(5000)
+
+@api_router.post("/clients")
+async def create_client(payload: ClientIn, user=Depends(get_current_user)):
+    doc = payload.model_dump()
+    doc["id"] = str(uuid.uuid4())
+    doc["user_id"] = user["user_id"]
+    doc["business_id"] = user["business_id"]
+    doc["created_at"] = now_utc().isoformat()
+    await db.clients.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api_router.put("/clients/{client_id}")
+async def update_client(client_id: str, payload: ClientIn, user=Depends(get_current_user)):
+    res = await db.clients.update_one({"id": client_id, "business_id": user["business_id"]}, {"$set": payload.model_dump()})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return await db.clients.find_one({"id": client_id}, {"_id": 0})
+
+@api_router.delete("/clients/{client_id}")
+async def delete_client(client_id: str, user=Depends(get_current_user)):
+    res = await db.clients.delete_one({"id": client_id, "business_id": user["business_id"]})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     return {"success": True}

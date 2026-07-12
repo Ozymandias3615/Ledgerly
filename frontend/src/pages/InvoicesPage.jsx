@@ -19,10 +19,11 @@ const emptyItem = () => ({ description: "", quantity: 1, unit_price: 0 });
 export default function InvoicesPage() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
+  const [clients, setClients] = useState([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const emptyForm = {
-    client_name: "", client_email: "", client_address: "",
+    client_name: "", client_email: "", client_address: "", client_id: null,
     issue_date: new Date().toISOString().slice(0, 10),
     due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
     currency: user?.currency || "USD", tax_rate: 0, notes: "", status: "draft",
@@ -34,7 +35,20 @@ export default function InvoicesPage() {
     const { data } = await api.get("/invoices");
     setItems(data);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.get("/clients").then(({ data }) => setClients(data.filter((c) => c.type === "client")));
+  }, []);
+
+  const pickClient = (clientId) => {
+    if (clientId === "__manual__") {
+      setForm({ ...form, client_id: null });
+      return;
+    }
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return;
+    setForm({ ...form, client_id: c.id, client_name: c.name, client_email: c.email || "", client_address: c.address || "" });
+  };
 
   const openNew = () => { setEditing(null); setForm(emptyForm); setOpen(true); };
   const openEdit = (inv) => { setEditing(inv); setForm({ ...inv }); setOpen(true); };
@@ -112,6 +126,18 @@ export default function InvoicesPage() {
             <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader><DialogTitle>{editing ? `Edit ${editing.invoice_number}` : "New invoice"}</DialogTitle></DialogHeader>
               <form onSubmit={save} className="space-y-4">
+                {clients.length > 0 && (
+                  <div>
+                    <Label>Client directory</Label>
+                    <Select value={form.client_id || "__manual__"} onValueChange={pickClient}>
+                      <SelectTrigger data-testid="inv-client-picker"><SelectValue placeholder="Pick a saved client, or enter manually below" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__manual__">Enter manually</SelectItem>
+                        {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Client name</Label><Input required value={form.client_name} onChange={(e) => setForm({ ...form, client_name: e.target.value })} data-testid="inv-client-name-input" /></div>
                   <div><Label>Client email</Label><Input type="email" value={form.client_email} onChange={(e) => setForm({ ...form, client_email: e.target.value })} data-testid="inv-client-email-input" /></div>

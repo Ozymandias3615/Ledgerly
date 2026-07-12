@@ -10,6 +10,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import DashboardPage from "@/pages/DashboardPage";
 import TransactionsPage from "@/pages/TransactionsPage";
 import InvoicesPage from "@/pages/InvoicesPage";
+import ClientsPage from "@/pages/ClientsPage";
 import InventoryPage from "@/pages/InventoryPage";
 import PayrollPage from "@/pages/PayrollPage";
 import ReportsPage from "@/pages/ReportsPage";
@@ -36,6 +37,7 @@ function AppRouter() {
       <Route path="/dashboard" element={<Protected><DashboardPage /></Protected>} />
       <Route path="/transactions" element={<Protected><TransactionsPage /></Protected>} />
       <Route path="/invoices" element={<Protected><InvoicesPage /></Protected>} />
+      <Route path="/clients" element={<Protected><ClientsPage /></Protected>} />
       <Route path="/inventory" element={<Protected><InventoryPage /></Protected>} />
       <Route path="/payroll" element={<Protected><PayrollPage /></Protected>} />
       <Route path="/reports" element={<Protected><ReportsPage /></Protected>} />
