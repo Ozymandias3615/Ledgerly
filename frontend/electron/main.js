@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, dialog } = require("electron");
 const path = require("path");
 const http = require("http");
 const fs = require("fs");
@@ -50,6 +50,43 @@ function startStaticServer(buildDir) {
 }
 
 let mainWindow = null;
+let tray = null;
+let isQuitting = false;
+
+function createTray() {
+  const iconPath = path.join(
+    __dirname,
+    "..",
+    isDev ? "public" : "build",
+    process.platform === "win32" ? "favicon.ico" : "app-icon.png"
+  );
+  tray = new Tray(iconPath);
+  tray.setToolTip("Ledgerly");
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {
+      label: "Open Ledgerly",
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Quit",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]));
+  tray.on("click", () => {
+    if (!mainWindow) return;
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
 
 async function createWindow() {
   const win = new BrowserWindow({
@@ -67,6 +104,14 @@ async function createWindow() {
   });
   mainWindow = win;
   win.on("closed", () => { if (mainWindow === win) mainWindow = null; });
+  // Closing the window hides it instead of quitting, so Ledgerly keeps running
+  // in the background (tray icon) until "Quit" is chosen from the tray menu.
+  win.on("close", (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      win.hide();
+    }
+  });
 
   if (isDev) {
     win.loadURL("http://localhost:3000");
@@ -115,11 +160,15 @@ ipcMain.handle("open-file", async (event, filePath) => {
 
 app.whenReady().then(() => {
   createWindow();
+  createTray();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    else if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
   });
 });
+
+app.on("before-quit", () => { isQuitting = true; });
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
