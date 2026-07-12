@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmt } from "@/lib/utils_app";
-import { Plus, Minus, Package, Warning, DotsThreeVertical, PencilSimple, Trash } from "@phosphor-icons/react";
+import { fmt, exportAndDownload } from "@/lib/utils_app";
+import { Plus, Minus, Package, Warning, DotsThreeVertical, PencilSimple, Trash, Download } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 const emptyForm = { name: "", category: "", quantity: "", unit: "units", reorder_point: "0", unit_cost: "0" };
@@ -127,6 +127,11 @@ export default function InventoryPage() {
     }
   };
 
+  const exportFile = (format) => exportAndDownload(
+    async () => (await api.get(`/export/inventory?format=${format}`, { responseType: "blob" })).data,
+    `inventory.${format}`,
+  );
+
   const remove = async (item) => {
     if (!window.confirm(`Remove ${item.name} from inventory?`)) return;
     await api.delete(`/inventory/${item.id}`);
@@ -175,13 +180,24 @@ export default function InventoryPage() {
           <h1 className="text-4xl font-extrabold tracking-tight mt-1" style={{ fontFamily: "Manrope, sans-serif" }}>Inventory</h1>
           <div className="text-sm text-slate-500 mt-1">Track what you have on hand and know when to restock</div>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openNew} className="bg-slate-900 hover:bg-slate-800" data-testid="add-inventory-button">
-              <Plus size={16} className="mr-2" /> Add item
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" data-testid="export-inventory-button"><Download size={16} className="mr-2" /> Export</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => exportFile("csv")} data-testid="export-csv">Export CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportFile("xlsx")} data-testid="export-xlsx">Export XLSX</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportFile("pdf")} data-testid="export-pdf">Export PDF</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openNew} className="bg-slate-900 hover:bg-slate-800" data-testid="add-inventory-button">
+                <Plus size={16} className="mr-2" /> Add item
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>{editing ? "Edit" : "New"} inventory item</DialogTitle></DialogHeader>
             <form onSubmit={save} className="space-y-3">
               <div>
@@ -218,7 +234,8 @@ export default function InventoryPage() {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {lowStockItems.length > 0 && (

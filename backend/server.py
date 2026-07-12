@@ -108,6 +108,22 @@ async def _create_membership(user_id: str, business_id: str, role: str) -> dict:
     return membership
 
 
+async def _notify(business_id: str, type_: str, title: str, message: str = "", link: Optional[str] = None):
+    """Records a business-scoped notification (shown in the app's bell menu)
+    for a meaningful change or alert - not called for high-frequency actions
+    like individual transactions, to keep the feed useful rather than noisy."""
+    await db.notifications.insert_one({
+        "id": str(uuid.uuid4()),
+        "business_id": business_id,
+        "type": type_,
+        "title": title,
+        "message": message,
+        "link": link,
+        "read": False,
+        "created_at": now_utc().isoformat(),
+    })
+
+
 async def get_current_user(request: Request) -> dict:
     # Try JWT access_token cookie
     token = request.cookies.get("access_token")
@@ -580,6 +596,10 @@ async def redeem_invite(payload: InviteRedeemIn, user=Depends(get_current_user))
         raise HTTPException(status_code=400, detail="You're already a member of this business")
     await _create_membership(user["user_id"], invite["business_id"], invite["role"])
     await db.invites.update_one({"code": invite["code"]}, {"$set": {"redeemed_at": now_utc().isoformat(), "redeemed_by": user["user_id"]}})
+    await _notify(
+        invite["business_id"], "team_joined", "New team member joined",
+        f"{user['name']} joined as {invite['role']}", link="/settings",
+    )
     updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     return await _enrich_user(updated)
 
@@ -657,13 +677,27 @@ async def create_inventory_item(payload: InventoryItemIn, user=Depends(get_curre
     item["created_at"] = now_utc().isoformat()
     await db.inventory.insert_one(item)
     item.pop("_id", None)
+    if item["quantity"] <= item["reorder_point"]:
+        await _notify(
+            user["business_id"], "inventory_low", f"{item['name']} is running low",
+            f"{item['quantity']:g} {item.get('unit', 'units')} left", link="/inventory",
+        )
     return item
 
 @api_router.put("/inventory/{item_id}")
 async def update_inventory_item(item_id: str, payload: InventoryItemIn, user=Depends(get_current_user)):
-    res = await db.inventory.update_one({"id": item_id, "business_id": user["business_id"]}, {"$set": payload.model_dump()})
-    if res.matched_count == 0:
+    existing = await db.inventory.find_one({"id": item_id, "business_id": user["business_id"]}, {"_id": 0})
+    if not existing:
         raise HTTPException(status_code=404, detail="Not found")
+    upd = payload.model_dump()
+    await db.inventory.update_one({"id": item_id, "business_id": user["business_id"]}, {"$set": upd})
+    was_low = existing["quantity"] <= existing["reorder_point"]
+    now_low = upd["quantity"] <= upd["reorder_point"]
+    if now_low and not was_low:
+        await _notify(
+            user["business_id"], "inventory_low", f"{upd['name']} is running low",
+            f"{upd['quantity']:g} {upd.get('unit', 'units')} left", link="/inventory",
+        )
     return await db.inventory.find_one({"id": item_id}, {"_id": 0})
 
 @api_router.delete("/inventory/{item_id}")
@@ -703,6 +737,10 @@ async def create_invoice(payload: InvoiceIn, user=Depends(get_current_user)):
     _calc_invoice_totals(inv)
     await db.invoices.insert_one(inv)
     inv.pop("_id", None)
+    await _notify(
+        user["business_id"], "invoice_created", f"Invoice {inv['invoice_number']} created",
+        f"{inv['client_name']} — {_fmt(inv['total'], inv.get('currency', 'USD'))}", link="/invoices",
+    )
     return inv
 
 @api_router.get("/invoices/{inv_id}")
@@ -714,12 +752,19 @@ async def get_invoice(inv_id: str, user=Depends(get_current_user)):
 
 @api_router.put("/invoices/{inv_id}")
 async def update_invoice(inv_id: str, payload: InvoiceIn, user=Depends(get_current_user)):
+    existing = await db.invoices.find_one({"id": inv_id, "business_id": user["business_id"]}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Not found")
     upd = payload.model_dump()
     _calc_invoice_totals(upd)
-    res = await db.invoices.update_one({"id": inv_id, "business_id": user["business_id"]}, {"$set": upd})
-    if res.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Not found")
-    return await db.invoices.find_one({"id": inv_id}, {"_id": 0})
+    await db.invoices.update_one({"id": inv_id, "business_id": user["business_id"]}, {"$set": upd})
+    updated = await db.invoices.find_one({"id": inv_id}, {"_id": 0})
+    if updated.get("status") != existing.get("status"):
+        await _notify(
+            user["business_id"], "invoice_status", f"Invoice {updated.get('invoice_number', '')} marked {updated['status']}",
+            f"{updated['client_name']} — {_fmt(updated['total'], updated.get('currency', 'USD'))}", link="/invoices",
+        )
+    return updated
 
 @api_router.delete("/invoices/{inv_id}")
 async def delete_invoice(inv_id: str, user=Depends(get_current_user)):
@@ -750,6 +795,7 @@ EXPORT_MONEY_COLUMNS = {
     "transactions": [4, 5],
     "invoices": [5, 6, 7],
     "payroll": [4, 5, 6],
+    "inventory": [5, 6],
     "pnl": [2],
     "tax": [1],
 }
@@ -762,6 +808,7 @@ EXPORT_TITLES = {
     "transactions": "Transactions",
     "invoices": "Invoices",
     "payroll": "Payroll",
+    "inventory": "Inventory",
     "pnl": "Profit & Loss",
     "tax": "Tax Summary",
 }
@@ -952,6 +999,10 @@ async def create_employee(payload: EmployeeIn, user=Depends(require_role("owner"
     emp["created_at"] = now_utc().isoformat()
     await db.employees.insert_one(emp)
     emp.pop("_id", None)
+    await _notify(
+        user["business_id"], "employee_added", "New employee added",
+        f"{emp['name']} — {emp.get('position') or 'Employee'}", link="/payroll",
+    )
     return emp
 
 @api_router.put("/employees/{emp_id}")
@@ -963,9 +1014,14 @@ async def update_employee(emp_id: str, payload: EmployeeIn, user=Depends(require
 
 @api_router.delete("/employees/{emp_id}")
 async def delete_employee(emp_id: str, user=Depends(require_role("owner", "admin"))):
-    res = await db.employees.delete_one({"id": emp_id, "business_id": user["business_id"]})
-    if res.deleted_count == 0:
+    existing = await db.employees.find_one({"id": emp_id, "business_id": user["business_id"]}, {"_id": 0})
+    if not existing:
         raise HTTPException(status_code=404, detail="Not found")
+    await db.employees.delete_one({"id": emp_id, "business_id": user["business_id"]})
+    await _notify(
+        user["business_id"], "employee_removed", "Employee removed",
+        f"{existing['name']} removed from payroll", link="/payroll",
+    )
     return {"success": True}
 
 @api_router.get("/payroll")
@@ -1031,7 +1087,41 @@ async def run_payroll(payload: PayrollRunIn, user=Depends(require_role("owner", 
         "created_at": now_utc().isoformat(),
     })
     run.pop("_id", None)
+    await _notify(
+        user["business_id"], "payroll_run", f"Payroll run for {payload.period_start} to {payload.period_end}",
+        f"{len(emps)} employees — {_fmt(total_net, emps[0].get('currency', 'USD'))} net pay", link="/payroll",
+    )
     return run
+
+
+# ---- Notifications ----
+@api_router.get("/notifications")
+async def list_notifications(user=Depends(get_current_user)):
+    items = await db.notifications.find({"business_id": user["business_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    unread_count = await db.notifications.count_documents({"business_id": user["business_id"], "read": False})
+    return {"items": items, "unread_count": unread_count}
+
+@api_router.post("/notifications/read-all")
+async def mark_all_notifications_read(user=Depends(get_current_user)):
+    await db.notifications.update_many({"business_id": user["business_id"], "read": False}, {"$set": {"read": True}})
+    return {"success": True}
+
+@api_router.post("/notifications/{notif_id}/read")
+async def mark_notification_read(notif_id: str, user=Depends(get_current_user)):
+    await db.notifications.update_one({"id": notif_id, "business_id": user["business_id"]}, {"$set": {"read": True}})
+    return {"success": True}
+
+@api_router.delete("/notifications")
+async def clear_notifications(user=Depends(get_current_user)):
+    await db.notifications.delete_many({"business_id": user["business_id"]})
+    return {"success": True}
+
+@api_router.delete("/notifications/{notif_id}")
+async def delete_notification(notif_id: str, user=Depends(get_current_user)):
+    res = await db.notifications.delete_one({"id": notif_id, "business_id": user["business_id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"success": True}
 
 
 # ---- Exchange rates (informational only - not used in any totals/conversion) ----
@@ -1312,6 +1402,13 @@ def _payroll_rows(runs):
         for p in r.get("payslips", []):
             yield [_fmt_date(r.get("period_start")), _fmt_date(r.get("period_end")), p.get("employee_name"), p.get("position",""), p.get("gross"), p.get("tax"), p.get("net"), p.get("currency")]
 
+def _inventory_rows(items):
+    yield ["Name", "Category", "Quantity", "Unit", "Reorder Point", "Unit Cost", "Total Value"]
+    for i in items:
+        qty = i.get("quantity", 0) or 0
+        cost = i.get("unit_cost", 0) or 0
+        yield [i.get("name"), i.get("category", ""), qty, i.get("unit", "units"), i.get("reorder_point", 0), cost, round(qty * cost, 2)]
+
 def _pnl_rows(pnl):
     yield ["Section", "Category", "Amount"]
     for r in pnl["income"]:
@@ -1347,6 +1444,9 @@ async def export_data(
             raise HTTPException(status_code=403, detail="Not authorized for this action")
         data = await db.payroll_runs.find({"business_id": user["business_id"]}, {"_id": 0}).to_list(10000)
         rows_iter = list(_payroll_rows(data))
+    elif kind == "inventory":
+        data = await db.inventory.find({"business_id": user["business_id"]}, {"_id": 0}).sort("name", 1).to_list(10000)
+        rows_iter = list(_inventory_rows(data))
     elif kind == "pnl":
         if not start or not end:
             raise HTTPException(status_code=400, detail="start and end are required for this export")

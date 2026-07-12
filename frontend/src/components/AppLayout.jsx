@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import BusinessSwitcher from "@/components/BusinessSwitcher";
 import RefreshButton from "@/components/RefreshButton";
+import NotificationBell from "@/components/NotificationBell";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", Icon: House, testId: "nav-dashboard" },
@@ -93,7 +94,8 @@ export default function AppLayout({ children }) {
         </div>
       </aside>
       <main className="flex-1 min-w-0 overflow-auto flex flex-col">
-        <div className="shrink-0 h-14 border-b border-slate-200 flex items-center justify-end px-6 sticky top-0 bg-white/90 backdrop-blur z-10">
+        <div className="shrink-0 h-14 border-b border-slate-200 flex items-center justify-end gap-2 px-6 sticky top-0 bg-white/90 backdrop-blur z-10">
+          <NotificationBell />
           <RefreshButton />
         </div>
         <motion.div
