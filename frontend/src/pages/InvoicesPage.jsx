@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import api, { API } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/components/ui/card";
@@ -126,9 +127,9 @@ export default function InvoicesPage() {
             <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader><DialogTitle>{editing ? `Edit ${editing.invoice_number}` : "New invoice"}</DialogTitle></DialogHeader>
               <form onSubmit={save} className="space-y-4">
-                {clients.length > 0 && (
-                  <div>
-                    <Label>Client directory</Label>
+                <div>
+                  <Label>Client directory</Label>
+                  {clients.length > 0 ? (
                     <Select value={form.client_id || "__manual__"} onValueChange={pickClient}>
                       <SelectTrigger data-testid="inv-client-picker"><SelectValue placeholder="Pick a saved client, or enter manually below" /></SelectTrigger>
                       <SelectContent>
@@ -136,8 +137,12 @@ export default function InvoicesPage() {
                         {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                  </div>
-                )}
+                  ) : (
+                    <div className="text-xs text-slate-500 border border-dashed border-slate-200 rounded-md px-3 py-2">
+                      No saved clients yet. <Link to="/clients" className="text-slate-900 underline font-medium">Add one</Link> to reuse their details next time, or just enter this client manually below.
+                    </div>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Client name</Label><Input required value={form.client_name} onChange={(e) => setForm({ ...form, client_name: e.target.value })} data-testid="inv-client-name-input" /></div>
                   <div><Label>Client email</Label><Input type="email" value={form.client_email} onChange={(e) => setForm({ ...form, client_email: e.target.value })} data-testid="inv-client-email-input" /></div>

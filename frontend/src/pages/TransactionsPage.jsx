@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/components/ui/card";
@@ -21,19 +22,32 @@ const CATS_EXPENSE = ["Rent", "Payroll", "Utilities", "Software", "Marketing", "
 export default function TransactionsPage() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const emptyForm = { type: "income", amount: "", category: CATS_INCOME[0], description: "", date: new Date().toISOString().slice(0, 10), currency: user?.currency || "USD", tax_amount: "" };
+  const emptyForm = { type: "income", amount: "", category: CATS_INCOME[0], description: "", date: new Date().toISOString().slice(0, 10), currency: user?.currency || "USD", tax_amount: "", vendor_id: null };
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
   const [addingCategory, setAddingCategory] = useState(false);
+
+  const vendorName = (id) => vendors.find((v) => v.id === id)?.name || "";
 
   const load = async () => {
     const { data } = await api.get("/transactions");
     setItems(data);
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.get("/clients").then(({ data }) => setVendors(data.filter((c) => c.type === "vendor")));
+  }, []);
+
+  const pickVendor = (vendorId) => {
+    if (vendorId === "__none__") { setForm((prev) => ({ ...prev, vendor_id: null })); return; }
+    const v = vendors.find((x) => x.id === vendorId);
+    if (!v) return;
+    setForm((prev) => ({ ...prev, vendor_id: v.id, description: prev.description || v.name }));
+  };
 
   // Categories a business has actually used (beyond the defaults) resurface as
   // options too, so a custom category typed once stays available afterward.
@@ -114,7 +128,7 @@ export default function TransactionsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>Type</Label>
-                    <Select value={form.type} onValueChange={(v) => { setAddingCategory(false); setForm({ ...form, type: v, category: v === "income" ? CATS_INCOME[0] : CATS_EXPENSE[0] }); }}>
+                    <Select value={form.type} onValueChange={(v) => { setAddingCategory(false); setForm((prev) => ({ ...prev, type: v, category: v === "income" ? CATS_INCOME[0] : CATS_EXPENSE[0], vendor_id: v === "income" ? null : prev.vendor_id })); }}>
                       <SelectTrigger data-testid="tx-type-select"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="income">Income</SelectItem>
@@ -177,6 +191,24 @@ export default function TransactionsPage() {
                     </Select>
                   )}
                 </div>
+                {form.type === "expense" && (
+                  <div>
+                    <Label>Vendor</Label>
+                    {vendors.length > 0 ? (
+                      <Select value={form.vendor_id || "__none__"} onValueChange={pickVendor}>
+                        <SelectTrigger data-testid="tx-vendor-select"><SelectValue placeholder="Optional" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">None</SelectItem>
+                          {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="text-xs text-slate-500 border border-dashed border-slate-200 rounded-md px-3 py-2">
+                        No vendors saved yet. <Link to="/clients" className="text-slate-900 underline font-medium">Add one</Link> to tag expenses by vendor.
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div>
                   <Label>Tax amount</Label>
                   <Input type="number" step="0.01" value={form.tax_amount} onChange={(e) => setForm({ ...form, tax_amount: e.target.value })} data-testid="tx-tax-input" />
@@ -219,7 +251,10 @@ export default function TransactionsPage() {
                   <span className={`text-[10px] uppercase tracking-[0.2em] px-2 py-1 rounded ${t.type === "income" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{t.type}</span>
                 </TableCell>
                 <TableCell>{t.category}</TableCell>
-                <TableCell className="text-sm text-slate-600 max-w-xs truncate">{t.description}</TableCell>
+                <TableCell className="text-sm text-slate-600 max-w-xs truncate">
+                  {t.description}
+                  {t.vendor_id && <div className="text-xs text-slate-400">{vendorName(t.vendor_id)}</div>}
+                </TableCell>
                 <TableCell className="text-right text-sm text-slate-600">{fmt(t.tax_amount || 0, t.currency)}</TableCell>
                 <TableCell className={`text-right font-semibold ${t.type === "income" ? "text-emerald-700" : "text-red-700"}`}>
                   {t.type === "income" ? "+" : "-"}{fmt(t.amount, t.currency)}

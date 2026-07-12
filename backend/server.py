@@ -220,6 +220,8 @@ class TransactionIn(BaseModel):
     date: str  # ISO date
     currency: str = "USD"
     tax_amount: Optional[float] = 0
+    vendor_id: Optional[str] = None
+    invoice_id: Optional[str] = None
 
 class InvoiceItem(BaseModel):
     description: str
@@ -749,6 +751,44 @@ async def delete_client(client_id: str, user=Depends(get_current_user)):
 
 
 # ---- Invoices ----
+async def _reconcile_invoice_income(business_id: str, user_id: str, invoice: dict):
+    """Keeps the transactions ledger in sync with an invoice's paid status:
+    creates a linked income transaction the moment an invoice becomes paid,
+    removes it if the invoice is later un-marked as paid (the money isn't
+    actually there), and keeps the amount in sync if a still-paid invoice is
+    edited afterward."""
+    is_paid = invoice.get("status") == "paid"
+    existing_tx = await db.transactions.find_one({"invoice_id": invoice["id"], "business_id": business_id})
+
+    if is_paid and not existing_tx:
+        await db.transactions.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "business_id": business_id,
+            "type": "income",
+            "amount": invoice["total"],
+            "category": "Sales",
+            "description": f"Invoice {invoice.get('invoice_number', '')} — {invoice['client_name']}",
+            "date": now_utc().date().isoformat(),
+            "currency": invoice.get("currency", "USD"),
+            "tax_amount": invoice.get("tax", 0),
+            "vendor_id": None,
+            "invoice_id": invoice["id"],
+            "created_at": now_utc().isoformat(),
+        })
+    elif is_paid and existing_tx:
+        await db.transactions.update_one(
+            {"id": existing_tx["id"]},
+            {"$set": {
+                "amount": invoice["total"],
+                "tax_amount": invoice.get("tax", 0),
+                "currency": invoice.get("currency", "USD"),
+                "description": f"Invoice {invoice.get('invoice_number', '')} — {invoice['client_name']}",
+            }},
+        )
+    elif not is_paid and existing_tx:
+        await db.transactions.delete_one({"id": existing_tx["id"]})
+
 def _calc_invoice_totals(inv: dict):
     subtotal = sum(it["quantity"] * it["unit_price"] for it in inv["items"])
     tax = subtotal * (inv.get("tax_rate", 0) / 100)
@@ -777,6 +817,7 @@ async def create_invoice(payload: InvoiceIn, user=Depends(get_current_user)):
     _calc_invoice_totals(inv)
     await db.invoices.insert_one(inv)
     inv.pop("_id", None)
+    await _reconcile_invoice_income(user["business_id"], user["user_id"], inv)
     await _notify(
         user["business_id"], "invoice_created", f"Invoice {inv['invoice_number']} created",
         f"{inv['client_name']} — {_fmt(inv['total'], inv.get('currency', 'USD'))}", link="/invoices",
@@ -799,6 +840,7 @@ async def update_invoice(inv_id: str, payload: InvoiceIn, user=Depends(get_curre
     _calc_invoice_totals(upd)
     await db.invoices.update_one({"id": inv_id, "business_id": user["business_id"]}, {"$set": upd})
     updated = await db.invoices.find_one({"id": inv_id}, {"_id": 0})
+    await _reconcile_invoice_income(user["business_id"], user["user_id"], updated)
     if updated.get("status") != existing.get("status"):
         await _notify(
             user["business_id"], "invoice_status", f"Invoice {updated.get('invoice_number', '')} marked {updated['status']}",
@@ -811,6 +853,7 @@ async def delete_invoice(inv_id: str, user=Depends(get_current_user)):
     res = await db.invoices.delete_one({"id": inv_id, "business_id": user["business_id"]})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
+    await db.transactions.delete_many({"invoice_id": inv_id, "business_id": user["business_id"]})
     return {"success": True}
 
 CURRENCY_SYMBOLS = {"USD": "$", "EUR": "€", "GBP": "£", "JMD": "J$", "GHS": "GH₵", "CAD": "C$", "INR": "₹", "AUD": "A$", "JPY": "¥"}
@@ -832,7 +875,7 @@ def _fmt_date(val):
 # aggregate a single business rather than per-record currencies), and a nicer
 # title than a mechanical kind.replace("_", " ").title().
 EXPORT_MONEY_COLUMNS = {
-    "transactions": [4, 5],
+    "transactions": [5, 6],
     "invoices": [5, 6, 7],
     "payroll": [4, 5, 6],
     "inventory": [5, 6],
@@ -840,7 +883,7 @@ EXPORT_MONEY_COLUMNS = {
     "tax": [1],
 }
 EXPORT_CURRENCY_COLUMN = {
-    "transactions": 6,
+    "transactions": 7,
     "invoices": 8,
     "payroll": 7,
 }
@@ -1426,10 +1469,11 @@ async def tax_report(start: str = Query(...), end: str = Query(...), user=Depend
 
 
 # ---- Export ----
-def _txs_rows(txs):
-    yield ["Date", "Type", "Category", "Description", "Amount", "Tax Amount", "Currency"]
+def _txs_rows(txs, vendor_names=None):
+    vendor_names = vendor_names or {}
+    yield ["Date", "Type", "Category", "Description", "Vendor", "Amount", "Tax Amount", "Currency"]
     for t in txs:
-        yield [_fmt_date(t.get("date")), t.get("type"), t.get("category"), t.get("description",""), t.get("amount"), t.get("tax_amount",0), t.get("currency","USD")]
+        yield [_fmt_date(t.get("date")), t.get("type"), t.get("category"), t.get("description",""), vendor_names.get(t.get("vendor_id"), ""), t.get("amount"), t.get("tax_amount",0), t.get("currency","USD")]
 
 def _invoices_rows(invs):
     yield ["Invoice #", "Client", "Issue Date", "Due Date", "Status", "Subtotal", "Tax", "Total", "Currency"]
@@ -1475,7 +1519,9 @@ async def export_data(
 ):
     if kind == "transactions":
         data = await db.transactions.find({"business_id": user["business_id"]}, {"_id": 0}).to_list(10000)
-        rows_iter = list(_txs_rows(data))
+        vendors = await db.clients.find({"business_id": user["business_id"], "type": "vendor"}, {"_id": 0, "id": 1, "name": 1}).to_list(5000)
+        vendor_names = {v["id"]: v["name"] for v in vendors}
+        rows_iter = list(_txs_rows(data, vendor_names))
     elif kind == "invoices":
         data = await db.invoices.find({"business_id": user["business_id"]}, {"_id": 0}).to_list(10000)
         rows_iter = list(_invoices_rows(data))
