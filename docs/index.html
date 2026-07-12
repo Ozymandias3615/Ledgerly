@@ -101,6 +101,25 @@
   .icon-box { width: 40px; height: 40px; border-radius: 9px; border: 1px solid var(--line); display: grid; place-items: center; color: var(--black); background: #fff; transition: background .18s ease, color .18s ease, border-color .18s ease; }
   .card:hover .icon-box { background: var(--black); color: #fff; border-color: var(--black); }
   .icon-box svg { width: 19px; height: 19px; }
+  /* The card count doesn't divide evenly into the grid's column count, so the
+     trailing row would otherwise leave empty tracks showing bare grey space -
+     this wrapper spans that full row (keeping the grey fill) and centers the
+     last card - still its normal white box - within it. */
+  .grid .last-row {
+    grid-column: 1 / -1;
+    background: var(--gray-50);
+    display: flex;
+    justify-content: center;
+  }
+  .grid .last-row .card {
+    flex: 0 1 320px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+  }
 
   /* Steps */
   .steps { max-width: 700px; margin: 0 auto; position: relative; }
@@ -127,6 +146,7 @@
   .faq summary .plus::before { left: 0; top: 9px; width: 20px; height: 1.5px; }
   .faq summary .plus::after { left: 9px; top: 0; width: 1.5px; height: 20px; }
   .faq details[open] summary .plus::after { transform: rotate(90deg) scaleY(0); }
+  .faq details { overflow: hidden; }
   .faq details p { padding: 0 2px 20px; font-size: 14px; color: var(--gray-600); max-width: 620px; }
 
   /* Footer */
@@ -214,9 +234,11 @@
         <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8Z"/><path d="M19 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8Z"/></svg></div>
         <h3>AI Insights</h3><p>Chat with an AI financial analyst grounded in your live business data. Ask anything about your numbers.</p>
       </div>
-      <div class="card">
-        <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V6l6-3 6 3v15"/><path d="M16 21v-9l4 2v7"/><path d="M8 9h1M8 13h1M12 9h1M12 13h1"/></svg></div>
-        <h3>Multiple businesses</h3><p>Belong to several businesses with one account and switch between them like workspaces.</p>
+      <div class="last-row">
+        <div class="card">
+          <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V6l6-3 6 3v15"/><path d="M16 21v-9l4 2v7"/><path d="M8 9h1M8 13h1M12 9h1M12 13h1"/></svg></div>
+          <h3>Multiple businesses</h3><p>Belong to several businesses with one account and switch between them like workspaces.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -365,6 +387,61 @@
     els.forEach(function (el) { io.observe(el); });
   } else {
     els.forEach(function (el) { el.classList.add('in'); });
+  }
+
+  // Animates each FAQ <details> open/close (native toggling is instant, which
+  // reads as stiff) by driving the element's height with the Web Animations
+  // API, only flipping the `open` attribute once the collapse animation ends
+  // or right before the expand animation starts.
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduceMotion && 'Animation' in window) {
+    document.querySelectorAll('.faq details').forEach(function (el) {
+      var summary = el.querySelector('summary');
+      var answer = el.querySelector('p');
+      var animation = null;
+      var isClosing = false;
+      var isExpanding = false;
+
+      function onFinish(open) {
+        el.open = open;
+        animation = null;
+        isClosing = false;
+        isExpanding = false;
+        el.style.height = el.style.overflow = '';
+      }
+
+      function shrink() {
+        isClosing = true;
+        var startHeight = el.offsetHeight + 'px';
+        var endHeight = summary.offsetHeight + 'px';
+        if (animation) animation.cancel();
+        animation = el.animate({ height: [startHeight, endHeight] }, { duration: 220, easing: 'ease' });
+        animation.onfinish = function () { onFinish(false); };
+        animation.oncancel = function () { isClosing = false; };
+      }
+
+      function expand() {
+        isExpanding = true;
+        var startHeight = el.offsetHeight + 'px';
+        var endHeight = (summary.offsetHeight + answer.offsetHeight) + 'px';
+        if (animation) animation.cancel();
+        animation = el.animate({ height: [startHeight, endHeight] }, { duration: 220, easing: 'ease' });
+        animation.onfinish = function () { onFinish(true); };
+        animation.oncancel = function () { isExpanding = false; };
+      }
+
+      summary.addEventListener('click', function (e) {
+        e.preventDefault();
+        el.style.overflow = 'hidden';
+        if (isClosing || !el.open) {
+          el.style.height = el.offsetHeight + 'px';
+          el.open = true;
+          requestAnimationFrame(expand);
+        } else if (isExpanding || el.open) {
+          shrink();
+        }
+      });
+    });
   }
 </script>
 
