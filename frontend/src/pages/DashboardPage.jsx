@@ -492,7 +492,11 @@ function SegmentedBar({ segments, cur, big }) {
       </div>
       <div className={`flex ${big ? "h-5" : "h-2.5"} rounded-full overflow-hidden bg-slate-100`}>
         {segments.map((s) => (
-          <div key={s.label} style={{ width: `${total ? (s.value / total) * 100 : 50}%`, background: s.color }} />
+          <div
+            key={s.label}
+            className="transition-[width] duration-500 ease-out"
+            style={{ width: `${total ? (s.value / total) * 100 : 50}%`, background: s.color }}
+          />
         ))}
       </div>
     </div>
