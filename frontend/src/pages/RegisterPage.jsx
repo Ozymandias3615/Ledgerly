@@ -7,15 +7,14 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CURRENCIES, formatApiError } from "@/lib/utils_app";
+import { formatApiError } from "@/lib/utils_app";
 import { Wallet } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", business_name: "", email: "", password: "", currency: "USD" });
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -49,9 +48,9 @@ export default function RegisterPage() {
     try {
       const payload = { ...form };
       if (inviteCode.trim()) payload.invite_code = inviteCode.trim().toUpperCase();
-      await register(payload);
+      const user = await register(payload);
       toast.success("Account created");
-      navigate("/dashboard");
+      navigate(user.onboarding_complete ? "/dashboard" : "/onboarding");
     } catch (err) {
       setError(formatApiError(err));
     } finally {
@@ -102,25 +101,6 @@ export default function RegisterPage() {
               )}
               {inviteError && <div className="text-xs text-red-600 mt-1">{inviteError}</div>}
             </div>
-            {!invitePreview && (
-              <>
-                <div>
-                  <Label>Business name</Label>
-                  <Input value={form.business_name} onChange={(e) => update("business_name", e.target.value)} data-testid="register-business-input" />
-                </div>
-                <div>
-                  <Label>Primary currency</Label>
-                  <Select value={form.currency} onValueChange={(v) => update("currency", v)}>
-                    <SelectTrigger data-testid="register-currency-select"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map((c) => (
-                        <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
             {error && <div className="text-sm text-red-600" data-testid="register-error">{error}</div>}
             <Button type="submit" disabled={loading} className="w-full h-11 bg-slate-900 hover:bg-slate-800" data-testid="register-submit-button">
               {loading ? "Creating..." : "Create account"}

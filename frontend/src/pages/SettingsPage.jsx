@@ -31,7 +31,7 @@ function Section({ title, subtitle, defaultOpen = false, children, testId }) {
   );
 }
 
-function LogoUploader({ user, refresh, editable }) {
+export function LogoUploader({ user, refresh, editable }) {
   const fileInputRef = React.useRef(null);
   const [uploading, setUploading] = useState(false);
   const logoSrc = user?.logo_data ? `data:${user.logo_content_type};base64,${user.logo_data}` : null;

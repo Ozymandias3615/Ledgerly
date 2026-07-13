@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CURRENCIES, fmt, fmtDate, exportAndDownload } from "@/lib/utils_app";
@@ -21,6 +22,7 @@ export default function PayrollPage() {
   const [openRun, setOpenRun] = useState(false);
   const [emp, setEmp] = useState({ name: "", email: "", position: "", salary: "", pay_frequency: "monthly", tax_rate: 0, currency: user?.currency || "USD" });
   const [runForm, setRunForm] = useState({ period_start: new Date().toISOString().slice(0, 10), period_end: new Date().toISOString().slice(0, 10) });
+  const [selectedEmpIds, setSelectedEmpIds] = useState([]);
 
   const load = async () => {
     const [e, r] = await Promise.all([api.get("/employees"), api.get("/payroll")]);
@@ -41,11 +43,27 @@ export default function PayrollPage() {
     await api.delete(`/employees/${e.id}`); load();
   };
 
+  const openRunDialog = (open) => {
+    if (open) setSelectedEmpIds(employees.map((e) => e.id));
+    setOpenRun(open);
+  };
+
+  const toggleEmp = (id, checked) => {
+    setSelectedEmpIds((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)));
+  };
+
+  const toggleAll = (checked) => {
+    setSelectedEmpIds(checked ? employees.map((e) => e.id) : []);
+  };
+
+  const selectedEmployees = employees.filter((e) => selectedEmpIds.includes(e.id));
+  const allSelected = employees.length > 0 && selectedEmpIds.length === employees.length;
+
   const runPayroll = async (e) => {
     e.preventDefault();
     try {
-      await api.post("/payroll/run", runForm);
-      toast.success("Payroll processed");
+      await api.post("/payroll/run", { ...runForm, employee_ids: selectedEmpIds });
+      toast.success(selectedEmpIds.length === employees.length ? "Payroll processed for all employees" : `Payroll processed for ${selectedEmpIds.length} employee${selectedEmpIds.length === 1 ? "" : "s"}`);
       setOpenRun(false);
       load();
     } catch (err) {
@@ -134,7 +152,7 @@ export default function PayrollPage() {
             <Button variant="outline" onClick={() => exportPayroll("csv")} data-testid="payroll-export-csv"><Download size={16} className="mr-2" /> CSV</Button>
             <Button variant="outline" onClick={() => exportPayroll("xlsx")} data-testid="payroll-export-xlsx"><Download size={16} className="mr-2" /> XLSX</Button>
             <Button variant="outline" onClick={() => exportPayroll("pdf")} data-testid="payroll-export-pdf"><Download size={16} className="mr-2" /> PDF</Button>
-            <Dialog open={openRun} onOpenChange={setOpenRun}>
+            <Dialog open={openRun} onOpenChange={openRunDialog}>
               <DialogTrigger asChild><Button className="bg-slate-900 hover:bg-slate-800" disabled={employees.length === 0} data-testid="run-payroll-button"><Play size={16} className="mr-2" /> Run payroll</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Run payroll</DialogTitle></DialogHeader>
@@ -143,8 +161,32 @@ export default function PayrollPage() {
                     <div><Label>Period start</Label><Input type="date" required value={runForm.period_start} onChange={(e) => setRunForm({ ...runForm, period_start: e.target.value })} data-testid="run-start-input" /></div>
                     <div><Label>Period end</Label><Input type="date" required value={runForm.period_end} onChange={(e) => setRunForm({ ...runForm, period_end: e.target.value })} data-testid="run-end-input" /></div>
                   </div>
-                  <div className="text-sm text-slate-500">This will process all {employees.length} active employees and log a payroll expense.</div>
-                  <DialogFooter><Button type="submit" className="bg-slate-900 hover:bg-slate-800" data-testid="run-submit-button">Run</Button></DialogFooter>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label>Employees to pay</Label>
+                      <button type="button" className="text-xs text-slate-500 underline underline-offset-4 hover:text-slate-700" onClick={() => toggleAll(!allSelected)} data-testid="run-toggle-all-button">
+                        {allSelected ? "Deselect all" : "Process all"}
+                      </button>
+                    </div>
+                    <div className="border border-slate-200 rounded-md max-h-52 overflow-y-auto divide-y divide-slate-100">
+                      {employees.map((e) => (
+                        <label key={e.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50" data-testid={`run-emp-row-${e.id}`}>
+                          <Checkbox checked={selectedEmpIds.includes(e.id)} onCheckedChange={(c) => toggleEmp(e.id, c)} data-testid={`run-emp-checkbox-${e.id}`} />
+                          <span className="flex-1 text-sm">
+                            <span className="font-medium">{e.name}</span>
+                            <span className="text-slate-500"> — {e.position || "Employee"}</span>
+                          </span>
+                          <span className="text-sm text-slate-600">{fmt(e.salary, e.currency)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="text-sm text-slate-500">
+                    {selectedEmpIds.length === 0
+                      ? "Select at least one employee to process."
+                      : `This will process ${selectedEmpIds.length} of ${employees.length} employee${employees.length === 1 ? "" : "s"} (${fmt(selectedEmployees.reduce((s, e) => s + Number(e.salary), 0), selectedEmployees[0]?.currency)} gross) and log a payroll expense.`}
+                  </div>
+                  <DialogFooter><Button type="submit" disabled={selectedEmpIds.length === 0} className="bg-slate-900 hover:bg-slate-800" data-testid="run-submit-button">Run</Button></DialogFooter>
                 </form>
               </DialogContent>
             </Dialog>

@@ -92,6 +92,7 @@ async def _enrich_user(user: dict) -> dict:
         user["logo_data"] = biz.get("logo_data")
         user["logo_content_type"] = biz.get("logo_content_type")
         user["has_ai_key"] = bool(biz.get("ai_api_key"))
+        user["onboarding_complete"] = biz.get("onboarding_complete", True)
     return user
 
 async def _create_membership(user_id: str, business_id: str, role: str) -> dict:
@@ -227,6 +228,7 @@ class InvoiceItem(BaseModel):
     description: str
     quantity: float
     unit_price: float
+    item_id: Optional[str] = None
 
 class InvoiceIn(BaseModel):
     client_name: str
@@ -280,13 +282,14 @@ class ChatIn(BaseModel):
 
 
 # ---- Business / invite helpers ----
-async def _create_business(name: str, currency: str, owner_user_id: str) -> dict:
+async def _create_business(name: str, currency: str, owner_user_id: str, onboarding_complete: bool = True) -> dict:
     business_id = f"biz_{uuid.uuid4().hex[:12]}"
     doc = {
         "business_id": business_id,
         "name": name,
         "currency": currency,
         "owner_user_id": owner_user_id,
+        "onboarding_complete": onboarding_complete,
         "created_at": now_utc().isoformat(),
     }
     await db.businesses.insert_one(doc)
@@ -338,7 +341,10 @@ async def register(payload: RegisterIn, response: Response):
         await _create_membership(user_id, invite["business_id"], invite["role"])
         await db.invites.update_one({"code": invite["code"]}, {"$set": {"redeemed_at": now_utc().isoformat(), "redeemed_by": user_id}})
     else:
-        business = await _create_business(payload.business_name or payload.name, payload.currency or "USD", user_id)
+        business = await _create_business(
+            payload.business_name or f"{payload.name}'s Business", payload.currency or "USD", user_id,
+            onboarding_complete=False,
+        )
         await _create_membership(user_id, business["business_id"], "owner")
 
     token = create_access_token(user_id, email)
@@ -402,7 +408,7 @@ async def google_session(payload: GoogleSessionIn, response: Response):
             "auth_provider": "google",
             "created_at": now_utc().isoformat(),
         })
-        business = await _create_business(name, "USD", user_id)
+        business = await _create_business(f"{name}'s Business", "USD", user_id, onboarding_complete=False)
         await _create_membership(user_id, business["business_id"], "owner")
     expires_at = now_utc() + timedelta(days=7)
     await db.user_sessions.insert_one({
@@ -442,7 +448,7 @@ async def firebase_session(payload: FirebaseSessionIn, response: Response):
             "auth_provider": "google",
             "created_at": now_utc().isoformat(),
         })
-        business = await _create_business(name, "USD", user_id)
+        business = await _create_business(f"{name}'s Business", "USD", user_id, onboarding_complete=False)
         await _create_membership(user_id, business["business_id"], "owner")
     token = create_access_token(user_id, email)
     response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
@@ -467,6 +473,11 @@ async def update_business(payload: BusinessUpdateIn, user=Depends(require_role("
     await db.businesses.update_one({"business_id": user["business_id"]}, {"$set": {"name": payload.name, "currency": payload.currency}})
     biz = await db.businesses.find_one({"business_id": user["business_id"]}, {"_id": 0})
     return _hide_ai_key(biz)
+
+@api_router.post("/business/complete-onboarding")
+async def complete_onboarding(user=Depends(require_role("owner", "admin"))):
+    await db.businesses.update_one({"business_id": user["business_id"]}, {"$set": {"onboarding_complete": True}})
+    return {"success": True}
 
 @api_router.put("/business/ai-key")
 async def set_ai_key(payload: AiKeyIn, user=Depends(require_role("owner", "admin"))):
@@ -789,6 +800,49 @@ async def _reconcile_invoice_income(business_id: str, user_id: str, invoice: dic
     elif not is_paid and existing_tx:
         await db.transactions.delete_one({"id": existing_tx["id"]})
 
+INVOICE_COMMITTED_STATUSES = ("sent", "paid", "overdue")
+
+async def _adjust_invoice_inventory(business_id: str, invoice: dict, direction: int):
+    """Applies invoice line items to inventory stock: direction=-1 deducts stock
+    (invoice became sent/paid/overdue), direction=+1 restores it (invoice reverted
+    to draft, its items changed, or it was deleted). Only line items linked to an
+    inventory item via item_id are affected."""
+    for it in invoice.get("items", []):
+        item_id = it.get("item_id")
+        if not item_id or not it.get("quantity"):
+            continue
+        inv_item = await db.inventory.find_one({"id": item_id, "business_id": business_id})
+        if not inv_item:
+            continue
+        new_qty = max(0, inv_item["quantity"] + direction * it["quantity"])
+        await db.inventory.update_one({"id": item_id, "business_id": business_id}, {"$set": {"quantity": new_qty}})
+        if direction < 0:
+            sold = inv_item["quantity"] - new_qty  # actual drop, accounting for the floor at 0
+            if sold > 0:
+                await _notify(
+                    business_id, "inventory_sold", f"{inv_item['name']} stock decreased by {sold:g} {inv_item.get('unit', 'units')}",
+                    f"Invoice {invoice.get('invoice_number', '')} — {new_qty:g} {inv_item.get('unit', 'units')} left", link="/inventory",
+                )
+            if new_qty <= inv_item.get("reorder_point", 0) and inv_item["quantity"] > inv_item.get("reorder_point", 0):
+                await _notify(
+                    business_id, "inventory_low", f"{inv_item['name']} is running low",
+                    f"{new_qty:g} {inv_item.get('unit', 'units')} left", link="/inventory",
+                )
+
+async def _reconcile_invoice_inventory(business_id: str, invoice: dict, previous: Optional[dict] = None) -> bool:
+    """Keeps inventory stock in sync with an invoice's status: deducts stock the
+    moment an invoice becomes sent/paid/overdue, restores it if later reverted to
+    draft or deleted, and re-applies the delta if a still-committed invoice's line
+    items are edited. Returns the inventory_deducted flag to store on the invoice."""
+    was_deducted = bool((previous or {}).get("inventory_deducted"))
+    if was_deducted:
+        await _adjust_invoice_inventory(business_id, previous, direction=1)
+
+    now_committed = invoice.get("status") in INVOICE_COMMITTED_STATUSES
+    if now_committed:
+        await _adjust_invoice_inventory(business_id, invoice, direction=-1)
+    return now_committed
+
 def _calc_invoice_totals(inv: dict):
     subtotal = sum(it["quantity"] * it["unit_price"] for it in inv["items"])
     tax = subtotal * (inv.get("tax_rate", 0) / 100)
@@ -815,6 +869,7 @@ async def create_invoice(payload: InvoiceIn, user=Depends(get_current_user)):
     inv["invoice_number"] = await _next_invoice_number(user["business_id"])
     inv["created_at"] = now_utc().isoformat()
     _calc_invoice_totals(inv)
+    inv["inventory_deducted"] = await _reconcile_invoice_inventory(user["business_id"], inv)
     await db.invoices.insert_one(inv)
     inv.pop("_id", None)
     await _reconcile_invoice_income(user["business_id"], user["user_id"], inv)
@@ -838,6 +893,8 @@ async def update_invoice(inv_id: str, payload: InvoiceIn, user=Depends(get_curre
         raise HTTPException(status_code=404, detail="Not found")
     upd = payload.model_dump()
     _calc_invoice_totals(upd)
+    upd["invoice_number"] = existing.get("invoice_number")
+    upd["inventory_deducted"] = await _reconcile_invoice_inventory(user["business_id"], upd, previous=existing)
     await db.invoices.update_one({"id": inv_id, "business_id": user["business_id"]}, {"$set": upd})
     updated = await db.invoices.find_one({"id": inv_id}, {"_id": 0})
     await _reconcile_invoice_income(user["business_id"], user["user_id"], updated)
@@ -850,9 +907,12 @@ async def update_invoice(inv_id: str, payload: InvoiceIn, user=Depends(get_curre
 
 @api_router.delete("/invoices/{inv_id}")
 async def delete_invoice(inv_id: str, user=Depends(get_current_user)):
-    res = await db.invoices.delete_one({"id": inv_id, "business_id": user["business_id"]})
-    if res.deleted_count == 0:
+    existing = await db.invoices.find_one({"id": inv_id, "business_id": user["business_id"]}, {"_id": 0})
+    if not existing:
         raise HTTPException(status_code=404, detail="Not found")
+    if existing.get("inventory_deducted"):
+        await _adjust_invoice_inventory(user["business_id"], existing, direction=1)
+    await db.invoices.delete_one({"id": inv_id, "business_id": user["business_id"]})
     await db.transactions.delete_many({"invoice_id": inv_id, "business_id": user["business_id"]})
     return {"success": True}
 

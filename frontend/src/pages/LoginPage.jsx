@@ -47,9 +47,9 @@ export default function LoginPage() {
       const credential = GoogleAuthProvider.credential(googleIdToken);
       const result = await signInWithCredential(auth, credential);
       const firebaseIdToken = await result.user.getIdToken();
-      await loginWithFirebaseToken(firebaseIdToken);
+      const user = await loginWithFirebaseToken(firebaseIdToken);
       toast.success("Welcome back");
-      navigate("/dashboard");
+      navigate(user.onboarding_complete ? "/dashboard" : "/onboarding");
     } catch (err) {
       setError(formatApiError(err));
     } finally {

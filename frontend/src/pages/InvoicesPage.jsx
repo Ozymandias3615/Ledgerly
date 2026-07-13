@@ -15,12 +15,13 @@ import { CURRENCIES, fmt, fmtDate, exportAndDownload } from "@/lib/utils_app";
 import { Plus, Download, DotsThreeVertical, PencilSimple, Trash, FilePdf, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
-const emptyItem = () => ({ description: "", quantity: 1, unit_price: 0 });
+const emptyItem = () => ({ description: "", quantity: 1, unit_price: 0, item_id: null });
 
 export default function InvoicesPage() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [clients, setClients] = useState([]);
+  const [inventory, setInventory] = useState([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const emptyForm = {
@@ -39,6 +40,7 @@ export default function InvoicesPage() {
   useEffect(() => {
     load();
     api.get("/clients").then(({ data }) => setClients(data.filter((c) => c.type === "client")));
+    api.get("/inventory").then(({ data }) => setInventory(data));
   }, []);
 
   const pickClient = (clientId) => {
@@ -66,12 +68,24 @@ export default function InvoicesPage() {
     setForm({ ...form, items: next });
   };
 
+  const pickInventoryItem = (idx, itemId) => {
+    const next = [...form.items];
+    if (itemId === "__manual__") {
+      next[idx] = { ...next[idx], item_id: null };
+    } else {
+      const invItem = inventory.find((i) => i.id === itemId);
+      if (!invItem) return;
+      next[idx] = { ...next[idx], item_id: invItem.id, description: invItem.name, unit_price: Number(invItem.unit_cost || 0) };
+    }
+    setForm({ ...form, items: next });
+  };
+
   const save = async (e) => {
     e.preventDefault();
     const payload = {
       ...form,
       tax_rate: Number(form.tax_rate || 0),
-      items: form.items.map((it) => ({ description: it.description, quantity: Number(it.quantity), unit_price: Number(it.unit_price) })),
+      items: form.items.map((it) => ({ description: it.description, quantity: Number(it.quantity), unit_price: Number(it.unit_price), item_id: it.item_id || null })),
     };
     try {
       if (editing) await api.put(`/invoices/${editing.id}`, payload);
@@ -162,11 +176,24 @@ export default function InvoicesPage() {
                     <div className="col-span-1"></div>
                   </div>
                   {form.items.map((it, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2 px-3 py-2 border-t border-slate-100 items-center">
-                      <Input className="col-span-6" value={it.description} onChange={(e) => setItem(idx, "description", e.target.value)} required data-testid={`inv-item-desc-${idx}`} />
-                      <Input className="col-span-2 text-right" type="number" step="0.01" value={it.quantity} onChange={(e) => setItem(idx, "quantity", e.target.value)} />
-                      <Input className="col-span-3 text-right" type="number" step="0.01" value={it.unit_price} onChange={(e) => setItem(idx, "unit_price", e.target.value)} />
-                      <button type="button" className="col-span-1 justify-self-end p-1 text-slate-400 hover:text-red-600" onClick={() => setForm({ ...form, items: form.items.filter((_, i) => i !== idx) })} disabled={form.items.length === 1}><X size={16} /></button>
+                    <div key={idx} className="px-3 py-2 border-t border-slate-100 space-y-1.5">
+                      {inventory.length > 0 && (
+                        <Select value={it.item_id || "__manual__"} onValueChange={(v) => pickInventoryItem(idx, v)}>
+                          <SelectTrigger className="h-8 text-xs" data-testid={`inv-item-inventory-picker-${idx}`}>
+                            <SelectValue placeholder="From inventory (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__manual__">Not from inventory</SelectItem>
+                            {inventory.map((i) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.quantity} {i.unit} left)</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <Input className="col-span-6" value={it.description} onChange={(e) => setItem(idx, "description", e.target.value)} required data-testid={`inv-item-desc-${idx}`} />
+                        <Input className="col-span-2 text-right" type="number" step="0.01" value={it.quantity} onChange={(e) => setItem(idx, "quantity", e.target.value)} />
+                        <Input className="col-span-3 text-right" type="number" step="0.01" value={it.unit_price} onChange={(e) => setItem(idx, "unit_price", e.target.value)} />
+                        <button type="button" className="col-span-1 justify-self-end p-1 text-slate-400 hover:text-red-600" onClick={() => setForm({ ...form, items: form.items.filter((_, i) => i !== idx) })} disabled={form.items.length === 1}><X size={16} /></button>
+                      </div>
                     </div>
                   ))}
                   <div className="p-2 border-t border-slate-100">

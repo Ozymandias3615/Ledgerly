@@ -8,6 +8,7 @@ const TYPE_ICON = {
   invoice_created: FileText,
   invoice_status: FileText,
   inventory_low: Package,
+  inventory_sold: Package,
   payroll_run: Users,
   employee_added: Users,
   employee_removed: Users,

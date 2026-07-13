@@ -6,6 +6,7 @@ import "@/App.css";
 
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
+import OnboardingPage from "@/pages/OnboardingPage";
 import AuthCallback from "@/pages/AuthCallback";
 import DashboardPage from "@/pages/DashboardPage";
 import TransactionsPage from "@/pages/TransactionsPage";
@@ -23,7 +24,16 @@ function Protected({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen grid place-items-center text-slate-500">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.role === "owner" && !user.onboarding_complete) return <Navigate to="/onboarding" replace />;
   return <AppLayout>{children}</AppLayout>;
+}
+
+function OnboardingRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="min-h-screen grid place-items-center text-slate-500">Loading...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.onboarding_complete) return <Navigate to="/dashboard" replace />;
+  return children;
 }
 
 function AppRouter() {
@@ -34,6 +44,7 @@ function AppRouter() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/onboarding" element={<OnboardingRoute><OnboardingPage /></OnboardingRoute>} />
       <Route path="/dashboard" element={<Protected><DashboardPage /></Protected>} />
       <Route path="/transactions" element={<Protected><TransactionsPage /></Protected>} />
       <Route path="/invoices" element={<Protected><InvoicesPage /></Protected>} />
