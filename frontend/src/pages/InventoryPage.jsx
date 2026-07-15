@@ -27,14 +27,58 @@ function stockRatio(item) {
   return Math.max(0, Math.min(1, Number(item.quantity) / (reorderPoint * 2)));
 }
 
-function StockBar({ item }) {
+function StockBar({ item, onSetQty }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(item.quantity));
+  const inputRef = useRef(null);
+
+  useEffect(() => { if (!editing) setDraft(String(item.quantity)); }, [item.quantity, editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const val = parseFloat(draft);
+    if (isNaN(val) || val < 0) { setDraft(String(item.quantity)); return; }
+    if (val !== Number(item.quantity)) onSetQty(item, val);
+  };
+
   const low = isLow(item);
   const ratio = stockRatio(item);
   const reorderPoint = Number(item.reorder_point);
   const color = reorderPoint <= 0 ? "bg-slate-300" : low ? "bg-red-500" : ratio < 0.75 ? "bg-amber-500" : "bg-emerald-500";
   return (
     <div className="w-28">
-      <div className="text-sm font-semibold text-slate-900">{item.quantity} <span className="text-xs font-normal text-slate-500">{item.unit}</span></div>
+      <div className="flex items-baseline gap-1">
+        {editing ? (
+          <input
+            ref={inputRef}
+            type="number"
+            step="0.01"
+            min="0"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); inputRef.current.blur(); }
+              if (e.key === "Escape") { setDraft(String(item.quantity)); setEditing(false); }
+            }}
+            autoFocus
+            onFocus={(e) => e.target.select()}
+            className="w-14 text-sm font-semibold text-slate-900 border border-slate-300 rounded px-1 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            data-testid={`inv-qty-input-${item.id}`}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-sm font-semibold text-slate-900 hover:underline underline-offset-2 decoration-dotted"
+            title="Click to set an exact quantity"
+            data-testid={`inv-qty-display-${item.id}`}
+          >
+            {item.quantity}
+          </button>
+        )}
+        <span className="text-xs font-normal text-slate-500">{item.unit}</span>
+      </div>
       <div className="h-1.5 rounded-full bg-slate-100 mt-1 overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${ratio * 100}%` }} />
       </div>
@@ -172,6 +216,27 @@ export default function InventoryPage() {
     }, 400);
   };
 
+  // Sets an exact quantity directly (e.g. after a big restock), bypassing the
+  // +/- delta stepping. Committed immediately rather than debounced, since
+  // typing a number and blurring is already a single deliberate action.
+  const setQty = (item, quantity) => {
+    quantity = Math.max(0, quantity);
+    delete pendingQty.current[item.id];
+    clearTimeout(pendingSaves.current[item.id]);
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, quantity } : i)));
+    api.put(`/inventory/${item.id}`, {
+      name: item.name,
+      category: item.category,
+      quantity,
+      unit: item.unit,
+      reorder_point: item.reorder_point,
+      unit_cost: item.unit_cost,
+    }).then(() => toast.success(`${item.name} set to ${quantity} ${item.unit}`)).catch(() => {
+      toast.error("Failed to update stock");
+      load();
+    });
+  };
+
   return (
     <div className="p-8 space-y-6" data-testid="inventory-page">
       <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -286,7 +351,7 @@ export default function InventoryPage() {
                     >
                       <Minus size={12} />
                     </button>
-                    <StockBar item={item} />
+                    <StockBar item={item} onSetQty={setQty} />
                     <button
                       type="button"
                       onClick={() => adjustQty(item, 1)}
