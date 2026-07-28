@@ -18,5 +18,5 @@ services:
         sync: false
       - key: MONGO_URL
         sync: false
-      - key: GEMINI_API_KEY
+      - key: GROQ_API_KEY
         sync: false

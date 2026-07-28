@@ -132,13 +132,13 @@ function AiKeySection({ user, refresh }) {
       </div>
       <div className="text-xs text-slate-500 mb-3">
         Powers the AI Insights page. Works out of the box on a small shared daily quota. For unlimited use,
-        add your own free Gemini API key (from{" "}
-        <span className="font-medium">aistudio.google.com/apikey</span>) — usage then bills to that account, not Ledgerly.
+        add your own free Groq API key (from{" "}
+        <span className="font-medium">console.groq.com/keys</span>) — usage then bills to that account, not Ledgerly.
         {user?.has_ai_key && <span className="text-emerald-700 font-medium"> Your own API key is currently configured.</span>}
       </div>
       <form onSubmit={save} className="flex gap-2">
         <PasswordInput
-          placeholder={user?.has_ai_key ? "Enter a new key to replace it" : "Your Gemini API key"}
+          placeholder={user?.has_ai_key ? "Enter a new key to replace it" : "Your Groq API key"}
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           className="max-w-xs"

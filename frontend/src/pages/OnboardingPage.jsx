@@ -97,7 +97,7 @@ export default function OnboardingPage() {
               <div className="text-xs text-slate-400 mt-1">Every transaction, invoice, and payslip defaults to this currency.</div>
             </div>
             <div>
-              <Label>Gemini API key</Label>
+              <Label>Groq API key</Label>
               <PasswordInput
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}

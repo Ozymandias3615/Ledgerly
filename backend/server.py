@@ -28,9 +28,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
 
-from google import genai
-from google.genai import types as genai_types
-from google.genai import errors as genai_errors
+from groq import AsyncGroq, AuthenticationError as GroqAuthenticationError, RateLimitError as GroqRateLimitError, APIStatusError as GroqAPIStatusError
 import openpyxl
 from PIL import Image as PILImage
 from reportlab.lib.pagesizes import LETTER
@@ -44,9 +42,9 @@ JWT_ALGORITHM = "HS256"
 JWT_SECRET = os.environ["JWT_SECRET"]
 FIREBASE_PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID")
 # Shared fallback key so AI Insights works out of the box for every business
-# without each one needing their own Gemini key. Businesses can still set their
+# without each one needing their own Groq key. Businesses can still set their
 # own key in Settings to bypass the shared daily cap below.
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 SHARED_AI_DAILY_LIMIT = 10
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -1690,7 +1688,7 @@ async def export_data(
 # ---- AI Insights ----
 async def _check_and_bump_shared_quota(business_id: str):
     """Enforce a per-business daily cap when a business is riding on the
-    shared/embedded Gemini key, so one heavy user can't exhaust the quota for
+    shared/embedded Groq key, so one heavy user can't exhaust the quota for
     everyone else using the same key."""
     today = now_utc().date().isoformat()
     biz = await db.businesses.find_one({"business_id": business_id}, {"_id": 0, "ai_shared_usage_date": 1, "ai_shared_usage_count": 1})
@@ -1698,7 +1696,7 @@ async def _check_and_bump_shared_quota(business_id: str):
     if count >= SHARED_AI_DAILY_LIMIT:
         raise HTTPException(status_code=429, detail=(
             f"The shared AI quota ({SHARED_AI_DAILY_LIMIT}/day) has been used up for today. "
-            "Try again tomorrow, or add your own free Gemini API key in Settings → Business → AI Insights for unlimited use."
+            "Try again tomorrow, or add your own free Groq API key in Settings → Business → AI Insights for unlimited use."
         ))
     await db.businesses.update_one(
         {"business_id": business_id},
@@ -1708,10 +1706,10 @@ async def _check_and_bump_shared_quota(business_id: str):
 async def _resolve_ai_key(user: dict) -> str:
     biz = await db.businesses.find_one({"business_id": user["business_id"]}, {"_id": 0})
     own_key = (biz or {}).get("ai_api_key")
-    api_key = own_key or GEMINI_API_KEY
+    api_key = own_key or GROQ_API_KEY
     if not api_key:
         raise HTTPException(status_code=400, detail=(
-            "AI Insights isn't configured. Add a free Gemini API key in Settings → Business → AI Insights."
+            "AI Insights isn't configured. Add a free Groq API key in Settings → Business → AI Insights."
         ))
     if not own_key:
         await _check_and_bump_shared_quota(user["business_id"])
@@ -1755,40 +1753,40 @@ async def insights_chat(payload: ChatIn, user=Depends(get_current_user)):
     history = conversation["messages"] if conversation else []
     # Fresh financial context every turn so answers reflect the current books.
     ctx = await _business_context(user)
-    contents = [
-        genai_types.Content(role="user" if m["role"] == "user" else "model", parts=[genai_types.Part(text=m["content"])])
-        for m in history
-    ]
-    contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=message)]))
+    messages = [{
+        "role": "system",
+        "content": (
+            "You are a senior financial analyst helping small-business owners understand their bookkeeping data. "
+            "Be direct, concrete, and cite specific numbers. Use plain markdown. Never invent numbers not provided. "
+            "Keep answers focused and conversational - structure with headings/bullets only when it genuinely helps.\n\n"
+            f"Current business data:\n{ctx}"
+        ),
+    }]
+    messages += [{"role": m["role"], "content": m["content"]} for m in history]
+    messages.append({"role": "user", "content": message})
 
-    client = genai.Client(api_key=api_key)
+    client = AsyncGroq(api_key=api_key)
     try:
-        response = await client.aio.models.generate_content(
-            model="gemini-flash-latest",
-            contents=contents,
-            config=genai_types.GenerateContentConfig(
-                system_instruction=(
-                    "You are a senior financial analyst helping small-business owners understand their bookkeeping data. "
-                    "Be direct, concrete, and cite specific numbers. Use plain markdown. Never invent numbers not provided. "
-                    "Keep answers focused and conversational - structure with headings/bullets only when it genuinely helps.\n\n"
-                    f"Current business data:\n{ctx}"
-                ),
-                max_output_tokens=2048,
-            ),
+        response = await client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=messages,
+            max_completion_tokens=2048,
+            # Keep hidden reasoning short so it can't eat the whole token budget
+            # and leave the visible reply empty.
+            reasoning_effort="low",
         )
-    except genai_errors.ClientError as e:
-        # Gemini returns 400 (not 401/403) for an invalid/malformed API key.
-        if e.code in (400, 401, 403) and "api key" in (e.message or "").lower():
-            raise HTTPException(status_code=401, detail="Invalid Gemini API key. Update it in Settings → Business → AI Insights.")
-        if e.code == 429:
-            raise HTTPException(status_code=429, detail="Gemini API rate limit or quota exceeded. Please try again shortly.")
+    except GroqAuthenticationError:
+        raise HTTPException(status_code=401, detail="Invalid Groq API key. Update it in Settings → Business → AI Insights.")
+    except GroqRateLimitError:
+        raise HTTPException(status_code=429, detail="Groq API rate limit or quota exceeded. Please try again shortly.")
+    except GroqAPIStatusError as e:
         logger.exception("Insight generation failed")
         raise HTTPException(status_code=503, detail=f"AI service error: {e.message}")
     except Exception:
         logger.exception("Insight generation failed")
         raise HTTPException(status_code=503, detail="AI service temporarily unavailable. Please try again shortly.")
 
-    reply = response.text or ""
+    reply = response.choices[0].message.content or ""
     now_iso = now_utc().isoformat()
     new_messages = [
         {"role": "user", "content": message, "at": now_iso},

@@ -146,7 +146,7 @@ export default function InsightsPage() {
       {/* Chat area */}
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="shrink-0 px-8 pt-6 pb-4 border-b border-slate-100">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Powered by Gemini</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Powered by Groq</div>
           <h1 className="text-2xl font-extrabold tracking-tight" style={{ fontFamily: "Manrope, sans-serif" }}>AI Financial Insights</h1>
         </div>
 
