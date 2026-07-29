@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { formatApiError } from "@/lib/utils_app";
 import { Sparkle, PaperPlaneRight, Plus, Trash, ChatCircle } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -68,9 +69,16 @@ export default function InsightsPage() {
     setInput("");
   };
 
-  const removeConversation = async (e, id) => {
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  const requestDeleteConversation = (e, id) => {
     e.stopPropagation();
-    if (!window.confirm("Delete this conversation?")) return;
+    setConfirmDeleteId(id);
+  };
+
+  const confirmDeleteConversation = async () => {
+    const id = confirmDeleteId;
+    setConfirmDeleteId(null);
     try {
       await api.delete(`/insights/conversations/${id}`);
       if (id === activeId) newChat();
@@ -133,7 +141,7 @@ export default function InsightsPage() {
               <span
                 role="button"
                 className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-slate-200 text-slate-400 hover:text-red-600 transition-opacity"
-                onClick={(e) => removeConversation(e, c.conversation_id)}
+                onClick={(e) => requestDeleteConversation(e, c.conversation_id)}
                 title="Delete"
               >
                 <Trash size={13} />
@@ -224,6 +232,14 @@ export default function InsightsPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        onOpenChange={(open) => !open && setConfirmDeleteId(null)}
+        title="Delete this conversation?"
+        description="This can't be undone. The conversation and all its messages will be permanently removed."
+        onConfirm={confirmDeleteConversation}
+      />
     </div>
   );
 }

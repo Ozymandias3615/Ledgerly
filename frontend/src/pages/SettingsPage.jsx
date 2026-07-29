@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CURRENCIES, formatApiError } from "@/lib/utils_app";
 import { Copy, Trash, UserPlus, UploadSimple, Image as ImageIcon, Sparkle, CaretDown } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -212,11 +213,9 @@ function BusinessSection({ user, refresh }) {
     }
   };
 
+  const [confirmRelabel, setConfirmRelabel] = useState(false);
   const relabelCurrency = async () => {
-    if (!window.confirm(
-      `This will change the currency label on every existing transaction, invoice, employee, and payslip to ${user?.currency} ` +
-      `- it only relabels the currency, it does not convert the amounts. Continue?`
-    )) return;
+    setConfirmRelabel(false);
     setRelabeling(true);
     try {
       await api.post("/business/relabel-currency");
@@ -271,12 +270,22 @@ function BusinessSection({ user, refresh }) {
           If you only ever use one currency, you can relabel all of them to match your current setting
           ({user?.currency}) &mdash; this only changes the currency shown, it does not convert amounts.
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={relabelCurrency} disabled={relabeling} data-testid="relabel-currency-button">
+        <Button type="button" variant="outline" size="sm" onClick={() => setConfirmRelabel(true)} disabled={relabeling} data-testid="relabel-currency-button">
           {relabeling ? "Relabeling..." : `Relabel existing records to ${user?.currency}`}
         </Button>
       </div>
 
       <AiKeySection user={user} refresh={refresh} />
+
+      <ConfirmDialog
+        open={confirmRelabel}
+        onOpenChange={setConfirmRelabel}
+        title="Relabel all existing records?"
+        description={`This will change the currency label on every existing transaction, invoice, employee, and payslip to ${user?.currency} — it only relabels the currency, it does not convert the amounts.`}
+        confirmLabel="Relabel"
+        destructive={false}
+        onConfirm={relabelCurrency}
+      />
     </>
   );
 }

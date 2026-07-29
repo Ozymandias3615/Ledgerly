@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -88,8 +89,11 @@ export default function ClientsPage() {
     }
   };
 
-  const remove = async (c) => {
-    if (!window.confirm(`Remove ${c.name}?`)) return;
+  const [pendingRemove, setPendingRemove] = useState(null);
+  const remove = (c) => setPendingRemove(c);
+  const confirmRemove = async () => {
+    const c = pendingRemove;
+    setPendingRemove(null);
     await api.delete(`/clients/${c.id}`);
     toast.success("Removed");
     load();
@@ -153,6 +157,14 @@ export default function ClientsPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <ConfirmDialog
+        open={!!pendingRemove}
+        onOpenChange={(open) => !open && setPendingRemove(null)}
+        title={pendingRemove ? `Remove ${pendingRemove.name}?` : ""}
+        confirmLabel="Remove"
+        onConfirm={confirmRemove}
+      />
     </div>
   );
 }

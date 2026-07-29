@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CURRENCIES, fmt, fmtDate, exportAndDownload } from "@/lib/utils_app";
@@ -96,8 +97,11 @@ export default function InvoicesPage() {
     } catch { toast.error("Failed to save"); }
   };
 
-  const remove = async (inv) => {
-    if (!window.confirm(`Delete invoice ${inv.invoice_number}?`)) return;
+  const [pendingRemove, setPendingRemove] = useState(null);
+  const remove = (inv) => setPendingRemove(inv);
+  const confirmRemove = async () => {
+    const inv = pendingRemove;
+    setPendingRemove(null);
     await api.delete(`/invoices/${inv.id}`);
     load();
   };
@@ -259,6 +263,13 @@ export default function InvoicesPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <ConfirmDialog
+        open={!!pendingRemove}
+        onOpenChange={(open) => !open && setPendingRemove(null)}
+        title={pendingRemove ? `Delete invoice ${pendingRemove.invoice_number}?` : ""}
+        onConfirm={confirmRemove}
+      />
     </div>
   );
 }

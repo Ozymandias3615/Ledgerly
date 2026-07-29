@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmt, exportAndDownload } from "@/lib/utils_app";
@@ -176,8 +177,11 @@ export default function InventoryPage() {
     `inventory.${format}`,
   );
 
-  const remove = async (item) => {
-    if (!window.confirm(`Remove ${item.name} from inventory?`)) return;
+  const [pendingRemove, setPendingRemove] = useState(null);
+  const remove = (item) => setPendingRemove(item);
+  const confirmRemove = async () => {
+    const item = pendingRemove;
+    setPendingRemove(null);
     await api.delete(`/inventory/${item.id}`);
     toast.success("Removed");
     load();
@@ -381,6 +385,14 @@ export default function InventoryPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <ConfirmDialog
+        open={!!pendingRemove}
+        onOpenChange={(open) => !open && setPendingRemove(null)}
+        title={pendingRemove ? `Remove ${pendingRemove.name} from inventory?` : ""}
+        confirmLabel="Remove"
+        onConfirm={confirmRemove}
+      />
     </div>
   );
 }

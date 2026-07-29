@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -38,8 +39,11 @@ export default function PayrollPage() {
     load();
   };
 
-  const removeEmp = async (e) => {
-    if (!window.confirm(`Remove ${e.name}?`)) return;
+  const [pendingRemoveEmp, setPendingRemoveEmp] = useState(null);
+  const removeEmp = (e) => setPendingRemoveEmp(e);
+  const confirmRemoveEmp = async () => {
+    const e = pendingRemoveEmp;
+    setPendingRemoveEmp(null);
     await api.delete(`/employees/${e.id}`); load();
   };
 
@@ -211,6 +215,14 @@ export default function PayrollPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <ConfirmDialog
+        open={!!pendingRemoveEmp}
+        onOpenChange={(open) => !open && setPendingRemoveEmp(null)}
+        title={pendingRemoveEmp ? `Remove ${pendingRemoveEmp.name}?` : ""}
+        confirmLabel="Remove"
+        onConfirm={confirmRemoveEmp}
+      />
     </div>
   );
 }

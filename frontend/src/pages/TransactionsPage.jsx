@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CURRENCIES, fmt, fmtDate, exportAndDownload } from "@/lib/utils_app";
@@ -83,8 +84,11 @@ export default function TransactionsPage() {
     }
   };
 
-  const remove = async (t) => {
-    if (!window.confirm("Delete this transaction?")) return;
+  const [pendingRemove, setPendingRemove] = useState(null);
+  const remove = (t) => setPendingRemove(t);
+  const confirmRemove = async () => {
+    const t = pendingRemove;
+    setPendingRemove(null);
     await api.delete(`/transactions/${t.id}`);
     toast.success("Deleted");
     load();
@@ -275,6 +279,13 @@ export default function TransactionsPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <ConfirmDialog
+        open={!!pendingRemove}
+        onOpenChange={(open) => !open && setPendingRemove(null)}
+        title="Delete this transaction?"
+        onConfirm={confirmRemove}
+      />
     </div>
   );
 }
