@@ -7,6 +7,7 @@ load_dotenv(ROOT_DIR / '.env')
 import os
 import io
 import csv
+import json
 import uuid
 import string
 import base64
@@ -1757,7 +1758,9 @@ async def insights_chat(payload: ChatIn, user=Depends(get_current_user)):
         "role": "system",
         "content": (
             "You are a senior financial analyst helping small-business owners understand their bookkeeping data. "
-            "Be direct, concrete, and cite specific numbers. Use plain markdown. Never invent numbers not provided. "
+            "Be direct, concrete, and cite specific numbers. Use plain markdown: paragraphs, **bold**, and bullet "
+            "lists. Never use markdown tables (pipe/dash grid syntax) - the chat UI doesn't render them, so present "
+            "any comparison or breakdown as a short bullet list or prose instead. Never invent numbers not provided. "
             "Keep answers focused and conversational - structure with headings/bullets only when it genuinely helps.\n\n"
             f"Current business data:\n{ctx}"
         ),
@@ -1765,52 +1768,74 @@ async def insights_chat(payload: ChatIn, user=Depends(get_current_user)):
     messages += [{"role": m["role"], "content": m["content"]} for m in history]
     messages.append({"role": "user", "content": message})
 
-    client = AsyncGroq(api_key=api_key)
-    try:
-        response = await client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            messages=messages,
-            max_completion_tokens=2048,
-            # Keep hidden reasoning short so it can't eat the whole token budget
-            # and leave the visible reply empty.
-            reasoning_effort="low",
-        )
-    except GroqAuthenticationError:
-        raise HTTPException(status_code=401, detail="Invalid Groq API key. Update it in Settings → Business → AI Insights.")
-    except GroqRateLimitError:
-        raise HTTPException(status_code=429, detail="Groq API rate limit or quota exceeded. Please try again shortly.")
-    except GroqAPIStatusError as e:
-        logger.exception("Insight generation failed")
-        raise HTTPException(status_code=503, detail=f"AI service error: {e.message}")
-    except Exception:
-        logger.exception("Insight generation failed")
-        raise HTTPException(status_code=503, detail="AI service temporarily unavailable. Please try again shortly.")
-
-    reply = response.choices[0].message.content or ""
+    conversation_id = conversation["conversation_id"] if conversation else str(uuid.uuid4())
     now_iso = now_utc().isoformat()
-    new_messages = [
-        {"role": "user", "content": message, "at": now_iso},
-        {"role": "assistant", "content": reply, "at": now_iso},
-    ]
-    if conversation:
-        await db.ai_conversations.update_one(
-            {"conversation_id": conversation["conversation_id"]},
-            {"$push": {"messages": {"$each": new_messages}}, "$set": {"updated_at": now_iso}},
-        )
-        conversation_id = conversation["conversation_id"]
-    else:
-        conversation_id = str(uuid.uuid4())
-        title = message if len(message) <= 60 else message[:57] + "..."
-        await db.ai_conversations.insert_one({
-            "conversation_id": conversation_id,
-            "user_id": user["user_id"],
-            "business_id": user["business_id"],
-            "title": title,
-            "messages": new_messages,
-            "created_at": now_iso,
-            "updated_at": now_iso,
-        })
-    return {"conversation_id": conversation_id, "reply": reply, "generated_at": now_iso}
+
+    def sse(payload: dict) -> str:
+        return f"data: {json.dumps(payload)}\n\n"
+
+    async def event_stream():
+        yield sse({"type": "meta", "conversation_id": conversation_id})
+        reply_parts = []
+        client = AsyncGroq(api_key=api_key)
+        try:
+            stream = await client.chat.completions.create(
+                model="openai/gpt-oss-120b",
+                messages=messages,
+                max_completion_tokens=2048,
+                # Keep hidden reasoning short so it can't eat the whole token budget
+                # and leave the visible reply empty.
+                reasoning_effort="low",
+                stream=True,
+            )
+            async for chunk in stream:
+                text = chunk.choices[0].delta.content
+                if text:
+                    reply_parts.append(text)
+                    yield sse({"type": "chunk", "text": text})
+        except GroqAuthenticationError:
+            yield sse({"type": "error", "message": "Invalid Groq API key. Update it in Settings → Business → AI Insights."})
+            return
+        except GroqRateLimitError:
+            yield sse({"type": "error", "message": "Groq API rate limit or quota exceeded. Please try again shortly."})
+            return
+        except GroqAPIStatusError as e:
+            logger.exception("Insight generation failed")
+            yield sse({"type": "error", "message": f"AI service error: {e.message}"})
+            return
+        except Exception:
+            logger.exception("Insight generation failed")
+            yield sse({"type": "error", "message": "AI service temporarily unavailable. Please try again shortly."})
+            return
+
+        reply = "".join(reply_parts)
+        new_messages = [
+            {"role": "user", "content": message, "at": now_iso},
+            {"role": "assistant", "content": reply, "at": now_iso},
+        ]
+        if conversation:
+            await db.ai_conversations.update_one(
+                {"conversation_id": conversation_id},
+                {"$push": {"messages": {"$each": new_messages}}, "$set": {"updated_at": now_iso}},
+            )
+        else:
+            title = message if len(message) <= 60 else message[:57] + "..."
+            await db.ai_conversations.insert_one({
+                "conversation_id": conversation_id,
+                "user_id": user["user_id"],
+                "business_id": user["business_id"],
+                "title": title,
+                "messages": new_messages,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            })
+        yield sse({"type": "done"})
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 @api_router.get("/insights/conversations")
 async def list_conversations(user=Depends(get_current_user)):

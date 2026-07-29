@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import api from "@/lib/api";
+import api, { API } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -94,15 +94,73 @@ export default function InsightsPage() {
     setInput("");
     setMessages((m) => [...m, { role: "user", content: message }]);
     setSending(true);
-    try {
-      const { data } = await api.post("/insights/chat", { message, conversation_id: activeId });
-      setActiveId(data.conversation_id);
-      setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
-      loadConversations();
-    } catch (err) {
-      const msg = formatApiError(err);
+
+    let assistantAdded = false;
+    const appendChunk = (chunk) => {
+      setMessages((m) => {
+        const next = [...m];
+        if (!assistantAdded) {
+          next.push({ role: "assistant", content: chunk });
+          assistantAdded = true;
+        } else {
+          const last = next[next.length - 1];
+          next[next.length - 1] = { ...last, content: last.content + chunk };
+        }
+        return next;
+      });
+    };
+    const showError = (msg) => {
       toast.error(msg);
-      setMessages((m) => [...m, { role: "assistant", content: `> ${msg}` }]);
+      setMessages((m) => {
+        const next = [...m];
+        if (assistantAdded) next[next.length - 1] = { ...next[next.length - 1], content: `> ${msg}` };
+        else next.push({ role: "assistant", content: `> ${msg}` });
+        return next;
+      });
+    };
+
+    try {
+      const res = await fetch(`${API}/insights/chat`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, conversation_id: activeId }),
+      });
+
+      if (!res.ok) {
+        let detail = `Request failed (${res.status})`;
+        try {
+          const data = await res.json();
+          if (typeof data.detail === "string") detail = data.detail;
+        } catch {
+          // non-JSON error body; keep the generic message
+        }
+        showError(detail);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let streamDone = false;
+      while (!streamDone) {
+        const { value, done } = await reader.read();
+        streamDone = done;
+        if (value) buffer += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buffer.indexOf("\n\n")) !== -1) {
+          const frame = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          if (!frame.startsWith("data: ")) continue;
+          const evt = JSON.parse(frame.slice(6));
+          if (evt.type === "meta") setActiveId(evt.conversation_id);
+          else if (evt.type === "chunk") appendChunk(evt.text);
+          else if (evt.type === "error") showError(evt.message);
+          else if (evt.type === "done") loadConversations();
+        }
+      }
+    } catch (err) {
+      showError(err?.message || "Something went wrong.");
     } finally {
       setSending(false);
     }
@@ -182,21 +240,25 @@ export default function InsightsPage() {
             </div>
           ) : (
             <div className="max-w-3xl mx-auto space-y-5">
-              {messages.map((m, i) => (
-                m.role === "user" ? (
+              {messages.map((m, i) => {
+                const isStreaming = sending && i === messages.length - 1 && m.role === "assistant";
+                return m.role === "user" ? (
                   <div key={i} className="flex justify-end">
                     <div className="bg-slate-900 text-white rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[80%] text-sm whitespace-pre-wrap">{m.content}</div>
                   </div>
                 ) : (
                   <div key={i} className="flex gap-3">
                     <div className="h-7 w-7 rounded-full bg-slate-900 grid place-items-center shrink-0 mt-0.5">
-                      <Sparkle size={13} weight="fill" className="text-white" />
+                      <Sparkle size={13} weight="fill" className={`text-white ${isStreaming ? "animate-pulse" : ""}`} />
                     </div>
-                    <div className="min-w-0 flex-1 text-sm space-y-1" data-testid="insight-output">{renderMarkdown(m.content)}</div>
+                    <div className="min-w-0 flex-1 text-sm space-y-1" data-testid="insight-output">
+                      {renderMarkdown(m.content)}
+                      {isStreaming && <span className="inline-block w-1.5 h-4 bg-slate-400 align-text-bottom animate-pulse" />}
+                    </div>
                   </div>
-                )
-              ))}
-              {sending && (
+                );
+              })}
+              {sending && messages[messages.length - 1]?.role !== "assistant" && (
                 <div className="flex gap-3">
                   <div className="h-7 w-7 rounded-full bg-slate-900 grid place-items-center shrink-0">
                     <Sparkle size={13} weight="fill" className="text-white animate-pulse" />
