@@ -57,7 +57,7 @@ export default function ReportsPage() {
       <Card className="p-4 border-slate-200 shadow-none flex flex-wrap items-end gap-4">
         <div><Label>From</Label><Input type="date" value={range.start} onChange={(e) => setRange({ ...range, start: e.target.value })} data-testid="report-start-input" /></div>
         <div><Label>To</Label><Input type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} data-testid="report-end-input" /></div>
-        <Button onClick={run} className="bg-slate-900 hover:bg-slate-800" disabled={loading} data-testid="run-report-button"><Play size={16} className="mr-2" /> {loading ? "Running..." : "Run reports"}</Button>
+        <Button onClick={run} disabled={loading} data-testid="run-report-button"><Play size={16} className="mr-2" /> {loading ? "Running..." : "Run reports"}</Button>
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -81,7 +81,7 @@ export default function ReportsPage() {
           {pnl ? (
             <div className="space-y-6">
               <div>
-                <div className="text-xs uppercase tracking-widest text-emerald-700 mb-2">Income</div>
+                <div className="text-xs uppercase tracking-widest text-emerald-700 dark:text-emerald-400 mb-2">Income</div>
                 <Table>
                   <TableBody>
                     {pnl.income.length === 0 ? (<TableRow><TableCell className="text-slate-500">No income in period</TableCell></TableRow>) : pnl.income.map((r) => (
@@ -92,7 +92,7 @@ export default function ReportsPage() {
                 </Table>
               </div>
               <div>
-                <div className="text-xs uppercase tracking-widest text-red-700 mb-2">Expenses</div>
+                <div className="text-xs uppercase tracking-widest text-red-700 dark:text-red-400 mb-2">Expenses</div>
                 <Table>
                   <TableBody>
                     {pnl.expenses.length === 0 ? (<TableRow><TableCell className="text-slate-500">No expenses in period</TableCell></TableRow>) : pnl.expenses.map((r) => (
@@ -104,7 +104,7 @@ export default function ReportsPage() {
               </div>
               <div className="border-t-2 border-slate-900 pt-3 flex justify-between text-xl font-extrabold" style={{ fontFamily: "Manrope, sans-serif" }}>
                 <span>Net profit</span>
-                <span className={pnl.net >= 0 ? "text-emerald-700" : "text-red-700"} data-testid="pnl-net">{fmt(pnl.net, cur)}</span>
+                <span className={pnl.net >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"} data-testid="pnl-net">{fmt(pnl.net, cur)}</span>
               </div>
             </div>
           ) : <div className="text-slate-500">Run report to generate.</div>}

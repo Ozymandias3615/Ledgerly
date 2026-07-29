@@ -58,7 +58,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-white" style={{ fontFamily: "'IBM Plex Sans', system-ui" }}>
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-background" style={{ fontFamily: "'IBM Plex Sans', system-ui" }}>
       <div className="hidden lg:flex flex-col justify-between p-12 bg-slate-950 text-white relative overflow-hidden">
         <div className="flex items-center gap-3 relative z-10">
           <div className="h-10 w-10 rounded-md bg-white grid place-items-center">
@@ -120,7 +120,7 @@ export default function LoginPage() {
                 <PasswordInput id="password" data-testid="login-password-input" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
               {error && <div className="text-sm text-red-600" data-testid="login-error">{error}</div>}
-              <Button type="submit" disabled={loading} data-testid="login-submit-button" className="w-full h-11 bg-slate-900 hover:bg-slate-800">
+              <Button type="submit" disabled={loading} data-testid="login-submit-button" className="w-full h-11">
                 {loading ? "Signing in..." : "Sign in"}
               </Button>
             </form>

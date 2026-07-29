@@ -122,7 +122,7 @@ export default function TransactionsPage() {
           </DropdownMenu>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openNew} className="bg-slate-900 hover:bg-slate-800" data-testid="add-transaction-button">
+              <Button onClick={openNew} data-testid="add-transaction-button">
                 <Plus size={16} className="mr-2" /> New transaction
               </Button>
             </DialogTrigger>
@@ -222,7 +222,7 @@ export default function TransactionsPage() {
                   <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} data-testid="tx-description-input" />
                 </div>
                 <DialogFooter>
-                  <Button type="submit" className="bg-slate-900 hover:bg-slate-800" data-testid="tx-submit-button">{editing ? "Update" : "Add"}</Button>
+                  <Button type="submit" data-testid="tx-submit-button">{editing ? "Update" : "Add"}</Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -252,7 +252,7 @@ export default function TransactionsPage() {
               <TableRow key={t.id} data-testid={`tx-row-${t.id}`}>
                 <TableCell className="text-sm text-slate-600">{fmtDate(t.date)}</TableCell>
                 <TableCell>
-                  <span className={`text-[10px] uppercase tracking-[0.2em] px-2 py-1 rounded ${t.type === "income" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{t.type}</span>
+                  <span className={`text-[10px] uppercase tracking-[0.2em] px-2 py-1 rounded ${t.type === "income" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>{t.type}</span>
                 </TableCell>
                 <TableCell>{t.category}</TableCell>
                 <TableCell className="text-sm text-slate-600 max-w-xs truncate">
@@ -260,7 +260,7 @@ export default function TransactionsPage() {
                   {t.vendor_id && <div className="text-xs text-slate-400">{vendorName(t.vendor_id)}</div>}
                 </TableCell>
                 <TableCell className="text-right text-sm text-slate-600">{fmt(t.tax_amount || 0, t.currency)}</TableCell>
-                <TableCell className={`text-right font-semibold ${t.type === "income" ? "text-emerald-700" : "text-red-700"}`}>
+                <TableCell className={`text-right font-semibold ${t.type === "income" ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
                   {t.type === "income" ? "+" : "-"}{fmt(t.amount, t.currency)}
                 </TableCell>
                 <TableCell>

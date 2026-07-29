@@ -8,8 +8,9 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useTheme, THEMES } from "@/context/ThemeContext";
 import { CURRENCIES, formatApiError } from "@/lib/utils_app";
-import { Copy, Trash, UserPlus, UploadSimple, Image as ImageIcon, Sparkle, CaretDown } from "@phosphor-icons/react";
+import { Copy, Trash, UserPlus, UploadSimple, Image as ImageIcon, Sparkle, CaretDown, Check } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 function Section({ title, subtitle, defaultOpen = false, children, testId }) {
@@ -135,7 +136,7 @@ function AiKeySection({ user, refresh }) {
         Powers the AI Insights page. Works out of the box on a small shared daily quota. For unlimited use,
         add your own free Groq API key (from{" "}
         <span className="font-medium">console.groq.com/keys</span>) — usage then bills to that account, not Ledgerly.
-        {user?.has_ai_key && <span className="text-emerald-700 font-medium"> Your own API key is currently configured.</span>}
+        {user?.has_ai_key && <span className="text-emerald-700 dark:text-emerald-400 font-medium"> Your own API key is currently configured.</span>}
       </div>
       <form onSubmit={save} className="flex gap-2">
         <PasswordInput
@@ -186,7 +187,7 @@ function ProfileSection({ user, refresh }) {
         <Label htmlFor="settings-name">Your name</Label>
         <Input id="settings-name" required value={name} onChange={(e) => setName(e.target.value)} data-testid="settings-name-input" />
       </div>
-      <Button type="submit" disabled={saving} className="bg-slate-900 hover:bg-slate-800" data-testid="settings-save-button">
+      <Button type="submit" disabled={saving} data-testid="settings-save-button">
         {saving ? "Saving..." : "Save changes"}
       </Button>
     </form>
@@ -258,7 +259,7 @@ function BusinessSection({ user, refresh }) {
             </SelectContent>
           </Select>
         </div>
-        <Button type="submit" disabled={saving} className="bg-slate-900 hover:bg-slate-800" data-testid="settings-business-save-button">
+        <Button type="submit" disabled={saving} data-testid="settings-business-save-button">
           {saving ? "Saving..." : "Save changes"}
         </Button>
       </form>
@@ -388,7 +389,7 @@ function TeamSection() {
               <SelectItem value="staff">Staff</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={generate} disabled={generating} className="bg-slate-900 hover:bg-slate-800" data-testid="generate-invite-button">
+          <Button onClick={generate} disabled={generating} data-testid="generate-invite-button">
             <UserPlus size={16} className="mr-2" /> Generate code
           </Button>
         </div>
@@ -425,6 +426,43 @@ function TeamSection() {
   );
 }
 
+const THEME_PREVIEWS = {
+  light: { bg: "#ffffff", primary: "#0a0a0f" },
+  dark: { bg: "#141a22", primary: "#eef4fb" },
+  ocean: { bg: "#eaf4fc", primary: "#1257cf" },
+  grey: { bg: "#e4e5e8", primary: "#37393f" },
+};
+
+function AppearanceSection() {
+  const { theme, setTheme } = useTheme();
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {THEMES.map((t) => {
+        const preview = THEME_PREVIEWS[t.value];
+        const active = theme === t.value;
+        return (
+          <button
+            key={t.value}
+            type="button"
+            onClick={() => setTheme(t.value)}
+            className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+              active ? "border-primary ring-1 ring-primary" : "border-slate-200 hover:bg-slate-50"
+            }`}
+            data-testid={`theme-option-${t.value}`}
+          >
+            <span
+              className="h-8 w-8 rounded-full shrink-0 border border-slate-200"
+              style={{ background: `linear-gradient(135deg, ${preview.bg} 50%, ${preview.primary} 50%)` }}
+            />
+            <span className="flex-1 text-sm font-medium">{t.label}</span>
+            {active && <Check size={16} className="text-primary" weight="bold" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { user, refresh } = useAuth();
   const isOwnerOrAdmin = user?.role === "owner" || user?.role === "admin";
@@ -439,6 +477,9 @@ export default function SettingsPage() {
 
       <Section title="Your profile" subtitle={user?.email} defaultOpen testId="settings-profile-section">
         <ProfileSection user={user} refresh={refresh} />
+      </Section>
+      <Section title="Appearance" subtitle="Theme" testId="settings-appearance-section">
+        <AppearanceSection />
       </Section>
       <Section title="Business" subtitle={user?.business_name} testId="settings-business-section">
         <BusinessSection user={user} refresh={refresh} />

@@ -2,15 +2,67 @@ import React, { useEffect, useRef, useState } from "react";
 import api, { API } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { formatApiError } from "@/lib/utils_app";
-import { Sparkle, PaperPlaneRight, Plus, Trash, ChatCircle } from "@phosphor-icons/react";
+import { Sparkle, PaperPlaneRight, Plus, Trash, ChatCircle, Copy, Check, PencilSimple, Stop } from "@phosphor-icons/react";
 import { toast } from "sonner";
+
+function fmtTime(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+// The model is instructed not to use markdown tables, but LLMs don't always
+// follow formatting instructions - so any pipe/dash table that slips through
+// gets rewritten into bullet lines here instead of dumping raw "| a | b |"
+// syntax on screen.
+function convertTablesToBullets(md) {
+  const parseRow = (line) => {
+    const t = line.trim();
+    if (!t.includes("|")) return null;
+    const inner = t.replace(/^\|/, "").replace(/\|$/, "");
+    const cells = inner.split("|").map((c) => c.trim());
+    return cells.length >= 2 ? cells : null;
+  };
+  const isSeparatorRow = (cells) => cells.every((c) => /^:?-+:?$/.test(c));
+
+  const lines = md.split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const header = parseRow(lines[i]);
+    const separator = header && i + 1 < lines.length ? parseRow(lines[i + 1]) : null;
+    if (header && separator && separator.length === header.length && isSeparatorRow(separator)) {
+      i += 2;
+      while (i < lines.length) {
+        const row = parseRow(lines[i]);
+        if (!row || row.length !== header.length) break;
+        const [first, ...rest] = row;
+        const restText = rest
+          .map((cell, idx) => (header[idx + 1] ? `*${header[idx + 1]}:* ${cell}` : cell))
+          .join(" — ");
+        const boldFirst = /^\*\*.*\*\*$/.test(first) ? first : `**${first}**`;
+        out.push(`- ${boldFirst}${restText ? ` — ${restText}` : ""}`);
+        i += 1;
+      }
+      continue;
+    }
+    out.push(lines[i]);
+    i += 1;
+  }
+  return out.join("\n");
+}
 
 function renderMarkdown(md) {
   // super-light markdown for headings, bold, bullets
   if (!md) return null;
-  const lines = md.split("\n");
+  const lines = convertTablesToBullets(md).split("\n");
   const out = [];
   let listBuf = [];
   const flushList = () => {
@@ -45,11 +97,20 @@ export default function InsightsPage() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState(null);
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [loadingConversations, setLoadingConversations] = useState(true);
   const bottomRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   const loadConversations = async () => {
-    const { data } = await api.get("/insights/conversations");
-    setConversations(data);
+    try {
+      const { data } = await api.get("/insights/conversations");
+      setConversations(data);
+    } finally {
+      setLoadingConversations(false);
+    }
   };
   useEffect(() => { loadConversations(); }, []);
 
@@ -88,19 +149,55 @@ export default function InsightsPage() {
     }
   };
 
+  const startRename = (e, c) => {
+    e.stopPropagation();
+    setRenamingId(c.conversation_id);
+    setRenameValue(c.title);
+  };
+
+  const saveRename = async () => {
+    const id = renamingId;
+    const title = renameValue.trim();
+    setRenamingId(null);
+    if (!id || !title) return;
+    try {
+      await api.put(`/insights/conversations/${id}`, { title });
+      loadConversations();
+    } catch (err) {
+      toast.error(formatApiError(err));
+    }
+  };
+
+  const copyMessage = async (i, content) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedIndex(i);
+      setTimeout(() => setCopiedIndex((cur) => (cur === i ? null : cur)), 1500);
+    } catch {
+      toast.error("Couldn't copy to clipboard");
+    }
+  };
+
+  const stopGenerating = () => {
+    abortControllerRef.current?.abort();
+  };
+
   const send = async (text) => {
     const message = (text ?? input).trim();
     if (!message || sending) return;
     setInput("");
-    setMessages((m) => [...m, { role: "user", content: message }]);
+    setMessages((m) => [...m, { role: "user", content: message, at: new Date().toISOString() }]);
     setSending(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     let assistantAdded = false;
     const appendChunk = (chunk) => {
       setMessages((m) => {
         const next = [...m];
         if (!assistantAdded) {
-          next.push({ role: "assistant", content: chunk });
+          next.push({ role: "assistant", content: chunk, at: new Date().toISOString() });
           assistantAdded = true;
         } else {
           const last = next[next.length - 1];
@@ -114,7 +211,7 @@ export default function InsightsPage() {
       setMessages((m) => {
         const next = [...m];
         if (assistantAdded) next[next.length - 1] = { ...next[next.length - 1], content: `> ${msg}` };
-        else next.push({ role: "assistant", content: `> ${msg}` });
+        else next.push({ role: "assistant", content: `> ${msg}`, at: new Date().toISOString() });
         return next;
       });
     };
@@ -125,6 +222,7 @@ export default function InsightsPage() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, conversation_id: activeId }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -160,8 +258,11 @@ export default function InsightsPage() {
         }
       }
     } catch (err) {
-      showError(err?.message || "Something went wrong.");
+      // A user-initiated stop shows up as an AbortError - leave whatever
+      // text streamed in so far in place instead of treating it as a failure.
+      if (err?.name !== "AbortError") showError(err?.message || "Something went wrong.");
     } finally {
+      abortControllerRef.current = null;
       setSending(false);
     }
   };
@@ -178,33 +279,65 @@ export default function InsightsPage() {
       {/* Conversations sidebar */}
       <aside className="w-64 shrink-0 border-r border-slate-200 flex flex-col bg-slate-50/50">
         <div className="p-4 shrink-0">
-          <Button onClick={newChat} className="w-full bg-slate-900 hover:bg-slate-800" data-testid="new-chat-button">
+          <Button onClick={newChat} className="w-full" data-testid="new-chat-button">
             <Plus size={16} className="mr-2" /> New chat
           </Button>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-4 space-y-0.5">
-          {conversations.length === 0 ? (
+          {loadingConversations ? (
+            <div className="px-3 py-2 space-y-2.5">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-8 w-full rounded-md" />
+              ))}
+            </div>
+          ) : conversations.length === 0 ? (
             <div className="text-xs text-slate-400 text-center px-4 py-6">No conversations yet</div>
           ) : conversations.map((c) => (
-            <button
-              key={c.conversation_id}
-              onClick={() => openConversation(c.conversation_id)}
-              className={`group w-full flex items-center gap-2 text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                c.conversation_id === activeId ? "bg-slate-200/70 text-slate-900" : "text-slate-600 hover:bg-slate-100"
-              }`}
-              data-testid={`conversation-${c.conversation_id}`}
-            >
-              <ChatCircle size={14} className="shrink-0 text-slate-400" />
-              <span className="flex-1 truncate">{c.title}</span>
-              <span
-                role="button"
-                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-slate-200 text-slate-400 hover:text-red-600 transition-opacity"
-                onClick={(e) => requestDeleteConversation(e, c.conversation_id)}
-                title="Delete"
+            renamingId === c.conversation_id ? (
+              <div key={c.conversation_id} className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm bg-slate-200/70">
+                <ChatCircle size={14} className="shrink-0 text-slate-400" />
+                <Input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveRename();
+                    if (e.key === "Escape") setRenamingId(null);
+                  }}
+                  onBlur={saveRename}
+                  className="h-6 px-1.5 py-0 text-sm flex-1 bg-background"
+                  data-testid={`conversation-rename-input-${c.conversation_id}`}
+                />
+              </div>
+            ) : (
+              <button
+                key={c.conversation_id}
+                onClick={() => openConversation(c.conversation_id)}
+                className={`group w-full flex items-center gap-2 text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                  c.conversation_id === activeId ? "bg-slate-200/70 text-slate-900" : "text-slate-600 hover:bg-slate-100"
+                }`}
+                data-testid={`conversation-${c.conversation_id}`}
               >
-                <Trash size={13} />
-              </span>
-            </button>
+                <ChatCircle size={14} className="shrink-0 text-slate-400" />
+                <span className="flex-1 truncate">{c.title}</span>
+                <span
+                  role="button"
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-900 transition-opacity"
+                  onClick={(e) => startRename(e, c)}
+                  title="Rename"
+                >
+                  <PencilSimple size={13} />
+                </span>
+                <span
+                  role="button"
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-slate-200 text-slate-400 hover:text-red-600 transition-opacity"
+                  onClick={(e) => requestDeleteConversation(e, c.conversation_id)}
+                  title="Delete"
+                >
+                  <Trash size={13} />
+                </span>
+              </button>
+            )
           ))}
         </div>
       </aside>
@@ -220,8 +353,8 @@ export default function InsightsPage() {
           {messages.length === 0 ? (
             <div className="h-full grid place-items-center">
               <div className="text-center max-w-md">
-                <div className="h-12 w-12 rounded-full bg-slate-900 grid place-items-center mx-auto mb-4">
-                  <Sparkle size={22} weight="fill" className="text-white" />
+                <div className="h-12 w-12 rounded-full bg-primary grid place-items-center mx-auto mb-4">
+                  <Sparkle size={22} weight="fill" className="text-primary-foreground" />
                 </div>
                 <div className="font-bold text-lg mb-1" style={{ fontFamily: "Manrope, sans-serif" }}>Ask about your books</div>
                 <div className="text-sm text-slate-500 mb-6">Get expert analysis grounded in your live business data.</div>
@@ -243,25 +376,40 @@ export default function InsightsPage() {
               {messages.map((m, i) => {
                 const isStreaming = sending && i === messages.length - 1 && m.role === "assistant";
                 return m.role === "user" ? (
-                  <div key={i} className="flex justify-end">
-                    <div className="bg-slate-900 text-white rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[80%] text-sm whitespace-pre-wrap">{m.content}</div>
+                  <div key={i} className="flex flex-col items-end">
+                    <div className="bg-primary text-primary-foreground rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[80%] text-sm whitespace-pre-wrap">{m.content}</div>
+                    {m.at && <div className="text-[10px] text-slate-400 mt-1 pr-1">{fmtTime(m.at)}</div>}
                   </div>
                 ) : (
-                  <div key={i} className="flex gap-3">
-                    <div className="h-7 w-7 rounded-full bg-slate-900 grid place-items-center shrink-0 mt-0.5">
-                      <Sparkle size={13} weight="fill" className={`text-white ${isStreaming ? "animate-pulse" : ""}`} />
+                  <div key={i} className="flex gap-3 group">
+                    <div className="h-7 w-7 rounded-full bg-primary grid place-items-center shrink-0 mt-0.5">
+                      <Sparkle size={13} weight="fill" className={`text-primary-foreground ${isStreaming ? "animate-pulse" : ""}`} />
                     </div>
-                    <div className="min-w-0 flex-1 text-sm space-y-1" data-testid="insight-output">
-                      {renderMarkdown(m.content)}
-                      {isStreaming && <span className="inline-block w-1.5 h-4 bg-slate-400 align-text-bottom animate-pulse" />}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm space-y-1 [&>*:first-child]:mt-0" data-testid="insight-output">
+                        {renderMarkdown(m.content)}
+                        {isStreaming && <span className="inline-block w-1.5 h-4 bg-slate-400 align-text-bottom animate-pulse" />}
+                      </div>
+                      {!isStreaming && (
+                        <div className="flex items-center gap-2 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {m.at && <span className="text-[10px] text-slate-400">{fmtTime(m.at)}</span>}
+                          <button
+                            onClick={() => copyMessage(i, m.content)}
+                            className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                            title="Copy"
+                          >
+                            {copiedIndex === i ? <Check size={12} /> : <Copy size={12} />}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
               {sending && messages[messages.length - 1]?.role !== "assistant" && (
                 <div className="flex gap-3">
-                  <div className="h-7 w-7 rounded-full bg-slate-900 grid place-items-center shrink-0">
-                    <Sparkle size={13} weight="fill" className="text-white animate-pulse" />
+                  <div className="h-7 w-7 rounded-full bg-primary grid place-items-center shrink-0">
+                    <Sparkle size={13} weight="fill" className="text-primary-foreground animate-pulse" />
                   </div>
                   <div className="text-sm text-slate-400 pt-1">Analyzing your books...</div>
                 </div>
@@ -282,15 +430,26 @@ export default function InsightsPage() {
               className="resize-none min-h-[44px] max-h-40"
               data-testid="insight-question-input"
             />
-            <Button
-              onClick={() => send()}
-              disabled={sending || !input.trim()}
-              className="bg-slate-900 hover:bg-slate-800 h-11 w-11 p-0 shrink-0"
-              data-testid="generate-insight-button"
-              title="Send"
-            >
-              <PaperPlaneRight size={17} weight="fill" />
-            </Button>
+            {sending ? (
+              <Button
+                onClick={stopGenerating}
+                className="h-11 w-11 p-0 shrink-0"
+                data-testid="stop-insight-button"
+                title="Stop generating"
+              >
+                <Stop size={17} weight="fill" />
+              </Button>
+            ) : (
+              <Button
+                onClick={() => send()}
+                disabled={!input.trim()}
+                className="h-11 w-11 p-0 shrink-0"
+                data-testid="generate-insight-button"
+                title="Send"
+              >
+                <PaperPlaneRight size={17} weight="fill" />
+              </Button>
+            )}
           </div>
         </div>
       </div>

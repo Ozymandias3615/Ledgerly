@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { TrendUp, TrendDown, ArrowsDownUp, FileText, ArrowsClockwise, ArrowsOut, Warning } from "@phosphor-icons/react";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "@/context/ThemeContext";
 
 const COLORS = [
   "#0f172a", "#1d4ed8", "#059669", "#d97706", "#7c3aed", "#dc2626", "#0891b2", "#65a30d",
@@ -19,7 +20,30 @@ const COLORS = [
 ];
 
 const INVOICE_STATUS_COLORS = { draft: "#94a3b8", sent: "#2563eb", paid: "#059669", overdue: "#dc2626" };
+const INVOICE_STATUS_COLORS_DARK = { draft: "#94a3b8", sent: "#60a5fa", paid: "#34d399", overdue: "#f87171" };
+const COLORS_DARK = [
+  "#e2e8f0", "#60a5fa", "#34d399", "#fbbf24", "#a78bfa", "#f87171", "#22d3ee", "#a3e635",
+  "#f472b6", "#818cf8", "#2dd4bf", "#f59e0b",
+];
 const INVOICE_STATUS_LABELS = { draft: "Draft", sent: "Sent", paid: "Paid", overdue: "Overdue" };
+
+function useChartTheme() {
+  const { theme } = useTheme();
+  const dark = theme === "dark";
+  return {
+    colors: dark ? COLORS_DARK : COLORS,
+    invoiceStatus: dark ? INVOICE_STATUS_COLORS_DARK : INVOICE_STATUS_COLORS,
+    grid: dark ? "#2a3548" : "#e2e8f0",
+    axis: dark ? "#94a3b8" : "#64748b",
+    axisLine: dark ? "#2a3548" : "#e2e8f0",
+    cursor: dark ? "#1e293b" : "#f1f5f9",
+    refLine: dark ? "#475569" : "#cbd5e1",
+    green: dark ? "#34d399" : "#059669",
+    red: dark ? "#f87171" : "#dc2626",
+    pieStroke: dark ? "#1a2332" : "#fff",
+    muted: dark ? "#475569" : "#cbd5e1",
+  };
+}
 
 // The expanded dialog caps at 88vh (see ChartCard); its header + filter row +
 // padding measures ~130px regardless of chart type, so sizing the chart to
@@ -57,7 +81,7 @@ function compactCurrency(value, cur) {
 function ChartTooltip({ active, payload, label, cur }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-slate-200 rounded-md shadow-lg px-3 py-2">
+    <div className="bg-card border border-slate-200 rounded-md shadow-lg px-3 py-2">
       {label && <div className="text-xs font-semibold text-slate-700 mb-1.5">{label}</div>}
       <div className="space-y-1">
         {payload.map((p) => (
@@ -82,7 +106,7 @@ function PieTooltip({ active, payload, cur, total }) {
   const p = payload[0];
   const percent = total ? Math.round((p.value / total) * 100) : 0;
   return (
-    <div className="bg-white border border-slate-200 rounded-md shadow-lg px-3 py-2">
+    <div className="bg-card border border-slate-200 rounded-md shadow-lg px-3 py-2">
       <div className="flex items-center justify-between gap-6 text-xs">
         <span className="flex items-center gap-1.5 text-slate-500">
           <span className="h-2 w-2 rounded-full shrink-0" style={{ background: p.payload?.fill }} />
@@ -101,7 +125,7 @@ function KPI({ label, value, delta, Icon, tone = "default", testId }) {
         <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{label}</div>
         {Icon && <Icon size={18} weight="duotone" className="text-slate-400" />}
       </div>
-      <div className={`mt-2 text-3xl font-extrabold tracking-tight ${tone === "danger" ? "text-red-600" : tone === "success" ? "text-emerald-700" : "text-slate-900"}`} style={{ fontFamily: "Manrope, sans-serif" }}>
+      <div className={`mt-2 text-3xl font-extrabold tracking-tight ${tone === "danger" ? "text-red-600 dark:text-red-400" : tone === "success" ? "text-emerald-700 dark:text-emerald-400" : "text-slate-900"}`} style={{ fontFamily: "Manrope, sans-serif" }}>
         {value}
       </div>
       {delta && <div className="text-xs text-slate-500 mt-2">{delta}</div>}
@@ -356,18 +380,19 @@ function ChartCard({ testId, eyebrow, title, granularity, setGranularity, period
 
 function CashFlowChart({ cur }) {
   const { granularity, setGranularity, period, setPeriod, data } = useSeries("cashflow", "month");
+  const ct = useChartTheme();
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-cashflow" />;
   const renderBody = (big) => (
     <div style={{ height: big ? BIG_CHART_HEIGHT : 176 }}>
       <ResponsiveContainer>
         <BarChart data={data.series} margin={big ? { left: 8, right: 16, top: 8 } : { left: 4, right: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-          <XAxis dataKey="label" stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
-          <YAxis stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
-          <Tooltip content={<ChartTooltip cur={cur} />} cursor={{ fill: "#f1f5f9" }} />
-          <ReferenceLine y={0} stroke="#cbd5e1" />
-          <Bar dataKey="income" name="Revenue" fill="#059669" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="expense" name="Expenses" fill="#dc2626" radius={[3, 3, 0, 0]} />
+          <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+          <XAxis dataKey="label" stroke={ct.axis} fontSize={big ? 13 : 10} tickLine={false} axisLine={{ stroke: ct.axisLine }} />
+          <YAxis stroke={ct.axis} fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
+          <Tooltip content={<ChartTooltip cur={cur} />} cursor={{ fill: ct.cursor }} />
+          <ReferenceLine y={0} stroke={ct.refLine} />
+          <Bar dataKey="income" name="Revenue" fill={ct.green} radius={[3, 3, 0, 0]} />
+          <Bar dataKey="expense" name="Expenses" fill={ct.red} radius={[3, 3, 0, 0]} />
           {big && <Legend wrapperStyle={{ fontSize: 13 }} />}
         </BarChart>
       </ResponsiveContainer>
@@ -384,6 +409,7 @@ function CashFlowChart({ cur }) {
 
 function ExpensesPieChart({ cur }) {
   const { granularity, setGranularity, period, setPeriod, data } = useSeries("expenses-cat", "month");
+  const ct = useChartTheme();
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-expenses-cat" />;
   const expenseTotal = data.categories.expense.reduce((s, c) => s + c.value, 0);
   const renderBody = (big) => (
@@ -405,7 +431,7 @@ function ExpensesPieChart({ cur }) {
               labelLine={false}
               fontSize={big ? 14 : 10}
             >
-              {data.categories.expense.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="#fff" strokeWidth={1.5} />)}
+              {data.categories.expense.map((_, i) => <Cell key={i} fill={ct.colors[i % ct.colors.length]} stroke={ct.pieStroke} strokeWidth={1.5} />)}
             </Pie>
             <Tooltip content={<PieTooltip cur={cur} total={expenseTotal} />} />
             <Legend iconType="circle" iconSize={big ? 10 : 7} wrapperStyle={{ fontSize: big ? 13 : 10, lineHeight: big ? "22px" : "16px" }} />
@@ -425,18 +451,19 @@ function ExpensesPieChart({ cur }) {
 
 function ProfitLossChart({ cur }) {
   const { granularity, setGranularity, period, setPeriod, data } = useSeries("pnl", "month");
+  const ct = useChartTheme();
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-net" />;
   const renderBody = (big) => (
     <div style={{ height: big ? BIG_CHART_HEIGHT : 176 }}>
       <ResponsiveContainer>
         <BarChart data={data.series} margin={big ? { left: 8, right: 16, top: 8 } : { left: 4, right: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-          <XAxis dataKey="label" stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
-          <YAxis stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
-          <Tooltip content={<ChartTooltip cur={cur} />} cursor={{ fill: "#f1f5f9" }} />
-          <ReferenceLine y={0} stroke="#cbd5e1" />
+          <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+          <XAxis dataKey="label" stroke={ct.axis} fontSize={big ? 13 : 10} tickLine={false} axisLine={{ stroke: ct.axisLine }} />
+          <YAxis stroke={ct.axis} fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
+          <Tooltip content={<ChartTooltip cur={cur} />} cursor={{ fill: ct.cursor }} />
+          <ReferenceLine y={0} stroke={ct.refLine} />
           <Bar dataKey="net" name="Net profit" radius={[4, 4, 4, 4]}>
-            {data.series.map((d, i) => <Cell key={i} fill={d.net >= 0 ? "#059669" : "#dc2626"} />)}
+            {data.series.map((d, i) => <Cell key={i} fill={d.net >= 0 ? ct.green : ct.red} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -453,16 +480,17 @@ function ProfitLossChart({ cur }) {
 
 function SalesChart({ cur }) {
   const { granularity, setGranularity, period, setPeriod, data } = useSeries("sales", "month");
+  const ct = useChartTheme();
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-sales" />;
   const renderBody = (big) => (
     <div style={{ height: big ? BIG_CHART_HEIGHT : 176 }}>
       <ResponsiveContainer>
         <LineChart data={data.series} margin={big ? { left: 8, right: 16, top: 8 } : { left: 4, right: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-          <XAxis dataKey="label" stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
-          <YAxis stroke="#64748b" fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
+          <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+          <XAxis dataKey="label" stroke={ct.axis} fontSize={big ? 13 : 10} tickLine={false} axisLine={{ stroke: ct.axisLine }} />
+          <YAxis stroke={ct.axis} fontSize={big ? 13 : 10} tickLine={false} axisLine={false} tickFormatter={(v) => compactCurrency(v, cur)} width={big ? 64 : 48} />
           <Tooltip content={<ChartTooltip cur={cur} />} />
-          <Line type="monotone" dataKey="income" name="Sales" stroke="#059669" strokeWidth={big ? 3 : 2.5} dot={{ r: big ? 5 : 3 }} />
+          <Line type="monotone" dataKey="income" name="Sales" stroke={ct.green} strokeWidth={big ? 3 : 2.5} dot={{ r: big ? 5 : 3 }} />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -505,6 +533,7 @@ function SegmentedBar({ segments, cur, big }) {
 
 function InvoicesChart({ cur }) {
   const { granularity, setGranularity, period, setPeriod, data } = useSeries("invoices", "month");
+  const ct = useChartTheme();
   if (!data) return <Card className="p-6 border-slate-200 shadow-none h-64 animate-pulse" data-testid="chart-invoices" />;
 
   const statusTotals = { draft: 0, sent: 0, paid: 0, overdue: 0 };
@@ -520,16 +549,16 @@ function InvoicesChart({ cur }) {
         cur={cur}
         big={big}
         segments={[
-          { label: "Paid", value: paid, color: INVOICE_STATUS_COLORS.paid },
-          { label: "Outstanding", value: outstanding, color: "#cbd5e1" },
+          { label: "Paid", value: paid, color: ct.invoiceStatus.paid },
+          { label: "Outstanding", value: outstanding, color: ct.muted },
         ]}
       />
       <SegmentedBar
         cur={cur}
         big={big}
         segments={[
-          { label: "Overdue", value: overdue, color: INVOICE_STATUS_COLORS.overdue },
-          { label: "Not yet due", value: notYetDue, color: INVOICE_STATUS_COLORS.sent },
+          { label: "Overdue", value: overdue, color: ct.invoiceStatus.overdue },
+          { label: "Not yet due", value: notYetDue, color: ct.invoiceStatus.sent },
         ]}
       />
     </div>
@@ -562,16 +591,16 @@ function LowStockBanner() {
 
   return (
     <Card
-      className="p-4 border-red-200 bg-red-50 shadow-none flex items-center gap-3 cursor-pointer hover:bg-red-100/70 transition-colors"
+      className="p-4 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 shadow-none flex items-center gap-3 cursor-pointer hover:bg-red-100/70 dark:hover:bg-red-950/50 transition-colors"
       onClick={() => navigate("/inventory")}
       data-testid="dashboard-low-stock-banner"
     >
-      <Warning size={20} weight="fill" className="text-red-600 shrink-0" />
-      <div className="text-sm text-red-700 flex-1">
+      <Warning size={20} weight="fill" className="text-red-600 dark:text-red-400 shrink-0" />
+      <div className="text-sm text-red-700 dark:text-red-400 flex-1">
         <span className="font-semibold">{lowItems.length} inventory item{lowItems.length > 1 ? "s" : ""} running low: </span>
         {lowItems.map((i) => i.name).join(", ")}
       </div>
-      <span className="text-xs font-semibold text-red-700 shrink-0">View inventory →</span>
+      <span className="text-xs font-semibold text-red-700 dark:text-red-400 shrink-0">View inventory →</span>
     </Card>
   );
 }

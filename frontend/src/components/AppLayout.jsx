@@ -29,7 +29,7 @@ function NavItem({ to, label, Icon, testId, className = "" }) {
       data-testid={testId}
       className={({ isActive }) =>
         `relative flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors duration-150 ${
-          isActive ? "text-white" : "text-slate-700 hover:bg-slate-100"
+          isActive ? "text-primary-foreground" : "text-slate-700 hover:bg-slate-100"
         } ${className}`
       }
     >
@@ -38,7 +38,7 @@ function NavItem({ to, label, Icon, testId, className = "" }) {
           {isActive && (
             <motion.div
               layoutId="nav-active-pill"
-              className="absolute inset-0 bg-slate-900 rounded-md"
+              className="absolute inset-0 bg-primary rounded-md"
               transition={{ type: "spring", stiffness: 500, damping: 34 }}
             />
           )}
@@ -66,12 +66,12 @@ export default function AppLayout({ children }) {
   };
 
   return (
-    <div className="h-screen bg-white text-slate-900 flex overflow-hidden" style={{ fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}>
-      <aside className="w-64 shrink-0 border-r border-slate-200 bg-white flex flex-col" data-testid="sidebar">
+    <div className="h-screen bg-background text-slate-900 flex overflow-hidden" style={{ fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}>
+      <aside className="w-64 shrink-0 border-r border-slate-200 bg-card flex flex-col" data-testid="sidebar">
         <div className="shrink-0 px-6 py-6 border-b border-slate-200">
           <div className="flex items-center gap-2 mb-4">
-            <div className="h-8 w-8 rounded-md bg-slate-900 grid place-items-center">
-              <Wallet size={18} weight="fill" className="text-white" />
+            <div className="h-8 w-8 rounded-md bg-primary grid place-items-center">
+              <Wallet size={18} weight="fill" className="text-primary-foreground" />
             </div>
             <div className="font-extrabold tracking-tight text-lg" style={{ fontFamily: "Manrope, sans-serif" }}>Ledgerly</div>
           </div>
@@ -95,7 +95,7 @@ export default function AppLayout({ children }) {
         </div>
       </aside>
       <main className="flex-1 min-w-0 overflow-auto flex flex-col">
-        <div className="shrink-0 h-14 border-b border-slate-200 flex items-center justify-end gap-2 px-6 sticky top-0 bg-white/90 backdrop-blur z-10">
+        <div className="shrink-0 h-14 border-b border-slate-200 flex items-center justify-end gap-2 px-6 sticky top-0 bg-background/90 backdrop-blur z-10">
           <NotificationBell />
           <RefreshButton />
         </div>

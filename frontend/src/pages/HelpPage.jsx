@@ -17,7 +17,7 @@ export default function HelpPage() {
               <ArrowSquareOut size={16} className="mr-2" /> Open in new tab
             </a>
           </Button>
-          <Button className="bg-slate-900 hover:bg-slate-800" asChild data-testid="help-download">
+          <Button asChild data-testid="help-download">
             <a href="/Ledgerly-User-Guide.pdf" download="Ledgerly-User-Guide.pdf">
               <DownloadSimple size={16} className="mr-2" /> Download PDF
             </a>

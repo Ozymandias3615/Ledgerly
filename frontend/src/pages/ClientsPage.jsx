@@ -120,7 +120,7 @@ export default function ClientsPage() {
             </div>
             <div><Label>Address</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Optional" data-testid="contact-address-input" /></div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Optional" data-testid="contact-notes-input" /></div>
-            <DialogFooter><Button type="submit" className="bg-slate-900 hover:bg-slate-800" data-testid="contact-submit-button">{editing ? "Update" : "Add"}</Button></DialogFooter>
+            <DialogFooter><Button type="submit" data-testid="contact-submit-button">{editing ? "Update" : "Add"}</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
@@ -133,7 +133,7 @@ export default function ClientsPage() {
 
         <TabsContent value="clients" className="mt-6 space-y-4">
           <div className="flex justify-end">
-            <Button onClick={() => openNew("client")} className="bg-slate-900 hover:bg-slate-800" data-testid="add-client-button">
+            <Button onClick={() => openNew("client")} data-testid="add-client-button">
               <Plus size={16} className="mr-2" /> Add client
             </Button>
           </div>
@@ -146,7 +146,7 @@ export default function ClientsPage() {
 
         <TabsContent value="vendors" className="mt-6 space-y-4">
           <div className="flex justify-end">
-            <Button onClick={() => openNew("vendor")} className="bg-slate-900 hover:bg-slate-800" data-testid="add-vendor-button">
+            <Button onClick={() => openNew("vendor")} data-testid="add-vendor-button">
               <Plus size={16} className="mr-2" /> Add vendor
             </Button>
           </div>

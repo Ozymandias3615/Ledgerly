@@ -53,11 +53,11 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white grid place-items-center p-8" style={{ fontFamily: "'IBM Plex Sans', system-ui" }}>
+    <div className="min-h-screen bg-background grid place-items-center p-8" style={{ fontFamily: "'IBM Plex Sans', system-ui" }}>
       <div className="w-full max-w-md">
         <div className="flex items-center gap-2 mb-6">
-          <div className="h-9 w-9 rounded-md bg-slate-900 grid place-items-center">
-            <Wallet size={20} weight="fill" className="text-white" />
+          <div className="h-9 w-9 rounded-md bg-primary grid place-items-center">
+            <Wallet size={20} weight="fill" className="text-primary-foreground" />
           </div>
           <div className="font-extrabold text-xl" style={{ fontFamily: "Manrope, sans-serif" }}>Ledgerly</div>
         </div>
@@ -106,7 +106,7 @@ export default function OnboardingPage() {
               />
             </div>
             <div className="flex items-center gap-3 pt-1">
-              <Button type="submit" disabled={saving} className="bg-slate-900 hover:bg-slate-800" data-testid="onboarding-finish-button">
+              <Button type="submit" disabled={saving} data-testid="onboarding-finish-button">
                 {saving ? "Saving..." : "Finish setup"}
               </Button>
               <button

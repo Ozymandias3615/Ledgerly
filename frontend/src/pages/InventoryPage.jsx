@@ -45,7 +45,7 @@ function StockBar({ item, onSetQty }) {
   const low = isLow(item);
   const ratio = stockRatio(item);
   const reorderPoint = Number(item.reorder_point);
-  const color = reorderPoint <= 0 ? "bg-slate-300" : low ? "bg-red-500" : ratio < 0.75 ? "bg-amber-500" : "bg-emerald-500";
+  const color = reorderPoint <= 0 ? "bg-slate-300" : low ? "bg-red-500 dark:bg-red-400" : ratio < 0.75 ? "bg-amber-500 dark:bg-amber-400" : "bg-emerald-500 dark:bg-emerald-400";
   return (
     <div className="w-28">
       <div className="flex items-baseline gap-1">
@@ -64,7 +64,7 @@ function StockBar({ item, onSetQty }) {
             }}
             autoFocus
             onFocus={(e) => e.target.select()}
-            className="w-14 text-sm font-semibold text-slate-900 border border-slate-300 rounded px-1 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            className="w-14 text-sm font-semibold text-slate-900 bg-transparent border border-slate-300 rounded px-1 focus:outline-none focus:ring-1 focus:ring-slate-400"
             data-testid={`inv-qty-input-${item.id}`}
           />
         ) : (
@@ -94,7 +94,7 @@ function KPI({ label, value, Icon, tone = "default", testId }) {
         <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{label}</div>
         {Icon && <Icon size={18} weight="duotone" className="text-slate-400" />}
       </div>
-      <div className={`mt-2 text-3xl font-extrabold tracking-tight ${tone === "danger" ? "text-red-600" : "text-slate-900"}`} style={{ fontFamily: "Manrope, sans-serif" }}>
+      <div className={`mt-2 text-3xl font-extrabold tracking-tight ${tone === "danger" ? "text-red-600 dark:text-red-400" : "text-slate-900"}`} style={{ fontFamily: "Manrope, sans-serif" }}>
         {value}
       </div>
     </Card>
@@ -262,7 +262,7 @@ export default function InventoryPage() {
           </DropdownMenu>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openNew} className="bg-slate-900 hover:bg-slate-800" data-testid="add-inventory-button">
+              <Button onClick={openNew} data-testid="add-inventory-button">
                 <Plus size={16} className="mr-2" /> Add item
               </Button>
             </DialogTrigger>
@@ -299,7 +299,7 @@ export default function InventoryPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" className="bg-slate-900 hover:bg-slate-800" data-testid="inv-submit-button">{editing ? "Update" : "Add"}</Button>
+                <Button type="submit" data-testid="inv-submit-button">{editing ? "Update" : "Add"}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -308,9 +308,9 @@ export default function InventoryPage() {
       </div>
 
       {lowStockItems.length > 0 && (
-        <Card className="p-4 border-red-200 bg-red-50 shadow-none flex items-center gap-3" data-testid="low-stock-banner">
-          <Warning size={20} weight="fill" className="text-red-600 shrink-0" />
-          <div className="text-sm text-red-700">
+        <Card className="p-4 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 shadow-none flex items-center gap-3" data-testid="low-stock-banner">
+          <Warning size={20} weight="fill" className="text-red-600 dark:text-red-400 shrink-0" />
+          <div className="text-sm text-red-700 dark:text-red-400">
             <span className="font-semibold">{lowStockItems.length} item{lowStockItems.length > 1 ? "s" : ""} running low: </span>
             {lowStockItems.map((i) => i.name).join(", ")}
           </div>
@@ -341,7 +341,7 @@ export default function InventoryPage() {
             ) : items.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-10" data-testid="inv-empty">No items yet. Add your first one.</TableCell></TableRow>
             ) : items.map((item) => (
-              <TableRow key={item.id} className={isLow(item) ? "bg-red-50/60" : ""} data-testid={`inv-row-${item.id}`}>
+              <TableRow key={item.id} className={isLow(item) ? "bg-red-50/60 dark:bg-red-950/20" : ""} data-testid={`inv-row-${item.id}`}>
                 <TableCell className="font-medium">{item.name}</TableCell>
                 <TableCell className="text-sm text-slate-600">{item.category || "—"}</TableCell>
                 <TableCell>

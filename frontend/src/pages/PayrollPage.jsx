@@ -110,7 +110,7 @@ export default function PayrollPage() {
         <TabsContent value="employees" className="mt-6 space-y-4">
           <div className="flex justify-end">
             <Dialog open={openEmp} onOpenChange={setOpenEmp}>
-              <DialogTrigger asChild><Button className="bg-slate-900 hover:bg-slate-800" data-testid="add-employee-button"><Plus size={16} className="mr-2" /> Add employee</Button></DialogTrigger>
+              <DialogTrigger asChild><Button data-testid="add-employee-button"><Plus size={16} className="mr-2" /> Add employee</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>New employee</DialogTitle></DialogHeader>
                 <form onSubmit={addEmp} className="space-y-3">
@@ -125,7 +125,7 @@ export default function PayrollPage() {
                     <div><Label>Currency</Label><Select value={emp.currency} onValueChange={(v) => setEmp({ ...emp, currency: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CURRENCIES.map((c) => <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>)}</SelectContent></Select></div>
                   </div>
                   <div><Label>Pay frequency</Label><Select value={emp.pay_frequency} onValueChange={(v) => setEmp({ ...emp, pay_frequency: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="monthly">Monthly</SelectItem><SelectItem value="biweekly">Bi-weekly</SelectItem><SelectItem value="weekly">Weekly</SelectItem></SelectContent></Select></div>
-                  <DialogFooter><Button type="submit" className="bg-slate-900 hover:bg-slate-800" data-testid="emp-submit-button">Add</Button></DialogFooter>
+                  <DialogFooter><Button type="submit" data-testid="emp-submit-button">Add</Button></DialogFooter>
                 </form>
               </DialogContent>
             </Dialog>
@@ -157,7 +157,7 @@ export default function PayrollPage() {
             <Button variant="outline" onClick={() => exportPayroll("xlsx")} data-testid="payroll-export-xlsx"><Download size={16} className="mr-2" /> XLSX</Button>
             <Button variant="outline" onClick={() => exportPayroll("pdf")} data-testid="payroll-export-pdf"><Download size={16} className="mr-2" /> PDF</Button>
             <Dialog open={openRun} onOpenChange={openRunDialog}>
-              <DialogTrigger asChild><Button className="bg-slate-900 hover:bg-slate-800" disabled={employees.length === 0} data-testid="run-payroll-button"><Play size={16} className="mr-2" /> Run payroll</Button></DialogTrigger>
+              <DialogTrigger asChild><Button disabled={employees.length === 0} data-testid="run-payroll-button"><Play size={16} className="mr-2" /> Run payroll</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Run payroll</DialogTitle></DialogHeader>
                 <form onSubmit={runPayroll} className="space-y-3">
@@ -190,7 +190,7 @@ export default function PayrollPage() {
                       ? "Select at least one employee to process."
                       : `This will process ${selectedEmpIds.length} of ${employees.length} employee${employees.length === 1 ? "" : "s"} (${fmt(selectedEmployees.reduce((s, e) => s + Number(e.salary), 0), selectedEmployees[0]?.currency)} gross) and log a payroll expense.`}
                   </div>
-                  <DialogFooter><Button type="submit" disabled={selectedEmpIds.length === 0} className="bg-slate-900 hover:bg-slate-800" data-testid="run-submit-button">Run</Button></DialogFooter>
+                  <DialogFooter><Button type="submit" disabled={selectedEmpIds.length === 0} data-testid="run-submit-button">Run</Button></DialogFooter>
                 </form>
               </DialogContent>
             </Dialog>

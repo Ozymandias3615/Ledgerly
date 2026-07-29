@@ -34,7 +34,7 @@ export default function AuthCallback() {
   }, []);
 
   return (
-    <div className="min-h-screen grid place-items-center bg-white">
+    <div className="min-h-screen grid place-items-center bg-background">
       <div className="text-slate-600 text-sm" data-testid="auth-callback-status">{msg}</div>
     </div>
   );

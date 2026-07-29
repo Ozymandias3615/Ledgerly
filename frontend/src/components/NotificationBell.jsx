@@ -120,7 +120,7 @@ export default function NotificationBell() {
                   tabIndex={0}
                   onClick={() => handleClick(n)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleClick(n); }}
-                  className={`w-full text-left flex items-start gap-2 px-4 py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer ${!n.read ? "bg-blue-50/50" : ""}`}
+                  className={`w-full text-left flex items-start gap-2 px-4 py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/20" : ""}`}
                   data-testid={`notification-item-${n.id}`}
                 >
                   <div className="h-7 w-7 shrink-0 rounded-full bg-slate-100 grid place-items-center text-slate-500 mt-0.5">

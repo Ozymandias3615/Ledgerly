@@ -118,9 +118,9 @@ export default function InvoicesPage() {
 
   const statusColor = (s) => ({
     draft: "bg-slate-100 text-slate-700",
-    sent: "bg-blue-50 text-blue-700",
-    paid: "bg-emerald-50 text-emerald-700",
-    overdue: "bg-red-50 text-red-700",
+    sent: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    paid: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    overdue: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   }[s] || "bg-slate-100 text-slate-700");
 
   return (
@@ -141,7 +141,7 @@ export default function InvoicesPage() {
             </DropdownMenuContent>
           </DropdownMenu>
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button onClick={openNew} className="bg-slate-900 hover:bg-slate-800" data-testid="new-invoice-button"><Plus size={16} className="mr-2" /> New invoice</Button></DialogTrigger>
+            <DialogTrigger asChild><Button onClick={openNew} data-testid="new-invoice-button"><Plus size={16} className="mr-2" /> New invoice</Button></DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader><DialogTitle>{editing ? `Edit ${editing.invoice_number}` : "New invoice"}</DialogTitle></DialogHeader>
               <form onSubmit={save} className="space-y-4">
@@ -173,7 +173,7 @@ export default function InvoicesPage() {
                 </div>
 
                 <div className="border border-slate-200 rounded-md">
-                  <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-50 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-100 text-[10px] uppercase tracking-[0.2em] text-slate-500">
                     <div className="col-span-6">Description</div>
                     <div className="col-span-2 text-right">Qty</div>
                     <div className="col-span-3 text-right">Unit price</div>
@@ -211,13 +211,13 @@ export default function InvoicesPage() {
                 </div>
                 <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
 
-                <div className="bg-slate-50 rounded-md p-4 space-y-1 text-sm">
+                <div className="bg-slate-50 dark:bg-slate-100 rounded-md p-4 space-y-1 text-sm">
                   <div className="flex justify-between"><span className="text-slate-600">Subtotal</span><span>{fmt(totals.sub, form.currency)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-600">Tax</span><span>{fmt(totals.tax, form.currency)}</span></div>
                   <div className="flex justify-between font-bold border-t border-slate-200 pt-1 mt-1"><span>Total</span><span data-testid="inv-total-preview">{fmt(totals.total, form.currency)}</span></div>
                 </div>
 
-                <DialogFooter><Button type="submit" className="bg-slate-900 hover:bg-slate-800" data-testid="inv-submit-button">{editing ? "Update" : "Create"}</Button></DialogFooter>
+                <DialogFooter><Button type="submit" data-testid="inv-submit-button">{editing ? "Update" : "Create"}</Button></DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
