@@ -130,6 +130,10 @@
   .step h3 { font-size: 15.5px; font-weight: 700; margin-bottom: 6px; }
   .step p { font-size: 14px; color: var(--gray-600); }
   .step code, .callout code { background: var(--gray-100); border: 1px solid var(--line); border-radius: 5px; padding: 1px 7px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; }
+  .step ol { margin: 10px 0 0 18px; padding: 0; }
+  .step ol li { margin-bottom: 5px; }
+  .step .sub-os { margin-top: 14px; }
+  .step .sub-os:first-of-type { margin-top: 0; }
   .callout { max-width: 700px; margin: 28px auto 0; display: flex; gap: 14px; border: 1px solid var(--line); background: #fff;
     border-radius: 12px; padding: 18px 20px; font-size: 13.5px; color: var(--gray-700); }
   .callout svg { flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; color: var(--warn); }
@@ -260,7 +264,19 @@
       </div></div>
       <div class="step"><div class="step-num">02</div><div>
         <h3>Click past the security warning</h3>
-        <p>On Windows, the first run shows <em>"Windows protected your PC"</em> — click <strong>More info</strong>, then <strong>Run anyway</strong>. On Mac, you'll see <em>"Ledgerly can't be opened because it is from an unidentified developer"</em> — right-click the app, choose <strong>Open</strong>, then confirm. Both are normal for new independent apps that aren't code-signed yet.</p>
+        <p>Ledgerly isn't code-signed with a paid certificate yet, so both Windows and Mac are cautious the first time you open it. This is normal for new independent apps.</p>
+        <div class="sub-os">
+          <p><strong>Windows:</strong> the first run shows <em>"Windows protected your PC."</em> Click <strong>More info</strong>, then <strong>Run anyway</strong>.</p>
+        </div>
+        <div class="sub-os">
+          <p><strong>Mac:</strong> you'll see <em>"Ledgerly can't be opened because it is from an unidentified developer."</em> If right-clicking the app and choosing <strong>Open</strong> doesn't offer to run it, use System Settings instead:</p>
+          <ol>
+            <li>Click the <strong>Apple menu</strong> (top-left corner) &rarr; <strong>System Settings</strong>, then click <strong>Privacy &amp; Security</strong> in the sidebar (you may need to scroll down).</li>
+            <li>Go to <strong>Security</strong>, then click <strong>Open</strong>.</li>
+            <li>Click <strong>Open Anyway</strong>. (This button only stays available for about an hour after you first tried to open the app.)</li>
+            <li>Enter your login password, then click <strong>OK</strong>.</li>
+          </ol>
+        </div>
       </div></div>
       <div class="step"><div class="step-num">03</div><div>
         <h3>Create your account</h3>
@@ -339,7 +355,7 @@
       </details>
       <details>
         <summary>Why do I see a security warning when installing?<span class="plus"></span></summary>
-        <p>Ledgerly isn't yet code-signed with a paid certificate on either platform, so Windows SmartScreen and macOS Gatekeeper are cautious with it. The app is safe — on Windows click <strong>More info → Run anyway</strong>; on Mac, right-click the app and choose <strong>Open</strong>.</p>
+        <p>Ledgerly isn't yet code-signed with a paid certificate on either platform, so Windows SmartScreen and macOS Gatekeeper are cautious with it. The app is safe — on Windows click <strong>More info → Run anyway</strong>. On Mac, if right-click → <strong>Open</strong> doesn't work, go to <strong>System Settings → Privacy &amp; Security → Security</strong> and click <strong>Open Anyway</strong> (see the full steps in <a href="#get-started">Getting started</a>).</p>
       </details>
       <details>
         <summary>Does it work offline?<span class="plus"></span></summary>
