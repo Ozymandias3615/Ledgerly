@@ -279,6 +279,9 @@ class ChatIn(BaseModel):
     message: str
     conversation_id: Optional[str] = None
 
+class ConversationRenameIn(BaseModel):
+    title: str
+
 
 # ---- Business / invite helpers ----
 async def _create_business(name: str, currency: str, owner_user_id: str, onboarding_complete: bool = True) -> dict:
@@ -1853,6 +1856,19 @@ async def get_conversation(conversation_id: str, user=Depends(get_current_user))
     if not convo:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return convo
+
+@api_router.put("/insights/conversations/{conversation_id}")
+async def rename_conversation(conversation_id: str, payload: ConversationRenameIn, user=Depends(get_current_user)):
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title cannot be empty")
+    res = await db.ai_conversations.update_one(
+        {"conversation_id": conversation_id, "user_id": user["user_id"], "business_id": user["business_id"]},
+        {"$set": {"title": title}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"success": True}
 
 @api_router.delete("/insights/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str, user=Depends(get_current_user)):
