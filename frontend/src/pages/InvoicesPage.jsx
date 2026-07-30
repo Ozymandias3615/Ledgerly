@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import api, { API } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -15,6 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CURRENCIES, fmt, fmtDate, exportAndDownload } from "@/lib/utils_app";
 import { Plus, Download, DotsThreeVertical, PencilSimple, Trash, FilePdf, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
+
+const STATUSES = ["draft", "sent", "paid", "overdue"];
 
 const emptyItem = () => ({ description: "", quantity: 1, unit_price: 0, item_id: null });
 
@@ -33,6 +35,13 @@ export default function InvoicesPage() {
     items: [emptyItem()],
   };
   const [form, setForm] = useState(emptyForm);
+  const [statusFilter, setStatusFilter] = useState([]);
+
+  const toggleStatus = (s) => setStatusFilter((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
+  const filteredItems = useMemo(
+    () => statusFilter.length === 0 ? items : items.filter((inv) => statusFilter.includes(inv.status)),
+    [items, statusFilter],
+  );
 
   const load = async () => {
     const { data } = await api.get("/invoices");
@@ -224,6 +233,31 @@ export default function InvoicesPage() {
         </div>
       </div>
 
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider mr-1">Filter</span>
+        {STATUSES.map((s) => (
+          <button
+            key={s}
+            onClick={() => toggleStatus(s)}
+            className={`text-[11px] uppercase tracking-wider px-3 py-1.5 rounded-full border font-medium transition-colors ${
+              statusFilter.includes(s)
+                ? s === "draft" ? "bg-slate-700 text-white border-slate-700 dark:bg-slate-300 dark:text-slate-900 dark:border-slate-300"
+                : s === "sent" ? "bg-blue-600 text-white border-blue-600 dark:bg-blue-500 dark:border-blue-500"
+                : s === "paid" ? "bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:border-emerald-500"
+                : "bg-red-600 text-white border-red-600 dark:bg-red-500 dark:border-red-500"
+                : "bg-transparent text-slate-600 border-slate-200 hover:border-slate-300 dark:text-slate-400 dark:border-slate-600 dark:hover:border-slate-500"
+            }`}
+          >
+            {s}
+          </button>
+        ))}
+        {statusFilter.length > 0 && (
+          <button onClick={() => setStatusFilter([])} className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 ml-1 underline underline-offset-2">
+            Clear
+          </button>
+        )}
+      </div>
+
       <Card className="border-slate-200 shadow-none overflow-hidden">
         <Table>
           <TableHeader>
@@ -238,9 +272,9 @@ export default function InvoicesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-10" data-testid="inv-empty">No invoices yet.</TableCell></TableRow>
-            ) : items.map((inv) => (
+            {filteredItems.length === 0 ? (
+              <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-10" data-testid="inv-empty">{statusFilter.length > 0 ? "No invoices match the selected filters." : "No invoices yet."}</TableCell></TableRow>
+            ) : filteredItems.map((inv) => (
               <TableRow key={inv.id} data-testid={`inv-row-${inv.id}`}>
                 <TableCell className="font-semibold">{inv.invoice_number}</TableCell>
                 <TableCell>{inv.client_name}</TableCell>

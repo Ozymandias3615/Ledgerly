@@ -21,14 +21,19 @@ function Section({ title, subtitle, defaultOpen = false, children, testId }) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-slate-50 transition-colors"
+        aria-expanded={open}
       >
         <span>
           <span className="font-bold text-lg block" style={{ fontFamily: "Manrope, sans-serif" }}>{title}</span>
           {subtitle && <span className="text-xs text-slate-500">{subtitle}</span>}
         </span>
-        <CaretDown size={16} className={`text-slate-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <CaretDown size={16} className={`text-slate-400 shrink-0 transition-transform duration-300 ease-in-out ${open ? "rotate-180" : ""}`} />
       </button>
-      {open && <div className="px-6 pb-6 pt-1">{children}</div>}
+      <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="overflow-hidden">
+          <div className="px-6 pb-6 pt-1">{children}</div>
+        </div>
+      </div>
     </Card>
   );
 }

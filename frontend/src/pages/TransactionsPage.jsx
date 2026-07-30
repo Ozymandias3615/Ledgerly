@@ -20,6 +20,8 @@ const NEW_CATEGORY = "__new_category__";
 const CATS_INCOME = ["Sales", "Services", "Consulting", "Interest", "Refunds", "Other Income"];
 const CATS_EXPENSE = ["Rent", "Payroll", "Utilities", "Software", "Marketing", "Travel", "Meals", "Supplies", "Professional Fees", "Taxes", "Other Expense"];
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 export default function TransactionsPage() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
@@ -30,6 +32,24 @@ export default function TransactionsPage() {
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
   const [addingCategory, setAddingCategory] = useState(false);
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [filterYear, setFilterYear] = useState("all");
+
+  const availableYears = useMemo(
+    () => Array.from(new Set(items.map((t) => new Date(t.date).getFullYear()))).sort((a, b) => b - a),
+    [items],
+  );
+
+  const filteredItems = useMemo(() => {
+    let result = items;
+    if (filterYear !== "all") {
+      result = result.filter((t) => new Date(t.date).getFullYear() === Number(filterYear));
+    }
+    if (filterMonth !== "all") {
+      result = result.filter((t) => new Date(t.date).getMonth() === Number(filterMonth));
+    }
+    return result;
+  }, [items, filterMonth, filterYear]);
 
   const vendorName = (id) => vendors.find((v) => v.id === id)?.name || "";
 
@@ -230,6 +250,33 @@ export default function TransactionsPage() {
         </div>
       </div>
 
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider mr-1">Filter</span>
+        <Select value={filterMonth} onValueChange={setFilterMonth}>
+          <SelectTrigger className="w-[150px] h-9" data-testid="tx-filter-month">
+            <SelectValue placeholder="Month" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All months</SelectItem>
+            {MONTHS.map((m, i) => <SelectItem key={i} value={String(i)}>{m}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterYear} onValueChange={setFilterYear}>
+          <SelectTrigger className="w-[120px] h-9" data-testid="tx-filter-year">
+            <SelectValue placeholder="Year" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All years</SelectItem>
+            {availableYears.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {(filterMonth !== "all" || filterYear !== "all") && (
+          <button onClick={() => { setFilterMonth("all"); setFilterYear("all"); }} className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline underline-offset-2">
+            Clear
+          </button>
+        )}
+      </div>
+
       <Card className="border-slate-200 shadow-none overflow-hidden">
         <Table>
           <TableHeader>
@@ -246,9 +293,9 @@ export default function TransactionsPage() {
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-8">Loading...</TableCell></TableRow>
-            ) : items.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-10" data-testid="tx-empty">No transactions yet. Add your first entry.</TableCell></TableRow>
-            ) : items.map((t) => (
+            ) : filteredItems.length === 0 ? (
+              <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-10" data-testid="tx-empty">{filterMonth !== "all" || filterYear !== "all" ? "No transactions match the selected filters." : "No transactions yet. Add your first entry."}</TableCell></TableRow>
+            ) : filteredItems.map((t) => (
               <TableRow key={t.id} data-testid={`tx-row-${t.id}`}>
                 <TableCell className="text-sm text-slate-600">{fmtDate(t.date)}</TableCell>
                 <TableCell>

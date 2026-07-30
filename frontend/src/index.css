@@ -10,6 +10,15 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+/* Cross-fade the whole app when the theme changes, instead of the palette
+   snapping instantly. Scoped to color-ish properties only so it never
+   touches layout, and left off for users who've asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+    *, *::before, *::after {
+        transition: background-color 220ms ease, border-color 220ms ease, color 220ms ease, fill 220ms ease, stroke 220ms ease, box-shadow 220ms ease;
+    }
+}
+
 code {
     font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
@@ -163,4 +172,13 @@ h1, h2, h3, h4 {
     [data-debug-wrapper="true"] {
         display: contents !important;
     }
+}
+
+/* The native date/time picker icon renders black regardless of text color
+   (it's not a CSS-colorable glyph), so it's invisible on dark backgrounds
+   unless inverted explicitly. */
+:root.dark input[type="date"]::-webkit-calendar-picker-indicator,
+:root.dark input[type="time"]::-webkit-calendar-picker-indicator,
+:root.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
 }
