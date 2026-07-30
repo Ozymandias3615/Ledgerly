@@ -136,6 +136,7 @@
         "dmg",
         "zip"
       ],
+      "icon": "build-resources/icon.icns",
       "category": "public.app-category.finance",
       "hardenedRuntime": true,
       "gatekeeperAssess": false
