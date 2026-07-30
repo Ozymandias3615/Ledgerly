@@ -73,7 +73,8 @@
     "electron": "electron .",
     "electron:dev": "concurrently -k \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:pack": "npm run build && electron-builder --win",
-    "electron:pack:dir": "npm run build && electron-builder --win --dir"
+    "electron:pack:dir": "npm run build && electron-builder --win --dir",
+    "electron:pack:mac": "npm run build && electron-builder --mac"
   },
   "browserslist": {
     "production": [
@@ -129,6 +130,15 @@
       ],
       "icon": "build-resources/icon.ico",
       "signAndEditExecutable": false
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.finance",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     },
     "afterPack": "./scripts/afterPack.js"
   },
