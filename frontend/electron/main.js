@@ -7,6 +7,7 @@ const googleConfig = require("./config");
 
 const isDev = !app.isPackaged;
 const STATIC_SERVER_PORT = 5050;
+const GITHUB_REPO = "Ozymandias3615/Ledgerly";
 
 const MIME_TYPES = {
   ".html": "text/html",
@@ -53,6 +54,75 @@ let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 
+// Compares dotted version strings numerically (e.g. "0.1.10" > "0.1.9").
+// Returns 1 if a > b, -1 if a < b, 0 if equal.
+function compareVersions(a, b) {
+  const partsA = a.split(".").map(Number);
+  const partsB = b.split(".").map(Number);
+  const len = Math.max(partsA.length, partsB.length);
+  for (let i = 0; i < len; i++) {
+    const numA = partsA[i] || 0;
+    const numB = partsB[i] || 0;
+    if (numA !== numB) return numA > numB ? 1 : -1;
+  }
+  return 0;
+}
+
+async function checkForUpdates(silent) {
+  let release;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`GitHub API responded with ${res.status}`);
+    release = await res.json();
+  } catch (err) {
+    if (!silent) {
+      dialog.showMessageBox(mainWindow, {
+        type: "error",
+        title: "Update Check Failed",
+        message: "Couldn't check for updates.",
+        detail: err.message,
+      });
+    }
+    return;
+  }
+
+  const latestVersion = String(release.tag_name || "").replace(/^v/, "");
+  const currentVersion = app.getVersion();
+  if (!latestVersion || compareVersions(latestVersion, currentVersion) <= 0) {
+    if (!silent) {
+      dialog.showMessageBox(mainWindow, {
+        type: "info",
+        title: "You're up to date",
+        message: `Ledgerly ${currentVersion} is the latest version.`,
+      });
+    }
+    return;
+  }
+
+  const assetExt = process.platform === "darwin" ? ".dmg" : ".exe";
+  const asset = (release.assets || []).find((a) => a.name.endsWith(assetExt));
+  const downloadUrl = asset ? asset.browser_download_url : release.html_url;
+
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: "info",
+    title: "Update Available",
+    message: `Ledgerly ${latestVersion} is available (you have ${currentVersion}).`,
+    detail: "Download the new version and reinstall to update.",
+    buttons: ["Download", "Later"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response === 0) {
+    shell.openExternal(downloadUrl);
+  }
+}
+
 function createTray() {
   const iconPath = path.join(
     __dirname,
@@ -75,6 +145,10 @@ function createTray() {
           mainWindow.focus();
         }
       },
+    },
+    {
+      label: "Check for Updates…",
+      click: () => checkForUpdates(false),
     },
     { type: "separator" },
     {
@@ -162,9 +236,16 @@ ipcMain.handle("open-file", async (event, filePath) => {
   return shell.openPath(filePath);
 });
 
+ipcMain.handle("get-app-version", () => app.getVersion());
+
+ipcMain.handle("check-for-updates", () => checkForUpdates(false));
+
 app.whenReady().then(() => {
   createWindow();
   createTray();
+  // Silent background check so users see an update dialog without asking for one;
+  // failures (offline, rate limits) are swallowed rather than shown.
+  checkForUpdates(true);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

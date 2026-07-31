@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useTheme, THEMES } from "@/context/ThemeContext";
 import { CURRENCIES, formatApiError } from "@/lib/utils_app";
-import { Copy, Trash, UserPlus, UploadSimple, Image as ImageIcon, Sparkle, CaretDown, Check } from "@phosphor-icons/react";
+import { Copy, Trash, UserPlus, UploadSimple, Image as ImageIcon, Sparkle, CaretDown, Check, ArrowsClockwise } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 function Section({ title, subtitle, defaultOpen = false, children, testId }) {
@@ -468,6 +468,33 @@ function AppearanceSection() {
   );
 }
 
+function DesktopSection() {
+  const [version, setVersion] = useState("");
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    window.electronAPI.getAppVersion().then(setVersion);
+  }, []);
+
+  const check = async () => {
+    setChecking(true);
+    try {
+      await window.electronAPI.checkForUpdates();
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="text-sm text-slate-500">Version {version || "…"}</div>
+      <Button type="button" variant="outline" size="sm" onClick={check} disabled={checking} data-testid="check-updates-button">
+        <ArrowsClockwise size={14} className="mr-2" /> {checking ? "Checking..." : "Check for Updates"}
+      </Button>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { user, refresh } = useAuth();
   const isOwnerOrAdmin = user?.role === "owner" || user?.role === "admin";
@@ -492,6 +519,11 @@ export default function SettingsPage() {
       {isOwnerOrAdmin && (
         <Section title="Team" subtitle="Members, roles & invites" testId="settings-team-section">
           <TeamSection />
+        </Section>
+      )}
+      {window.electronAPI && (
+        <Section title="Desktop App" subtitle="Version & updates" testId="settings-desktop-section">
+          <DesktopSection />
         </Section>
       )}
     </div>
