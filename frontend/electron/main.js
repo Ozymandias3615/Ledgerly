@@ -3,7 +3,13 @@ const path = require("path");
 const http = require("http");
 const fs = require("fs");
 const { signInWithGoogle } = require("./googleAuth");
-const googleConfig = require("./config");
+let googleConfig = {};
+try {
+  googleConfig = require("./config");
+} catch {
+  // electron/config.js is gitignored (holds OAuth secrets) and may be absent,
+  // e.g. in CI-built packages. Google sign-in is disabled rather than crashing.
+}
 
 const isDev = !app.isPackaged;
 const STATIC_SERVER_PORT = 5050;
