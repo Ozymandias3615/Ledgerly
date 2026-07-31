@@ -120,12 +120,12 @@ function PieTooltip({ active, payload, cur, total }) {
 
 function KPI({ label, value, delta, Icon, tone = "default", testId }) {
   return (
-    <Card className="p-5 border-slate-200 shadow-none" data-testid={testId}>
+    <Card className="p-5 border-slate-200 shadow-none min-w-0" data-testid={testId}>
       <div className="flex items-start justify-between">
         <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{label}</div>
-        {Icon && <Icon size={18} weight="duotone" className="text-slate-400" />}
+        {Icon && <Icon size={18} weight="duotone" className="text-slate-400 shrink-0" />}
       </div>
-      <div className={`mt-2 text-3xl font-extrabold tracking-tight ${tone === "danger" ? "text-red-600 dark:text-red-400" : tone === "success" ? "text-emerald-700 dark:text-emerald-400" : "text-slate-900"}`} style={{ fontFamily: "Manrope, sans-serif" }}>
+      <div className={`mt-2 text-3xl font-extrabold tracking-tight truncate ${tone === "danger" ? "text-red-600 dark:text-red-400" : tone === "success" ? "text-emerald-700 dark:text-emerald-400" : "text-slate-900"}`} style={{ fontFamily: "Manrope, sans-serif" }} title={value}>
         {value}
       </div>
       {delta && <div className="text-xs text-slate-500 mt-2">{delta}</div>}
@@ -512,8 +512,8 @@ function SegmentedBar({ segments, cur, big }) {
     <div>
       <div className="flex justify-between items-end mb-2">
         {segments.map((s) => (
-          <div key={s.label}>
-            <div className={`font-extrabold ${big ? "text-4xl" : "text-base"}`} style={{ fontFamily: "Manrope, sans-serif" }}>{fmt(s.value, cur)}</div>
+          <div key={s.label} className="min-w-0">
+            <div className={`font-extrabold truncate ${big ? "text-4xl" : "text-base"}`} style={{ fontFamily: "Manrope, sans-serif" }} title={fmt(s.value, cur)}>{fmt(s.value, cur)}</div>
             <div className={`text-slate-500 ${big ? "text-base" : "text-xs"}`}>{s.label}</div>
           </div>
         ))}
