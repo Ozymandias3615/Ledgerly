@@ -36,7 +36,11 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Build Windows installer
+        # CI=false: CRA treats lint warnings as build failures when CI is set
+        # (which GitHub Actions does automatically); the local build only warns.
         run: npm run electron:pack
+        env:
+          CI: false
 
       - name: Resolve release tag
         id: vars
