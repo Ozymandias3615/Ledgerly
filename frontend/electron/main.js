@@ -213,54 +213,72 @@ async function createWindow() {
   });
 }
 
-ipcMain.handle("google-sign-in", async () => {
-  if (!googleConfig.GOOGLE_CLIENT_ID || !googleConfig.GOOGLE_CLIENT_SECRET) {
-    throw new Error("Google sign-in is not configured (electron/config.js is missing client credentials).");
-  }
-  return signInWithGoogle({
-    clientId: googleConfig.GOOGLE_CLIENT_ID,
-    clientSecret: googleConfig.GOOGLE_CLIENT_SECRET,
+// Ledgerly keeps running in the tray after the window is closed, so a second
+// launch (e.g. double-clicking the shortcut again) must not try to spin up
+// its own window/static server — that would collide with the running
+// instance's fixed port. Everything below that touches app lifecycle or IPC
+// is registered only in the branch that actually holds the lock, so a losing
+// second instance can never reach app.whenReady() / the port bind at all.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
   });
-});
 
-// Lets the user rename the export and pick where it's saved, via the native
-// Save dialog (defaulting to the OS Downloads folder with the suggested
-// name). Returns the chosen path, or null if the dialog was cancelled.
-ipcMain.handle("save-file", async (event, filename, data) => {
-  const downloadsDir = app.getPath("downloads");
-  const ext = path.extname(filename).replace(/^\./, "");
-  const result = await dialog.showSaveDialog(mainWindow, {
-    defaultPath: path.join(downloadsDir, filename),
-    filters: ext ? [{ name: `${ext.toUpperCase()} file`, extensions: [ext] }] : undefined,
+  ipcMain.handle("google-sign-in", async () => {
+    if (!googleConfig.GOOGLE_CLIENT_ID || !googleConfig.GOOGLE_CLIENT_SECRET) {
+      throw new Error("Google sign-in is not configured (electron/config.js is missing client credentials).");
+    }
+    return signInWithGoogle({
+      clientId: googleConfig.GOOGLE_CLIENT_ID,
+      clientSecret: googleConfig.GOOGLE_CLIENT_SECRET,
+    });
   });
-  if (result.canceled || !result.filePath) return null;
-  await fs.promises.writeFile(result.filePath, Buffer.from(data));
-  return result.filePath;
-});
 
-ipcMain.handle("open-file", async (event, filePath) => {
-  return shell.openPath(filePath);
-});
-
-ipcMain.handle("get-app-version", () => app.getVersion());
-
-ipcMain.handle("check-for-updates", () => checkForUpdates(false));
-
-app.whenReady().then(() => {
-  createWindow();
-  createTray();
-  // Silent background check so users see an update dialog without asking for one;
-  // failures (offline, rate limits) are swallowed rather than shown.
-  checkForUpdates(true);
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    else if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+  // Lets the user rename the export and pick where it's saved, via the native
+  // Save dialog (defaulting to the OS Downloads folder with the suggested
+  // name). Returns the chosen path, or null if the dialog was cancelled.
+  ipcMain.handle("save-file", async (event, filename, data) => {
+    const downloadsDir = app.getPath("downloads");
+    const ext = path.extname(filename).replace(/^\./, "");
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: path.join(downloadsDir, filename),
+      filters: ext ? [{ name: `${ext.toUpperCase()} file`, extensions: [ext] }] : undefined,
+    });
+    if (result.canceled || !result.filePath) return null;
+    await fs.promises.writeFile(result.filePath, Buffer.from(data));
+    return result.filePath;
   });
-});
 
-app.on("before-quit", () => { isQuitting = true; });
+  ipcMain.handle("open-file", async (event, filePath) => {
+    return shell.openPath(filePath);
+  });
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
-});
+  ipcMain.handle("get-app-version", () => app.getVersion());
+
+  ipcMain.handle("check-for-updates", () => checkForUpdates(false));
+
+  app.whenReady().then(() => {
+    createWindow();
+    createTray();
+    // Silent background check so users see an update dialog without asking for one;
+    // failures (offline, rate limits) are swallowed rather than shown.
+    checkForUpdates(true);
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      else if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+    });
+  });
+
+  app.on("before-quit", () => { isQuitting = true; });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
+  });
+}
