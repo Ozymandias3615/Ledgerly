@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, dialog, nativeImage } = require("electron");
 const path = require("path");
 const http = require("http");
 const fs = require("fs");
@@ -58,9 +58,13 @@ function createTray() {
     __dirname,
     "..",
     isDev ? "public" : "build",
-    process.platform === "win32" ? "favicon.ico" : "app-icon.png"
+    process.platform === "win32" ? "favicon.ico" : "iconTemplate.png"
   );
-  tray = new Tray(iconPath);
+  const trayImage = nativeImage.createFromPath(iconPath);
+  if (process.platform === "darwin") {
+    trayImage.setTemplateImage(true);
+  }
+  tray = new Tray(trayImage);
   tray.setToolTip("Ledgerly");
   tray.setContextMenu(Menu.buildFromTemplate([
     {
