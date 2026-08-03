@@ -14,6 +14,7 @@ import base64
 import calendar
 import logging
 import secrets
+import zipfile
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
@@ -190,6 +191,9 @@ class FirebaseSessionIn(BaseModel):
 
 class UserUpdateIn(BaseModel):
     name: str
+
+class AccountDeleteIn(BaseModel):
+    password: Optional[str] = None
 
 class BusinessUpdateIn(BaseModel):
     name: str
@@ -1566,6 +1570,16 @@ def _inventory_rows(items):
         cost = i.get("unit_cost", 0) or 0
         yield [i.get("name"), i.get("category", ""), qty, i.get("unit", "units"), i.get("reorder_point", 0), cost, round(qty * cost, 2)]
 
+def _clients_rows(clients):
+    yield ["Name", "Type", "Email", "Phone", "Address", "Notes"]
+    for c in clients:
+        yield [c.get("name"), c.get("type"), c.get("email", ""), c.get("phone", ""), c.get("address", ""), c.get("notes", "")]
+
+def _employees_rows(emps):
+    yield ["Name", "Email", "Position", "Salary", "Pay Frequency", "Tax Rate", "Currency"]
+    for e in emps:
+        yield [e.get("name"), e.get("email", ""), e.get("position", ""), e.get("salary"), e.get("pay_frequency"), e.get("tax_rate", 0), e.get("currency", "USD")]
+
 def _pnl_rows(pnl):
     yield ["Section", "Category", "Amount"]
     for r in pnl["income"]:
@@ -1698,6 +1712,103 @@ async def export_data(
                                  headers={"Content-Disposition": f'attachment; filename="{kind}.pdf"'})
     else:
         raise HTTPException(status_code=400, detail="Unknown format")
+
+
+# ---- Account export & deletion ----
+@api_router.get("/account/export")
+async def export_account_data(user=Depends(get_current_user)):
+    """Bundles every record type for the caller's active business into one ZIP
+    of CSVs - the same row-builders /export/{kind} uses, so the two stay in
+    sync automatically as fields are added."""
+    business_id = user["business_id"]
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        def add_csv(name, rows_iter):
+            csv_buf = io.StringIO()
+            writer = csv.writer(csv_buf)
+            for row in rows_iter:
+                writer.writerow(row)
+            zf.writestr(name, csv_buf.getvalue())
+
+        txs = await db.transactions.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+        vendors = await db.clients.find({"business_id": business_id, "type": "vendor"}, {"_id": 0, "id": 1, "name": 1}).to_list(5000)
+        vendor_names = {v["id"]: v["name"] for v in vendors}
+        add_csv("transactions.csv", _txs_rows(txs, vendor_names))
+
+        invs = await db.invoices.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+        add_csv("invoices.csv", _invoices_rows(invs))
+
+        clients = await db.clients.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+        add_csv("clients.csv", _clients_rows(clients))
+
+        inv_items = await db.inventory.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+        add_csv("inventory.csv", _inventory_rows(inv_items))
+
+        emps = await db.employees.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+        add_csv("employees.csv", _employees_rows(emps))
+
+        if user.get("role") in ("owner", "admin"):
+            runs = await db.payroll_runs.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+            add_csv("payroll.csv", _payroll_rows(runs))
+
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/zip",
+                              headers={"Content-Disposition": 'attachment; filename="ledgerly-export.zip"'})
+
+
+@api_router.delete("/account")
+async def delete_account(payload: AccountDeleteIn, response: Response, user=Depends(get_current_user)):
+    user_id = user["user_id"]
+    full_user = await db.users.find_one({"user_id": user_id})
+    if full_user.get("password_hash"):
+        if not payload.password or not verify_password(payload.password, full_user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Incorrect password")
+
+    memberships = await db.memberships.find({"user_id": user_id}, {"_id": 0}).to_list(200)
+
+    # An owner can only be deleted (taking their business down with them) if
+    # they're the sole member - otherwise every other member would silently
+    # lose access to shared business data with no warning.
+    blocking_names = []
+    for m in memberships:
+        if m["role"] == "owner":
+            other_members = await db.memberships.count_documents({"business_id": m["business_id"], "user_id": {"$ne": user_id}})
+            if other_members > 0:
+                biz = await db.businesses.find_one({"business_id": m["business_id"]}, {"_id": 0, "name": 1})
+                blocking_names.append(biz["name"] if biz else m["business_id"])
+    if blocking_names:
+        raise HTTPException(
+            status_code=409,
+            detail=f"You're the owner of {', '.join(blocking_names)}, which still has other members. "
+                   "Transfer ownership or remove all other members before deleting your account.",
+        )
+
+    for m in memberships:
+        business_id = m["business_id"]
+        if m["role"] == "owner":
+            # Sole member of this business (guaranteed by the check above) - wipe it entirely.
+            await db.transactions.delete_many({"business_id": business_id})
+            await db.invoices.delete_many({"business_id": business_id})
+            await db.clients.delete_many({"business_id": business_id})
+            await db.inventory.delete_many({"business_id": business_id})
+            await db.employees.delete_many({"business_id": business_id})
+            await db.payroll_runs.delete_many({"business_id": business_id})
+            await db.notifications.delete_many({"business_id": business_id})
+            await db.ai_conversations.delete_many({"business_id": business_id})
+            await db.invites.delete_many({"business_id": business_id})
+            await db.memberships.delete_many({"business_id": business_id})
+            await db.businesses.delete_one({"business_id": business_id})
+        else:
+            # Just leaving someone else's business - their data stays intact for the other members.
+            await db.memberships.delete_one({"user_id": user_id, "business_id": business_id})
+
+    await db.ai_conversations.delete_many({"user_id": user_id})
+    await db.user_sessions.delete_many({"user_id": user_id})
+    await db.users.delete_one({"user_id": user_id})
+
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("session_token", path="/")
+    return {"success": True}
 
 
 # ---- AI Insights ----

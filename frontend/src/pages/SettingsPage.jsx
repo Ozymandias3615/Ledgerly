@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useTheme, THEMES } from "@/context/ThemeContext";
-import { CURRENCIES, formatApiError } from "@/lib/utils_app";
+import { CURRENCIES, formatApiError, exportAndDownload } from "@/lib/utils_app";
 import { Copy, Trash, UserPlus, UploadSimple, Image as ImageIcon, Sparkle, CaretDown, Check, ArrowsClockwise } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -431,6 +431,96 @@ function TeamSection() {
   );
 }
 
+function DataAccountSection() {
+  const { user, setUser } = useAuth();
+  const needsPassword = user?.auth_provider === "password";
+  const [password, setPassword] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const exportData = async () => {
+    setExporting(true);
+    try {
+      await exportAndDownload(
+        async () => (await api.get("/account/export", { responseType: "blob" })).data,
+        "ledgerly-export.zip",
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const deleteAccount = async () => {
+    setDeleting(true);
+    try {
+      await api.delete("/account", { data: needsPassword ? { password } : {} });
+      toast.success("Your account has been deleted");
+      setUser(false);
+    } catch (err) {
+      toast.error(formatApiError(err));
+      setConfirmOpen(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="mb-6">
+        <div className="text-xs uppercase tracking-[0.15em] text-slate-500 mb-2">Export your data</div>
+        <div className="text-xs text-slate-500 mb-3">
+          Download everything in {user?.business_name || "your business"} — transactions, invoices, clients,
+          inventory, employees, and payroll — as a ZIP of CSV files.
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={exportData} disabled={exporting} data-testid="export-account-data-button">
+          {exporting ? "Preparing export..." : "Export my data"}
+        </Button>
+      </div>
+
+      <div className="pt-5 border-t border-slate-100">
+        <div className="text-xs uppercase tracking-[0.15em] text-red-600 mb-2">Danger zone</div>
+        <div className="text-xs text-slate-500 mb-3">
+          Permanently delete your account{user?.role === "owner"
+            ? " — if you're the only member of your business, its data is deleted too; otherwise transfer ownership or remove other members first"
+            : ""}. This can't be undone.
+        </div>
+        {needsPassword && (
+          <div className="mb-3 max-w-xs">
+            <Label htmlFor="delete-account-password">Confirm your password</Label>
+            <PasswordInput
+              id="delete-account-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              data-testid="delete-account-password-input"
+            />
+          </div>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="border-red-200 text-red-600 hover:bg-red-50"
+          onClick={() => setConfirmOpen(true)}
+          disabled={needsPassword && !password}
+          data-testid="delete-account-button"
+        >
+          <Trash size={14} className="mr-2" /> Delete my account
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Delete your account?"
+        description="This permanently deletes your account. If you own a business with other members, you'll need to transfer ownership or remove them first."
+        confirmLabel={deleting ? "Deleting..." : "Delete account"}
+        onConfirm={deleteAccount}
+      />
+    </>
+  );
+}
+
 const THEME_PREVIEWS = {
   light: { bg: "#ffffff", primary: "#0a0a0f" },
   dark: { bg: "#141a22", primary: "#eef4fb" },
@@ -526,6 +616,9 @@ export default function SettingsPage() {
           <DesktopSection />
         </Section>
       )}
+      <Section title="Data & Account" subtitle="Export or delete your account" testId="settings-danger-section">
+        <DataAccountSection />
+      </Section>
     </div>
   );
 }
