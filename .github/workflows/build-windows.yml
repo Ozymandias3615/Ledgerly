@@ -38,9 +38,19 @@ jobs:
       - name: Build Windows installer
         # CI=false: CRA treats lint warnings as build failures when CI is set
         # (which GitHub Actions does automatically); the local build only warns.
+        # REACT_APP_*: frontend/.env is gitignored so it doesn't exist on this
+        # runner - without these, CRA bakes in an undefined backend URL and an
+        # invalid Firebase config, which throws on init and white-screens the
+        # app. These are client-side values (meant to be public), safe to set
+        # here directly rather than as repo secrets.
         run: npm run electron:pack
         env:
           CI: false
+          REACT_APP_BACKEND_URL: https://ledgerly-api-qij7.onrender.com
+          REACT_APP_FIREBASE_API_KEY: AIzaSyCxKinW70GNB41emSDgvdtqQPXkppgcO7I
+          REACT_APP_FIREBASE_AUTH_DOMAIN: ledgerly-98458.firebaseapp.com
+          REACT_APP_FIREBASE_PROJECT_ID: ledgerly-98458
+          REACT_APP_FIREBASE_APP_ID: 1:129649921204:web:e06edaaddcf550c5465be1
 
       - name: Resolve release tag
         id: vars
