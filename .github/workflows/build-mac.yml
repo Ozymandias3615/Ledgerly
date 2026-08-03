@@ -1,0 +1,58 @@
+name: Build macOS Installer
+
+# Builds the macOS .dmg on a real macOS runner and attaches it to the
+# matching GitHub release whenever a version tag is pushed. Mirrors
+# build-windows.yml - see that file for why the REACT_APP_* env vars below
+# are required (frontend/.env is gitignored so it doesn't exist on this
+# runner) and why --legacy-peer-deps is needed for npm ci.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and upload to (e.g. v0.1.5)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build macOS installer
+        run: npm run electron:pack:mac
+        env:
+          CI: false
+          REACT_APP_BACKEND_URL: https://ledgerly-api-qij7.onrender.com
+          REACT_APP_FIREBASE_API_KEY: AIzaSyCxKinW70GNB41emSDgvdtqQPXkppgcO7I
+          REACT_APP_FIREBASE_AUTH_DOMAIN: ledgerly-98458.firebaseapp.com
+          REACT_APP_FIREBASE_PROJECT_ID: ledgerly-98458
+          REACT_APP_FIREBASE_APP_ID: 1:129649921204:web:e06edaaddcf550c5465be1
+
+      - name: Resolve release tag
+        id: vars
+        shell: bash
+        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload installer to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          files: frontend/dist/*.dmg
