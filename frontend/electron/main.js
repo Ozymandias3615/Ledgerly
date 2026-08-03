@@ -243,6 +243,13 @@ if (!app.requestSingleInstanceLock()) {
   // Lets the user rename the export and pick where it's saved, via the native
   // Save dialog (defaulting to the OS Downloads folder with the suggested
   // name). Returns the chosen path, or null if the dialog was cancelled.
+  //
+  // The path is also recorded in savedFilePaths so open-file below will only
+  // ever open a file this app just wrote via a user-confirmed save dialog -
+  // never an arbitrary path the renderer asks for. Main-process IPC handlers
+  // must not trust the renderer: a single XSS/dependency-compromise bug there
+  // would otherwise be enough to launch any local executable via open-file.
+  const savedFilePaths = new Set();
   ipcMain.handle("save-file", async (event, filename, data) => {
     const downloadsDir = app.getPath("downloads");
     const ext = path.extname(filename).replace(/^\./, "");
@@ -252,10 +259,14 @@ if (!app.requestSingleInstanceLock()) {
     });
     if (result.canceled || !result.filePath) return null;
     await fs.promises.writeFile(result.filePath, Buffer.from(data));
+    savedFilePaths.add(result.filePath);
     return result.filePath;
   });
 
   ipcMain.handle("open-file", async (event, filePath) => {
+    if (!savedFilePaths.has(filePath)) {
+      throw new Error("Can only open a file this app just saved.");
+    }
     return shell.openPath(filePath);
   });
 
