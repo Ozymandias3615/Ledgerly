@@ -397,6 +397,12 @@ async def google_session(payload: GoogleSessionIn, response: Response):
     email = data["email"].lower()
     existing = await db.users.find_one({"email": email})
     if existing:
+        if existing.get("password_hash"):
+            # A password account isn't proof of email ownership, so a Google login
+            # can't be silently merged into one — that would let anyone who
+            # pre-registers a victim's email with a password of their own choosing
+            # inherit whatever account the victim's real Google login lands on.
+            raise HTTPException(status_code=409, detail="This email is already registered with a password. Sign in with your password instead.")
         user_id = existing["user_id"]
         await db.users.update_one({"user_id": user_id}, {"$set": {"name": data.get("name", existing.get("name")), "picture": data.get("picture", "")}})
     else:
@@ -438,6 +444,11 @@ async def firebase_session(payload: FirebaseSessionIn, response: Response):
     picture = decoded.get("picture", "")
     existing = await db.users.find_one({"email": email})
     if existing:
+        if existing.get("password_hash"):
+            # See the matching guard in google_session: a password account is not
+            # proof of email ownership, so a Firebase login can't be silently
+            # merged into one.
+            raise HTTPException(status_code=409, detail="This email is already registered with a password. Sign in with your password instead.")
         user_id = existing["user_id"]
         await db.users.update_one({"user_id": user_id}, {"$set": {"name": name, "picture": picture}})
     else:
