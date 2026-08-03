@@ -59,6 +59,14 @@ function convertTablesToBullets(md) {
   return out.join("\n");
 }
 
+// The assistant's reply can echo back user-controlled strings (business name,
+// transaction categories, etc.) verbatim, and the result is rendered via
+// dangerouslySetInnerHTML below - so raw HTML must be neutralized before the
+// **bold**/*italic* markdown syntax is turned into real tags.
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function renderMarkdown(md) {
   // super-light markdown for headings, bold, bullets
   if (!md) return null;
@@ -71,7 +79,7 @@ function renderMarkdown(md) {
       listBuf = [];
     }
   };
-  const inline = (t) => t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>");
+  const inline = (t) => escapeHtml(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>");
   lines.forEach((raw, idx) => {
     const line = raw.trimEnd();
     if (/^###\s+/.test(line)) { flushList(); out.push(<h4 key={idx} className="font-bold mt-3 text-slate-900" style={{ fontFamily: "Manrope, sans-serif" }}>{line.replace(/^###\s+/, "")}</h4>); }
