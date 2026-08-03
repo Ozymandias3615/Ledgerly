@@ -10,30 +10,43 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useTheme, THEMES } from "@/context/ThemeContext";
 import { CURRENCIES, formatApiError, exportAndDownload } from "@/lib/utils_app";
-import { Copy, Trash, UserPlus, UploadSimple, Image as ImageIcon, Sparkle, CaretDown, Check, ArrowsClockwise } from "@phosphor-icons/react";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { motion } from "framer-motion";
+import { Copy, Trash, UserPlus, UploadSimple, Image as ImageIcon, Sparkle, Check, ArrowsClockwise } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
-function Section({ title, subtitle, defaultOpen = false, children, testId }) {
-  const [open, setOpen] = useState(defaultOpen);
+// Matches AppLayout's main nav: a single shared element (layoutId) slides
+// between tabs instead of the active background just snapping into place.
+function SettingsTab({ value, label, active, testId }) {
   return (
-    <Card className="border-slate-200 shadow-none max-w-lg overflow-hidden" data-testid={testId}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-slate-50 transition-colors"
-        aria-expanded={open}
-      >
-        <span>
-          <span className="font-bold text-lg block" style={{ fontFamily: "Manrope, sans-serif" }}>{title}</span>
-          {subtitle && <span className="text-xs text-slate-500">{subtitle}</span>}
-        </span>
-        <CaretDown size={16} className={`text-slate-400 shrink-0 transition-transform duration-300 ease-in-out ${open ? "rotate-180" : ""}`} />
-      </button>
-      <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
-        <div className="overflow-hidden">
-          <div className="px-6 pb-6 pt-1">{children}</div>
-        </div>
+    <TabsPrimitive.Trigger
+      value={value}
+      data-testid={testId}
+      className={`relative px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-150 ${
+        active ? "text-primary-foreground" : "text-slate-600 hover:bg-slate-100"
+      }`}
+    >
+      {active && (
+        <motion.div
+          layoutId="settings-tab-active-pill"
+          className="absolute inset-0 bg-primary rounded-md"
+          transition={{ type: "spring", stiffness: 500, damping: 34 }}
+        />
+      )}
+      <span className="relative">{label}</span>
+    </TabsPrimitive.Trigger>
+  );
+}
+
+function TabPanel({ title, subtitle, children, testId }) {
+  return (
+    <Card className="border-slate-200 shadow-none max-w-lg p-6" data-testid={testId}>
+      <div className="mb-5">
+        <div className="font-bold text-lg" style={{ fontFamily: "Manrope, sans-serif" }}>{title}</div>
+        {subtitle && <div className="text-xs text-slate-500">{subtitle}</div>}
       </div>
+      {children}
     </Card>
   );
 }
@@ -526,34 +539,66 @@ const THEME_PREVIEWS = {
   dark: { bg: "#141a22", primary: "#eef4fb" },
   ocean: { bg: "#eaf4fc", primary: "#1257cf" },
   grey: { bg: "#e4e5e8", primary: "#37393f" },
+  sage: { bg: "#f6f8f2", primary: "#2f6f4e" },
+  amber: { bg: "#fdf6ec", primary: "#b5651d" },
+  violet: { bg: "#f5f3fb", primary: "#5b46a8" },
+  indigo: { bg: "#eef1fc", primary: "#3644a6" },
+  rose: { bg: "#fdf0f4", primary: "#b3436b" },
 };
 
 function AppearanceSection() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, customColors, setCustomColors } = useTheme();
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {THEMES.map((t) => {
-        const preview = THEME_PREVIEWS[t.value];
-        const active = theme === t.value;
-        return (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => setTheme(t.value)}
-            className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-              active ? "border-primary ring-1 ring-primary" : "border-slate-200 hover:bg-slate-50"
-            }`}
-            data-testid={`theme-option-${t.value}`}
-          >
-            <span
-              className="h-8 w-8 rounded-full shrink-0 border border-slate-200"
-              style={{ background: `linear-gradient(135deg, ${preview.bg} 50%, ${preview.primary} 50%)` }}
+    <div>
+      <div className="grid grid-cols-2 gap-3">
+        {THEMES.map((t) => {
+          const preview = t.value === "custom" ? customColors : THEME_PREVIEWS[t.value];
+          const active = theme === t.value;
+          return (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setTheme(t.value)}
+              className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                active ? "border-primary ring-1 ring-primary" : "border-slate-200 hover:bg-slate-50"
+              }`}
+              data-testid={`theme-option-${t.value}`}
+            >
+              <span
+                className="h-8 w-8 rounded-full shrink-0 border border-slate-200"
+                style={{ background: `linear-gradient(135deg, ${preview.background ?? preview.bg} 50%, ${preview.primary} 50%)` }}
+              />
+              <span className="flex-1 text-sm font-medium">{t.label}</span>
+              {active && <Check size={16} className="text-primary" weight="bold" />}
+            </button>
+          );
+        })}
+      </div>
+
+      {theme === "custom" && (
+        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-6">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="color"
+              value={customColors.background}
+              onChange={(e) => setCustomColors({ ...customColors, background: e.target.value })}
+              className="h-8 w-8 rounded border border-slate-200 cursor-pointer"
+              data-testid="custom-theme-background-input"
             />
-            <span className="flex-1 text-sm font-medium">{t.label}</span>
-            {active && <Check size={16} className="text-primary" weight="bold" />}
-          </button>
-        );
-      })}
+            Background
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="color"
+              value={customColors.primary}
+              onChange={(e) => setCustomColors({ ...customColors, primary: e.target.value })}
+              className="h-8 w-8 rounded border border-slate-200 cursor-pointer"
+              data-testid="custom-theme-primary-input"
+            />
+            Accent
+          </label>
+        </div>
+      )}
     </div>
   );
 }
@@ -588,6 +633,7 @@ function DesktopSection() {
 export default function SettingsPage() {
   const { user, refresh } = useAuth();
   const isOwnerOrAdmin = user?.role === "owner" || user?.role === "admin";
+  const [tab, setTab] = useState("profile");
 
   return (
     <div className="p-8 space-y-4" data-testid="settings-page">
@@ -597,28 +643,56 @@ export default function SettingsPage() {
         <div className="text-sm text-slate-500 mt-1">Your profile, business, and team</div>
       </div>
 
-      <Section title="Your profile" subtitle={user?.email} defaultOpen testId="settings-profile-section">
-        <ProfileSection user={user} refresh={refresh} />
-      </Section>
-      <Section title="Appearance" subtitle="Theme" testId="settings-appearance-section">
-        <AppearanceSection />
-      </Section>
-      <Section title="Business" subtitle={user?.business_name} testId="settings-business-section">
-        <BusinessSection user={user} refresh={refresh} />
-      </Section>
-      {isOwnerOrAdmin && (
-        <Section title="Team" subtitle="Members, roles & invites" testId="settings-team-section">
-          <TeamSection />
-        </Section>
-      )}
-      {window.electronAPI && (
-        <Section title="Desktop App" subtitle="Version & updates" testId="settings-desktop-section">
-          <DesktopSection />
-        </Section>
-      )}
-      <Section title="Data & Account" subtitle="Export or delete your account" testId="settings-danger-section">
-        <DataAccountSection />
-      </Section>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsPrimitive.List data-testid="settings-tabs" className="inline-flex items-center gap-1 rounded-lg bg-muted p-1">
+          <SettingsTab value="profile" label="Profile" active={tab === "profile"} testId="tab-profile" />
+          <SettingsTab value="business" label="Business" active={tab === "business"} testId="tab-business" />
+          {isOwnerOrAdmin && <SettingsTab value="team" label="Team" active={tab === "team"} testId="tab-team" />}
+          <SettingsTab value="appearance" label="Appearance" active={tab === "appearance"} testId="tab-appearance" />
+          <SettingsTab value="data" label="Data & Account" active={tab === "data"} testId="tab-data" />
+          {window.electronAPI && <SettingsTab value="desktop" label="Check for Updates" active={tab === "desktop"} testId="tab-desktop" />}
+        </TabsPrimitive.List>
+
+        <TabsContent value="profile" className="mt-6">
+          <TabPanel title="Your profile" subtitle={user?.email} testId="settings-profile-section">
+            <ProfileSection user={user} refresh={refresh} />
+          </TabPanel>
+        </TabsContent>
+
+        <TabsContent value="business" className="mt-6">
+          <TabPanel title="Business" subtitle={user?.business_name} testId="settings-business-section">
+            <BusinessSection user={user} refresh={refresh} />
+          </TabPanel>
+        </TabsContent>
+
+        {isOwnerOrAdmin && (
+          <TabsContent value="team" className="mt-6">
+            <TabPanel title="Team" subtitle="Members, roles & invites" testId="settings-team-section">
+              <TeamSection />
+            </TabPanel>
+          </TabsContent>
+        )}
+
+        <TabsContent value="appearance" className="mt-6">
+          <TabPanel title="Appearance" subtitle="Theme" testId="settings-appearance-section">
+            <AppearanceSection />
+          </TabPanel>
+        </TabsContent>
+
+        <TabsContent value="data" className="mt-6">
+          <TabPanel title="Data & Account" subtitle="Export or delete your account" testId="settings-danger-section">
+            <DataAccountSection />
+          </TabPanel>
+        </TabsContent>
+
+        {window.electronAPI && (
+          <TabsContent value="desktop" className="mt-6">
+            <TabPanel title="Check for Updates" subtitle="Version & updates" testId="settings-desktop-section">
+              <DesktopSection />
+            </TabPanel>
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 }

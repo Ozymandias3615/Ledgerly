@@ -157,6 +157,126 @@ h1, h2, h3, h4 {
         --input: 220 13% 83%;
         --ring: 220 9% 25%;
     }
+
+    /* Sage - warm off-white background, muted forest-green primary accent. */
+    :root.theme-sage {
+        --background: 90 25% 97%;
+        --foreground: 222 47% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+        --primary: 142 40% 32%;
+        --primary-hover: 142 40% 26%;
+        --primary-foreground: 0 0% 98%;
+        --secondary: 90 20% 93%;
+        --secondary-foreground: 222 47% 11%;
+        --muted: 90 20% 93%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 90 30% 90%;
+        --accent-foreground: 142 40% 24%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 90 15% 85%;
+        --input: 90 15% 85%;
+        --ring: 142 40% 32%;
+    }
+
+    /* Amber - warm cream background, copper-amber primary accent. */
+    :root.theme-amber {
+        --background: 38 55% 97%;
+        --foreground: 222 47% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+        --primary: 28 70% 40%;
+        --primary-hover: 28 70% 33%;
+        --primary-foreground: 0 0% 98%;
+        --secondary: 38 40% 93%;
+        --secondary-foreground: 222 47% 11%;
+        --muted: 38 40% 93%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 38 55% 90%;
+        --accent-foreground: 28 70% 30%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 38 30% 85%;
+        --input: 38 30% 85%;
+        --ring: 28 70% 40%;
+    }
+
+    /* Violet - cool light background, muted violet primary accent. */
+    :root.theme-violet {
+        --background: 260 40% 98%;
+        --foreground: 222 47% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+        --primary: 258 55% 45%;
+        --primary-hover: 258 55% 38%;
+        --primary-foreground: 0 0% 98%;
+        --secondary: 260 30% 94%;
+        --secondary-foreground: 222 47% 11%;
+        --muted: 260 30% 94%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 260 40% 91%;
+        --accent-foreground: 258 55% 33%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 260 25% 87%;
+        --input: 260 25% 87%;
+        --ring: 258 55% 45%;
+    }
+
+    /* Indigo - cool light background, deep indigo primary accent. */
+    :root.theme-indigo {
+        --background: 233 45% 97%;
+        --foreground: 222 47% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+        --primary: 231 45% 43%;
+        --primary-hover: 231 45% 36%;
+        --primary-foreground: 0 0% 98%;
+        --secondary: 233 30% 94%;
+        --secondary-foreground: 222 47% 11%;
+        --muted: 233 30% 94%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 233 45% 91%;
+        --accent-foreground: 231 45% 30%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 233 25% 87%;
+        --input: 233 25% 87%;
+        --ring: 231 45% 43%;
+    }
+
+    /* Rose - soft light background, rose primary accent. */
+    :root.theme-rose {
+        --background: 340 45% 97%;
+        --foreground: 222 47% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+        --primary: 340 45% 45%;
+        --primary-hover: 340 45% 38%;
+        --primary-foreground: 0 0% 98%;
+        --secondary: 340 30% 94%;
+        --secondary-foreground: 222 47% 11%;
+        --muted: 340 30% 94%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 340 45% 91%;
+        --accent-foreground: 340 45% 32%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 340 25% 87%;
+        --input: 340 25% 87%;
+        --ring: 340 45% 45%;
+    }
 }
 
 @layer base {
