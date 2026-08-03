@@ -62,7 +62,7 @@ export default function LoginPage() {
       <div className="hidden lg:flex flex-col justify-between p-12 bg-slate-950 text-white relative overflow-hidden">
         <div className="flex items-center gap-3 relative z-10">
           <div className="h-10 w-10 rounded-md bg-white grid place-items-center">
-            <Wallet size={22} weight="fill" className="text-slate-900" />
+            <Wallet size={22} weight="fill" className="text-black" />
           </div>
           <div className="font-extrabold text-2xl tracking-tight" style={{ fontFamily: "Manrope, sans-serif" }}>Ledgerly</div>
         </div>
