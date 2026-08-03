@@ -10,12 +10,16 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* Cross-fade the whole app when the theme changes, instead of the palette
+/* Cross-fade surfaces when the theme changes, instead of the palette
    snapping instantly. Scoped to color-ish properties only so it never
-   touches layout, and left off for users who've asked for less motion. */
+   touches layout, and left off for users who've asked for less motion.
+   Text/icon color (color, fill, stroke) is deliberately excluded - fading
+   those made text look like it took a moment to become legible after a
+   theme switch, so text/icons snap to their new color immediately while
+   backgrounds/borders still cross-fade smoothly. */
 @media (prefers-reduced-motion: no-preference) {
     *, *::before, *::after {
-        transition: background-color 220ms ease, border-color 220ms ease, color 220ms ease, fill 220ms ease, stroke 220ms ease, box-shadow 220ms ease;
+        transition: background-color 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
     }
 }
 
