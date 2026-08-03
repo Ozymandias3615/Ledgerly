@@ -45,11 +45,13 @@ function useChartTheme() {
   };
 }
 
-// The expanded dialog caps at 88vh (see ChartCard); its header + filter row +
+// The expanded dialog caps at 78vh (see ChartCard); its header + filter row +
 // padding measures ~130px regardless of chart type, so sizing the chart to
 // the remaining space (with a floor for very short windows) keeps the whole
-// chart visible without the dialog needing to scroll.
-const BIG_CHART_HEIGHT = "max(320px, calc(88vh - 130px))";
+// chart visible without the dialog needing to scroll. Capped shorter than
+// the dialog's width grows wide, so the expanded chart reads as a wide
+// rectangle rather than a tall, near-square panel.
+const BIG_CHART_HEIGHT = "max(320px, calc(78vh - 130px))";
 
 function todayParts() {
   const d = new Date();
@@ -365,7 +367,7 @@ function ChartCard({ testId, eyebrow, title, granularity, setGranularity, period
         {renderBody(false)}
       </Card>
       <Dialog open={expanded} onOpenChange={setExpanded}>
-        <DialogContent className="max-w-5xl max-h-[88vh] overflow-y-auto" data-testid={`${testPrefix}-dialog`}>
+        <DialogContent className="max-w-7xl max-h-[78vh] overflow-y-auto" data-testid={`${testPrefix}-dialog`}>
           <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
           <div className="flex items-center justify-between gap-3 flex-wrap -mt-2 mb-1">
             {windowLabel && <div className="text-sm text-slate-500">{windowLabel}</div>}
