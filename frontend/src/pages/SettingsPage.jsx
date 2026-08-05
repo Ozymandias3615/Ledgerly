@@ -214,7 +214,7 @@ function ProfileSection({ user, refresh }) {
 
 function BusinessSection({ user, refresh }) {
   const canEdit = user?.role === "owner" || user?.role === "admin";
-  const [form, setForm] = useState({ name: user?.business_name || "", currency: user?.currency || "USD" });
+  const [form, setForm] = useState({ name: user?.business_name || "", currency: user?.currency || "USD", invoice_reminder_days: user?.invoice_reminder_days || 7 });
   const [saving, setSaving] = useState(false);
   const [relabeling, setRelabeling] = useState(false);
 
@@ -276,6 +276,24 @@ function BusinessSection({ user, refresh }) {
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div>
+          <Label htmlFor="settings-invoice-reminder-days">Overdue invoice reminders</Label>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-500 shrink-0">Remind me every</span>
+            <Input
+              id="settings-invoice-reminder-days"
+              type="number"
+              min={1}
+              max={90}
+              required
+              className="w-20"
+              value={form.invoice_reminder_days}
+              onChange={(e) => setForm((f) => ({ ...f, invoice_reminder_days: Number(e.target.value) }))}
+              data-testid="settings-invoice-reminder-days-input"
+            />
+            <span className="text-sm text-slate-500 shrink-0">days an invoice is overdue</span>
+          </div>
         </div>
         <Button type="submit" disabled={saving} data-testid="settings-business-save-button">
           {saving ? "Saving..." : "Save changes"}

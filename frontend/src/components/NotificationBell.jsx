@@ -7,6 +7,8 @@ import { Bell, FileText, Package, Users, X } from "@phosphor-icons/react";
 const TYPE_ICON = {
   invoice_created: FileText,
   invoice_status: FileText,
+  invoice_overdue: FileText,
+  invoice_overdue_reminder: FileText,
   inventory_low: Package,
   inventory_sold: Package,
   payroll_run: Users,

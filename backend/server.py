@@ -93,6 +93,7 @@ async def _enrich_user(user: dict) -> dict:
         user["logo_content_type"] = biz.get("logo_content_type")
         user["has_ai_key"] = bool(biz.get("ai_api_key"))
         user["onboarding_complete"] = biz.get("onboarding_complete", True)
+        user["invoice_reminder_days"] = biz.get("invoice_reminder_days", DEFAULT_INVOICE_REMINDER_DAYS)
     return user
 
 async def _create_membership(user_id: str, business_id: str, role: str) -> dict:
@@ -198,6 +199,7 @@ class AccountDeleteIn(BaseModel):
 class BusinessUpdateIn(BaseModel):
     name: str
     currency: str = "USD"
+    invoice_reminder_days: int = Field(default=7, ge=1, le=90)
 
 class AiKeyIn(BaseModel):
     api_key: str
@@ -487,7 +489,10 @@ async def get_business(user=Depends(get_current_user)):
 
 @api_router.put("/business")
 async def update_business(payload: BusinessUpdateIn, user=Depends(require_role("owner", "admin"))):
-    await db.businesses.update_one({"business_id": user["business_id"]}, {"$set": {"name": payload.name, "currency": payload.currency}})
+    await db.businesses.update_one(
+        {"business_id": user["business_id"]},
+        {"$set": {"name": payload.name, "currency": payload.currency, "invoice_reminder_days": payload.invoice_reminder_days}},
+    )
     biz = await db.businesses.find_one({"business_id": user["business_id"]}, {"_id": 0})
     return _hide_ai_key(biz)
 
@@ -816,6 +821,45 @@ async def _reconcile_invoice_income(business_id: str, user_id: str, invoice: dic
         )
     elif not is_paid and existing_tx:
         await db.transactions.delete_one({"id": existing_tx["id"]})
+
+DEFAULT_INVOICE_REMINDER_DAYS = 7
+
+async def _check_overdue_invoices(business_id: str):
+    """Runs opportunistically (see list_notifications) rather than on a
+    schedule, since this deployment has no background job runner. Two things
+    happen: any "sent" invoice whose due date has passed flips to "overdue"
+    (that transition was previously only ever made manually), and any invoice
+    that's been overdue for at least the business's configured reminder
+    window gets a notification - repeated every window's worth of days so it
+    keeps nagging rather than firing once and going silent."""
+    biz = await db.businesses.find_one({"business_id": business_id}, {"_id": 0, "invoice_reminder_days": 1})
+    reminder_days = (biz or {}).get("invoice_reminder_days") or DEFAULT_INVOICE_REMINDER_DAYS
+    today = now_utc().date()
+
+    sent_invoices = await db.invoices.find({"business_id": business_id, "status": "sent"}, {"_id": 0}).to_list(1000)
+    for inv in sent_invoices:
+        due = datetime.fromisoformat(inv["due_date"]).date()
+        if due < today:
+            await db.invoices.update_one({"id": inv["id"]}, {"$set": {"status": "overdue"}})
+            await _notify(
+                business_id, "invoice_overdue", f"Invoice {inv.get('invoice_number', '')} is now overdue",
+                f"{inv.get('client_name', '')} — due {_fmt_date(inv['due_date'])}", link="/invoices",
+            )
+
+    overdue_invoices = await db.invoices.find({"business_id": business_id, "status": "overdue"}, {"_id": 0}).to_list(1000)
+    for inv in overdue_invoices:
+        due = datetime.fromisoformat(inv["due_date"]).date()
+        days_overdue = (today - due).days
+        if days_overdue < reminder_days:
+            continue
+        last_reminder = inv.get("last_reminder_sent_at")
+        should_remind = not last_reminder or (now_utc() - datetime.fromisoformat(last_reminder)).days >= reminder_days
+        if should_remind:
+            await db.invoices.update_one({"id": inv["id"]}, {"$set": {"last_reminder_sent_at": now_utc().isoformat()}})
+            await _notify(
+                business_id, "invoice_overdue_reminder", f"Reminder: Invoice {inv.get('invoice_number', '')} is {days_overdue} days overdue",
+                f"{inv.get('client_name', '')} — {_fmt(inv['total'], inv.get('currency', 'USD'))} outstanding", link="/invoices",
+            )
 
 INVOICE_COMMITTED_STATUSES = ("sent", "paid", "overdue")
 
@@ -1257,6 +1301,7 @@ async def run_payroll(payload: PayrollRunIn, user=Depends(require_role("owner", 
 # ---- Notifications ----
 @api_router.get("/notifications")
 async def list_notifications(user=Depends(get_current_user)):
+    await _check_overdue_invoices(user["business_id"])
     items = await db.notifications.find({"business_id": user["business_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
     unread_count = await db.notifications.count_documents({"business_id": user["business_id"], "read": False})
     return {"items": items, "unread_count": unread_count}
