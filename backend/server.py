@@ -228,6 +228,8 @@ class TransactionIn(BaseModel):
     tax_amount: Optional[float] = 0
     vendor_id: Optional[str] = None
     invoice_id: Optional[str] = None
+    receipt_image: Optional[str] = None  # base64, from POST /receipts/extract
+    receipt_content_type: Optional[str] = None
 
 class InvoiceItem(BaseModel):
     description: str
@@ -370,7 +372,11 @@ async def login(payload: LoginIn, response: Response):
     response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
     user.pop("_id", None)
     user.pop("password_hash", None)
-    return await _enrich_user(user)
+    # Also returned in the body (in addition to the httpOnly cookie above) so
+    # cross-origin clients like the mobile PWA - where third-party cookies are
+    # unreliable on mobile Safari - can use it as a Bearer token instead.
+    user_dict = await _enrich_user(user)
+    return {**user_dict, "token": token}
 
 @api_router.post("/auth/logout")
 async def logout(response: Response):
@@ -1886,6 +1892,81 @@ async def _resolve_ai_key(user: dict) -> str:
         await _check_and_bump_shared_quota(user["business_id"])
     return api_key
 
+ALLOWED_RECEIPT_TYPES = {"image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"}
+MAX_RECEIPT_BYTES = 8 * 1024 * 1024
+RECEIPT_MAX_DIMENSION = 1600
+RECEIPT_JPEG_QUALITY = 85
+
+@api_router.post("/receipts/extract")
+async def extract_receipt(file: UploadFile = File(...), user=Depends(get_current_user)):
+    """Resizes/compresses an uploaded receipt photo and (once OCR is wired
+    up) asks a vision model to pull structured fields out of it. Returns the
+    compressed image alongside the extraction so the client can submit both
+    together in one POST /transactions call - this endpoint never creates a
+    transaction itself, it's just the preview step."""
+    if file.content_type not in ALLOWED_RECEIPT_TYPES:
+        raise HTTPException(status_code=400, detail="Receipt must be a PNG, JPEG, WEBP, or HEIC image")
+    raw = await file.read()
+    if len(raw) > MAX_RECEIPT_BYTES:
+        raise HTTPException(status_code=400, detail="Receipt image must be smaller than 8MB")
+    try:
+        img = PILImage.open(io.BytesIO(raw))
+        img.load()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid image file")
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    img.thumbnail((RECEIPT_MAX_DIMENSION, RECEIPT_MAX_DIMENSION))
+    out = io.BytesIO()
+    img.save(out, format="JPEG", quality=RECEIPT_JPEG_QUALITY)
+    encoded = base64.b64encode(out.getvalue()).decode()
+
+    api_key = await _resolve_ai_key(user)
+    client = AsyncGroq(api_key=api_key)
+    prompt = (
+        "Extract structured data from this receipt photo. Respond with ONLY a JSON object, no prose, "
+        'matching this exact shape: {"vendor": string or null, "amount": number or null, "currency": '
+        'string (ISO 4217 best guess, default "USD") or null, "date": string (YYYY-MM-DD best guess) or '
+        'null, "category": string (a short free-text expense category like "Office Supplies" or "Meals") '
+        'or null, "confidence": "high" or "medium" or "low", "notes": string (anything ambiguous, '
+        'illegible, or missing - empty string if none)}. Use null for any field you can\'t determine '
+        "from the image - never guess a value you can't support."
+    )
+    try:
+        resp = await client.chat.completions.create(
+            model="qwen/qwen3.6-27b",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}},
+                ],
+            }],
+            max_completion_tokens=500,
+            response_format={"type": "json_object"},
+        )
+        extracted = json.loads(resp.choices[0].message.content)
+    except GroqAuthenticationError:
+        raise HTTPException(status_code=400, detail="Invalid Groq API key. Update it in Settings → Business → AI Insights.")
+    except GroqRateLimitError:
+        raise HTTPException(status_code=429, detail="Groq API rate limit or quota exceeded. Please try again shortly.")
+    except GroqAPIStatusError as e:
+        logger.exception("Receipt extraction failed")
+        raise HTTPException(status_code=502, detail=f"AI service error: {e.message}")
+    except (json.JSONDecodeError, KeyError, IndexError, AttributeError):
+        logger.exception("Receipt extraction returned unparseable output")
+        extracted = {
+            "vendor": None, "amount": None, "currency": user.get("currency", "USD"),
+            "date": None, "category": None, "confidence": "low",
+            "notes": "Couldn't read this receipt automatically - please fill in the details manually.",
+        }
+
+    return {
+        "extracted": extracted,
+        "receipt_image": encoded,
+        "receipt_content_type": "image/jpeg",
+    }
+
 async def _business_context(user: dict) -> str:
     stats = await dashboard_report(user)
     return f"""Business Name: {user.get('business_name', user.get('name'))}
@@ -2097,10 +2178,14 @@ app.include_router(api_router)
 
 # CORS - allow specific origins (wildcard + credentials is rejected by browsers)
 _frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+_mobile_url = os.environ.get("MOBILE_URL")
+_cors_origins = [_frontend_url, "http://localhost:3000", "http://127.0.0.1:5050", "http://localhost:5173"]
+if _mobile_url:
+    _cors_origins.append(_mobile_url)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[_frontend_url, "http://localhost:3000", "http://127.0.0.1:5050"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
