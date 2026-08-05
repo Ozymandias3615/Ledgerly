@@ -44,6 +44,12 @@ export default function NotificationBell() {
 
   const notifyNatively = useCallback((n) => {
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    // Only pop a native toast while the window is hidden (closed to tray) or
+    // minimized - Electron mirrors that into the Page Visibility API. While
+    // the window is open/visible, the new notification still lands in the
+    // in-app bell (state updates in refresh() happen regardless of this
+    // gate), just without also duplicating it as an OS toast.
+    if (!document.hidden) return;
     const native = new Notification(n.title, { body: n.message || "", icon: "/app-icon.png" });
     activeNotifications.current.push(native);
     const forget = () => {
