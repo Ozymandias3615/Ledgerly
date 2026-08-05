@@ -36,15 +36,26 @@ export default function NotificationBell() {
   // known" ids without popping a native notification for everything that
   // was already unread before the app was even open.
   const seenIds = useRef(null);
+  // Chromium/Electron can garbage-collect a Notification object with no
+  // remaining references before the user gets around to clicking it, which
+  // silently drops its onclick handler - keeping this array holds a
+  // reference until the notification is clicked or closed.
+  const activeNotifications = useRef([]);
 
   const notifyNatively = useCallback((n) => {
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
     const native = new Notification(n.title, { body: n.message || "", icon: "/app-icon.png" });
+    activeNotifications.current.push(native);
+    const forget = () => {
+      activeNotifications.current = activeNotifications.current.filter((x) => x !== native);
+    };
     native.onclick = () => {
       window.electronAPI?.focusWindow?.();
       window.focus();
       if (n.link) navigate(n.link);
+      forget();
     };
+    native.onclose = forget;
   }, [navigate]);
 
   const refresh = useCallback(async () => {
