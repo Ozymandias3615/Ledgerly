@@ -33,7 +33,7 @@ export default function ThemeToggle() {
   return (
     <button
       type="button"
-      className="theme-toggle"
+      className="icon-btn"
       onClick={handleClick}
       aria-label={`Appearance: ${LABELS[theme]}. Tap to change.`}
       title={`Appearance: ${LABELS[theme]}`}

@@ -31,6 +31,14 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://ledgerly-api-qij7.onrender.com
+      - key: VITE_FIREBASE_API_KEY
+        value: AIzaSyCxKinW70GNB41emSDgvdtqQPXkppgcO7I
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        value: ledgerly-98458.firebaseapp.com
+      - key: VITE_FIREBASE_PROJECT_ID
+        value: ledgerly-98458
+      - key: VITE_FIREBASE_APP_ID
+        value: 1:129649921204:web:e06edaaddcf550c5465be1
     routes:
       - type: rewrite
         source: /*

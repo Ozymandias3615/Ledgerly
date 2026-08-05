@@ -478,7 +478,10 @@ async def firebase_session(payload: FirebaseSessionIn, response: Response):
     token = create_access_token(user_id, email)
     response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
-    return await _enrich_user(user)
+    # Also returned in the body, same reason as /auth/login: the mobile PWA
+    # uses this as a Bearer token instead of the cross-origin cookie.
+    user_dict = await _enrich_user(user)
+    return {**user_dict, "token": token}
 
 
 # ---- Business ----

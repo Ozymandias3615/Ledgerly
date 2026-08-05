@@ -9,7 +9,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       manifest: {
         name: "Ledgerly Receipts",
-        short_name: "Receipts",
+        short_name: "Ledgerly Receipts",
         description: "Capture receipts on the go and sync them into Ledgerly.",
         theme_color: "#09090b",
         background_color: "#ffffff",

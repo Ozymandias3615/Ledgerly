@@ -4,6 +4,7 @@ import api from "../lib/api";
 import { getUser } from "../lib/auth";
 import Brand from "../components/Brand";
 import ThemeToggle from "../components/ThemeToggle";
+import BackButton from "../components/BackButton";
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -13,8 +14,10 @@ export default function ReviewScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const user = getUser();
-  const photo = location.state?.photo || null;
+  const initialPhoto = location.state?.photo || null;
+  const retakeInputRef = useRef(null);
 
+  const [photo, setPhoto] = useState(initialPhoto);
   const [vendor, setVendor] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(user?.currency || "USD");
@@ -88,6 +91,28 @@ export default function ReviewScreen() {
 
   const canSubmit = amount.trim() !== "" && date.trim() !== "" && !submitting;
 
+  const handleRetakeFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    // Swapping photo re-triggers both effects above via their [photo]
+    // dependency - reset the fields they populate so stale data from the
+    // previous receipt doesn't linger on screen while the new one loads.
+    setVendor("");
+    setAmount("");
+    setCurrency(user?.currency || "USD");
+    setDate(todayIso());
+    setCategory("");
+    setTaxAmount("");
+    setError("");
+    setExtractError("");
+    setConfidence(null);
+    setNotes("");
+    setReceiptImage(null);
+    setReceiptContentType(null);
+    setPhoto(file);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!canSubmit) return;
@@ -118,12 +143,23 @@ export default function ReviewScreen() {
   return (
     <div className="screen">
       <div className="top-row">
-        <Brand compact />
+        <div className="top-row-left">
+          <BackButton to="/capture" />
+          <Brand compact />
+        </div>
         <ThemeToggle />
       </div>
       <div className="eyebrow">Review</div>
       <h2 className="heading">{extracting ? "Reading receipt…" : "Check the details"}</h2>
-      <p className="subtitle">{extracting ? "This takes a few seconds." : "Edit anything that looks off, then save."}</p>
+      <p className="subtitle">
+        {extracting ? "" : "Edit anything that looks off, then save."}
+      </p>
+      {extracting && (
+        <p className="subtitle thinking">
+          <span className="thinking-dots"><span /><span /><span /></span>
+          Reading receipt
+        </p>
+      )}
 
       <div className="card">
         {photoUrl && <img src={photoUrl} alt="Captured receipt" className="receipt-preview" />}
@@ -172,9 +208,17 @@ export default function ReviewScreen() {
           <button type="submit" className="btn-primary" disabled={!canSubmit}>
             {submitting ? "Saving…" : "Save expense"}
           </button>
-          <button type="button" className="btn-outline" onClick={() => navigate("/capture")}>
+          <button type="button" className="btn-outline" onClick={() => retakeInputRef.current?.click()}>
             Retake photo
           </button>
+          <input
+            ref={retakeInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleRetakeFile}
+            style={{ display: "none" }}
+          />
         </form>
       </div>
     </div>
