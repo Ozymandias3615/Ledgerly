@@ -39,6 +39,8 @@ services:
         value: ledgerly-98458
       - key: VITE_FIREBASE_APP_ID
         value: 1:129649921204:web:e06edaaddcf550c5465be1
+      - key: VITE_GOOGLE_CLIENT_ID
+        value: 129649921204-uu2ol3vak73mltqd3t4sdnsf095tir5k.apps.googleusercontent.com
     routes:
       - type: rewrite
         source: /*

@@ -321,12 +321,15 @@ button:disabled {
   background: hsl(var(--secondary));
 }
 
-.btn-google {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.625rem;
+.google-btn-container {
   margin-bottom: 1.25rem;
+  min-height: 2.75rem;
+  display: flex;
+  justify-content: center;
+}
+
+.google-btn-container > div {
+  width: 100% !important;
 }
 
 .divider {
