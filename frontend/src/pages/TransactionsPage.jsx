@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/components/ui/card";
@@ -16,6 +15,8 @@ import { Plus, Download, DotsThreeVertical, PencilSimple, Trash } from "@phospho
 import { toast } from "sonner";
 
 const NEW_CATEGORY = "__new_category__";
+const NEW_VENDOR = "__new_vendor__";
+const EMPTY_VENDOR = { name: "", email: "", phone: "", address: "", notes: "" };
 
 const CATS_INCOME = ["Sales", "Services", "Consulting", "Interest", "Refunds", "Other Income"];
 const CATS_EXPENSE = ["Rent", "Payroll", "Utilities", "Software", "Marketing", "Travel", "Meals", "Supplies", "Professional Fees", "Taxes", "Other Expense"];
@@ -32,6 +33,9 @@ export default function TransactionsPage() {
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
   const [addingCategory, setAddingCategory] = useState(false);
+  const [addingVendor, setAddingVendor] = useState(false);
+  const [newVendor, setNewVendor] = useState(EMPTY_VENDOR);
+  const [savingVendor, setSavingVendor] = useState(false);
   const [filterMonth, setFilterMonth] = useState("all");
   const [filterYear, setFilterYear] = useState("all");
 
@@ -65,9 +69,28 @@ export default function TransactionsPage() {
 
   const pickVendor = (vendorId) => {
     if (vendorId === "__none__") { setForm((prev) => ({ ...prev, vendor_id: null })); return; }
+    if (vendorId === NEW_VENDOR) { setAddingVendor(true); setNewVendor(EMPTY_VENDOR); return; }
     const v = vendors.find((x) => x.id === vendorId);
     if (!v) return;
     setForm((prev) => ({ ...prev, vendor_id: v.id, description: prev.description || v.name }));
+  };
+
+  const saveNewVendor = async (e) => {
+    e.preventDefault();
+    if (!newVendor.name.trim()) return;
+    setSavingVendor(true);
+    try {
+      const { data: v } = await api.post("/clients", { ...newVendor, type: "vendor" });
+      setVendors((prev) => [...prev, v]);
+      setForm((prev) => ({ ...prev, vendor_id: v.id, description: prev.description || v.name }));
+      setAddingVendor(false);
+      setNewVendor(EMPTY_VENDOR);
+      toast.success("Vendor added");
+    } catch (err) {
+      toast.error("Failed to add vendor");
+    } finally {
+      setSavingVendor(false);
+    }
   };
 
   // Categories a business has actually used (beyond the defaults) resurface as
@@ -81,12 +104,14 @@ export default function TransactionsPage() {
     [items]
   );
 
-  const openNew = () => { setEditing(null); setForm(emptyForm); setAddingCategory(false); setOpen(true); };
+  const openNew = () => { setEditing(null); setForm(emptyForm); setAddingCategory(false); setAddingVendor(false); setNewVendor(EMPTY_VENDOR); setOpen(true); };
   const openEdit = (t) => {
     setEditing(t);
     setForm({ ...t, amount: String(t.amount), tax_amount: String(t.tax_amount || 0) });
     const known = t.type === "income" ? knownIncomeCats : knownExpenseCats;
     setAddingCategory(!known.includes(t.category));
+    setAddingVendor(false);
+    setNewVendor(EMPTY_VENDOR);
     setOpen(true);
   };
 
@@ -218,18 +243,70 @@ export default function TransactionsPage() {
                 {form.type === "expense" && (
                   <div>
                     <Label>Vendor</Label>
-                    {vendors.length > 0 ? (
+                    {addingVendor ? (
+                      <div className="space-y-2 border border-slate-200 rounded-md p-3">
+                        <Input
+                          autoFocus
+                          value={newVendor.name}
+                          onChange={(e) => setNewVendor({ ...newVendor, name: e.target.value })}
+                          placeholder="Vendor name"
+                          required
+                          data-testid="tx-new-vendor-name"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="email"
+                            value={newVendor.email}
+                            onChange={(e) => setNewVendor({ ...newVendor, email: e.target.value })}
+                            placeholder="Email (optional)"
+                            data-testid="tx-new-vendor-email"
+                          />
+                          <Input
+                            value={newVendor.phone}
+                            onChange={(e) => setNewVendor({ ...newVendor, phone: e.target.value })}
+                            placeholder="Phone (optional)"
+                            data-testid="tx-new-vendor-phone"
+                          />
+                        </div>
+                        <Input
+                          value={newVendor.address}
+                          onChange={(e) => setNewVendor({ ...newVendor, address: e.target.value })}
+                          placeholder="Address (optional)"
+                          data-testid="tx-new-vendor-address"
+                        />
+                        <Input
+                          value={newVendor.notes}
+                          onChange={(e) => setNewVendor({ ...newVendor, notes: e.target.value })}
+                          placeholder="Notes (optional)"
+                          data-testid="tx-new-vendor-notes"
+                        />
+                        <div className="flex gap-2 pt-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={!newVendor.name.trim() || savingVendor}
+                            onClick={saveNewVendor}
+                            data-testid="tx-new-vendor-save"
+                          >
+                            {savingVendor ? "Saving..." : "Save vendor"}
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" onClick={() => { setAddingVendor(false); setNewVendor(EMPTY_VENDOR); }} data-testid="tx-new-vendor-cancel">
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
                       <Select value={form.vendor_id || "__none__"} onValueChange={pickVendor}>
                         <SelectTrigger data-testid="tx-vendor-select"><SelectValue placeholder="Optional" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">None</SelectItem>
                           {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                          <SelectSeparator />
+                          <SelectItem value={NEW_VENDOR} className="font-medium" data-testid="tx-vendor-new">
+                            <span className="flex items-center gap-1.5"><Plus size={13} /> Add new vendor</span>
+                          </SelectItem>
                         </SelectContent>
                       </Select>
-                    ) : (
-                      <div className="text-xs text-slate-500 border border-dashed border-slate-200 rounded-md px-3 py-2">
-                        No vendors saved yet. <Link to="/clients" className="text-slate-900 underline font-medium">Add one</Link> to tag expenses by vendor.
-                      </div>
                     )}
                   </div>
                 )}
