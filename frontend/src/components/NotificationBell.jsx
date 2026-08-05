@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -32,14 +32,42 @@ export default function NotificationBell() {
   const [items, setItems] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
+  // null until the first poll completes, so that poll can seed "already
+  // known" ids without popping a native notification for everything that
+  // was already unread before the app was even open.
+  const seenIds = useRef(null);
+
+  const notifyNatively = useCallback((n) => {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    const native = new Notification(n.title, { body: n.message || "", icon: "/app-icon.png" });
+    native.onclick = () => {
+      window.electronAPI?.focusWindow?.();
+      window.focus();
+      if (n.link) navigate(n.link);
+    };
+  }, [navigate]);
 
   const refresh = useCallback(async () => {
     try {
       const { data } = await api.get("/notifications");
       setItems(data.items);
       setUnreadCount(data.unread_count);
+
+      const currentIds = new Set(data.items.map((n) => n.id));
+      if (seenIds.current) {
+        for (const n of data.items) {
+          if (!seenIds.current.has(n.id)) notifyNatively(n);
+        }
+      }
+      seenIds.current = currentIds;
     } catch (e) {
       // Notifications are non-critical - fail silently.
+    }
+  }, [notifyNatively]);
+
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission();
     }
   }, []);
 

@@ -15,6 +15,13 @@ const isDev = !app.isPackaged;
 const STATIC_SERVER_PORT = 5050;
 const GITHUB_REPO = "Ozymandias3615/Ledgerly";
 
+// Windows groups/brands toast notifications by AppUserModelID, not by window
+// title or the Notification's own fields - without this, native notifications
+// show up as coming from "electron.app.Electron" instead of "Ledgerly".
+if (process.platform === "win32") {
+  app.setAppUserModelId(app.isPackaged ? "com.ledgerly.app" : process.execPath);
+}
+
 const MIME_TYPES = {
   ".html": "text/html",
   ".js": "text/javascript",
@@ -59,6 +66,13 @@ function startStaticServer(buildDir) {
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
+
+function focusMainWindow() {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
 
 // Compares dotted version strings numerically (e.g. "0.1.10" > "0.1.9").
 // Returns 1 if a > b, -1 if a < b, 0 if equal.
@@ -145,12 +159,7 @@ function createTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     {
       label: "Open Ledgerly",
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-      },
+      click: focusMainWindow,
     },
     {
       label: "Check for Updates…",
@@ -165,11 +174,7 @@ function createTray() {
       },
     },
   ]));
-  tray.on("click", () => {
-    if (!mainWindow) return;
-    mainWindow.show();
-    mainWindow.focus();
-  });
+  tray.on("click", focusMainWindow);
 }
 
 async function createWindow() {
@@ -222,13 +227,7 @@ async function createWindow() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
+  app.on("second-instance", focusMainWindow);
 
   ipcMain.handle("google-sign-in", async () => {
     if (!googleConfig.GOOGLE_CLIENT_ID || !googleConfig.GOOGLE_CLIENT_SECRET) {
@@ -270,6 +269,11 @@ if (!app.requestSingleInstanceLock()) {
     return shell.openPath(filePath);
   });
 
+  // Lets a clicked native OS notification (fired from the renderer via the
+  // standard web Notification API - see NotificationBell.jsx) bring the app
+  // forward, since the renderer can't call show()/focus() on itself.
+  ipcMain.handle("focus-app-window", () => focusMainWindow());
+
   ipcMain.handle("get-app-version", () => app.getVersion());
 
   ipcMain.handle("check-for-updates", () => checkForUpdates(false));
@@ -283,7 +287,7 @@ if (!app.requestSingleInstanceLock()) {
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
-      else if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+      else focusMainWindow();
     });
   });
 
