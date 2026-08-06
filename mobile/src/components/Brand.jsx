@@ -9,7 +9,7 @@ export default function Brand({ compact = false }) {
           <line x1="88" y1="124" x2="140" y2="124" />
         </svg>
       </div>
-      {!compact && <span className="brand-name">Ledgerly Receipts</span>}
+      {!compact && <span className="brand-name">Ledgerly Go</span>}
     </div>
   );
 }

@@ -63,7 +63,7 @@ export default function LoginScreen() {
       const firebaseIdToken = await result.user.getIdToken();
       const { data } = await api.post("/auth/firebase-session", { id_token: firebaseIdToken });
       setSession(data.token, data);
-      navigate("/capture");
+      navigate("/");
     } catch (err) {
       setError(err.response?.data?.detail || "Google sign-in failed. Try again.");
     }
@@ -76,7 +76,7 @@ export default function LoginScreen() {
     try {
       const { data } = await api.post("/auth/login", { email, password });
       setSession(data.token, data);
-      navigate("/capture");
+      navigate("/");
     } catch (err) {
       setError(err.response?.data?.detail || "Login failed. Check your email and password.");
     } finally {

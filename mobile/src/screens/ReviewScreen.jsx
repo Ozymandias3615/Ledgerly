@@ -130,7 +130,7 @@ export default function ReviewScreen() {
         receipt_image: receiptImage,
         receipt_content_type: receiptContentType,
       });
-      navigate("/capture", { replace: true, state: { justSubmitted: true } });
+      navigate("/receipts", { replace: true, state: { justSubmitted: true } });
     } catch (err) {
       setError(err.response?.data?.detail || "Couldn't save this expense. Try again.");
     } finally {

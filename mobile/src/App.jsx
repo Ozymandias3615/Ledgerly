@@ -1,8 +1,13 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import LoginScreen from "./screens/LoginScreen";
+import HomeScreen from "./screens/HomeScreen";
 import CaptureScreen from "./screens/CaptureScreen";
 import ReviewScreen from "./screens/ReviewScreen";
 import ReceiptsScreen from "./screens/ReceiptsScreen";
+import InventoryScreen from "./screens/InventoryScreen";
+import InventoryItemFormScreen from "./screens/InventoryItemFormScreen";
+import InvoicesScreen from "./screens/InvoicesScreen";
+import InvoiceDetailScreen from "./screens/InvoiceDetailScreen";
 import { isAuthenticated } from "./lib/auth";
 
 function RequireAuth({ children }) {
@@ -13,6 +18,14 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginScreen />} />
+      <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <HomeScreen />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/capture"
         element={
@@ -37,7 +50,47 @@ export default function App() {
           </RequireAuth>
         }
       />
-      <Route path="*" element={<Navigate to={isAuthenticated() ? "/capture" : "/login"} replace />} />
+      <Route
+        path="/inventory"
+        element={
+          <RequireAuth>
+            <InventoryScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/inventory/new"
+        element={
+          <RequireAuth>
+            <InventoryItemFormScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/inventory/:id/edit"
+        element={
+          <RequireAuth>
+            <InventoryItemFormScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/invoices"
+        element={
+          <RequireAuth>
+            <InvoicesScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/invoices/:id"
+        element={
+          <RequireAuth>
+            <InvoiceDetailScreen />
+          </RequireAuth>
+        }
+      />
+      <Route path="*" element={<Navigate to={isAuthenticated() ? "/" : "/login"} replace />} />
     </Routes>
   );
 }
