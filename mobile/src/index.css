@@ -784,6 +784,7 @@ button:disabled {
 
 .stat-tile {
   height: auto;
+  min-width: 0;
   background: hsl(var(--card));
   color: hsl(var(--card-foreground));
   border: 1px solid hsl(var(--border));
@@ -800,7 +801,13 @@ button.stat-tile:hover {
 .stat-value {
   font-family: 'Manrope', sans-serif;
   font-weight: 800;
-  font-size: 1.125rem;
+  /* Shrinks on narrow phones so longer currency figures (e.g. "-GH₵1,234.56")
+     still fit one line - without this, the "-" is a valid CSS line-break
+     point and wraps onto its own line ahead of the rest of the figure. */
+  font-size: clamp(0.8125rem, 4.2vw, 1.125rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   letter-spacing: -0.01em;
 }
 
