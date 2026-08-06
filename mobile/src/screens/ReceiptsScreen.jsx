@@ -55,7 +55,7 @@ export default function ReceiptsScreen() {
   };
 
   return (
-    <div className="screen">
+    <div className="screen screen-narrow">
       <div className="top-row">
         <div className="top-row-left">
           <BackButton to="/capture" />

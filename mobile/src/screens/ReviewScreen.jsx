@@ -141,7 +141,7 @@ export default function ReviewScreen() {
   if (!photo) return null;
 
   return (
-    <div className="screen">
+    <div className="screen screen-narrow">
       <div className="top-row">
         <div className="top-row-left">
           <BackButton to="/capture" />

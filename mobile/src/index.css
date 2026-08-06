@@ -124,6 +124,16 @@ h1, h2, h3 {
   margin: 0 auto;
 }
 
+/* Same content width cap as .screen-center, without the vertical centering -
+   for screens whose content flows top-down (forms, lists) rather than
+   sitting in the middle of the viewport. Keeps the phone-width layout from
+   stretching edge-to-edge on tablets/wider phones. */
+.screen-narrow {
+  max-width: 420px;
+  width: 100%;
+  margin: 0 auto;
+}
+
 .top-row {
   display: flex;
   align-items: center;
@@ -269,7 +279,10 @@ label {
 
 input, select, textarea {
   font-family: inherit;
-  font-size: 0.9375rem;
+  /* 16px, not the 15px this used to be - anything smaller makes iOS Safari
+     auto-zoom the whole page in when a field is focused, which is exactly
+     the "zoomed in" symptom this is fixing. */
+  font-size: 1rem;
   height: 2.75rem;
   padding: 0 0.75rem;
   border-radius: 0.5rem;
