@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import LoginScreen from "./screens/LoginScreen";
 import CaptureScreen from "./screens/CaptureScreen";
 import ReviewScreen from "./screens/ReviewScreen";
+import ReceiptsScreen from "./screens/ReceiptsScreen";
 import { isAuthenticated } from "./lib/auth";
 
 function RequireAuth({ children }) {
@@ -25,6 +26,14 @@ export default function App() {
         element={
           <RequireAuth>
             <ReviewScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/receipts"
+        element={
+          <RequireAuth>
+            <ReceiptsScreen />
           </RequireAuth>
         }
       />

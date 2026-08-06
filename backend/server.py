@@ -684,8 +684,11 @@ async def switch_membership(payload: MembershipSwitchIn, user=Depends(get_curren
 
 # ---- Transactions ----
 @api_router.get("/transactions")
-async def list_transactions(user=Depends(get_current_user)):
-    cursor = db.transactions.find({"business_id": user["business_id"]}, {"_id": 0}).sort("date", -1)
+async def list_transactions(has_receipt: Optional[bool] = None, user=Depends(get_current_user)):
+    query = {"business_id": user["business_id"]}
+    if has_receipt:
+        query["receipt_image"] = {"$ne": None}
+    cursor = db.transactions.find(query, {"_id": 0}).sort("date", -1)
     return await cursor.to_list(2000)
 
 @api_router.post("/transactions")
