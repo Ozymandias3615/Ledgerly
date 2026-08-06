@@ -8,8 +8,8 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Ledgerly Go",
-        short_name: "Ledgerly Go",
+        name: "LedgerlyGo",
+        short_name: "LedgerlyGo",
         description: "Capture receipts, manage inventory, and handle invoices on the go with Ledgerly.",
         theme_color: "#09090b",
         background_color: "#ffffff",
