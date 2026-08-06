@@ -13,6 +13,13 @@ services:
         value: ledgerly
       - key: FIREBASE_PROJECT_ID
         value: ledgerly-98458
+      # VAPID_PUBLIC_KEY/VAPID_SUBJECT aren't secrets - the public key is
+      # handed to every browser that subscribes to push anyway - so they're
+      # committed directly rather than set in the dashboard like the keys below.
+      - key: VAPID_PUBLIC_KEY
+        value: BNax6Z7f21l9quz5to5qszmm_J9Ht3K4mFZytiNRZPuChHmBYtqT6oXaz7wFT2SZfg7R96kwbbUXUmHPgHE8vwM
+      - key: VAPID_SUBJECT
+        value: mailto:support@ledgerly.app
       # Secrets - set these in the Render dashboard, never committed to git
       - key: JWT_SECRET
         sync: false
@@ -21,6 +28,8 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: MOBILE_URL
+        sync: false
+      - key: VAPID_PRIVATE_KEY
         sync: false
 
   - type: static

@@ -6,6 +6,12 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // injectManifest (a custom src/sw.js, precompiled by vite-plugin-pwa)
+      // instead of the default generateSW - needed so the service worker can
+      // also handle push/notificationclick events, not just precaching.
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.js",
       registerType: "autoUpdate",
       manifest: {
         name: "LedgerlyGo",
@@ -21,10 +27,17 @@ export default defineConfig({
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
-      workbox: {
+      injectManifest: {
         // App-shell caching only - every screen still needs the network for
         // auth/capture/extract, so there's no offline data path to cache.
         globPatterns: ["**/*.{js,css,html}"],
+      },
+      // Registers the service worker under `vite dev` too (off by default) -
+      // without this, navigator.serviceWorker.ready never resolves locally,
+      // since nothing ever registers a worker to become ready.
+      devOptions: {
+        enabled: true,
+        type: "module",
       },
     }),
   ],

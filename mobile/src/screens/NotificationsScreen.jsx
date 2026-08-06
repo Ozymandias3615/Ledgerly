@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, FileText, Package, Users, Trash, X } from "@phosphor-icons/react";
+import { Bell, BellSlash, FileText, Package, Users, Trash, X } from "@phosphor-icons/react";
 import api from "../lib/api";
+import { getPushSubscriptionState, isIosNotInstalled, subscribeToPush, unsubscribeFromPush } from "../lib/push";
 import Brand from "../components/Brand";
 import ThemeToggle from "../components/ThemeToggle";
 import BackButton from "../components/BackButton";
@@ -34,6 +35,49 @@ export default function NotificationsScreen() {
   const navigate = useNavigate();
   const [items, setItems] = useState(null);
   const [error, setError] = useState("");
+  const [pushState, setPushState] = useState("checking");
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getPushSubscriptionState()
+      .then((state) => {
+        if (!cancelled) setPushState(state);
+      })
+      .catch(() => {
+        if (!cancelled) setPushState("unsupported");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const enablePush = async () => {
+    setPushBusy(true);
+    setError("");
+    try {
+      await subscribeToPush();
+      setPushState("subscribed");
+    } catch (err) {
+      setError(err.message === "Permission not granted" ? "Notifications were blocked. You can allow them in your browser settings." : "Couldn't enable notifications.");
+      setPushState(await getPushSubscriptionState());
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const disablePush = async () => {
+    setPushBusy(true);
+    setError("");
+    try {
+      await unsubscribeFromPush();
+      setPushState("unsubscribed");
+    } catch {
+      setError("Couldn't disable notifications.");
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -96,6 +140,29 @@ export default function NotificationsScreen() {
       </div>
       <div className="eyebrow">Updates</div>
       <h2 className="heading">Notifications</h2>
+
+      {pushState === "unsupported" && (
+        <div className="banner banner-warning">
+          {isIosNotInstalled()
+            ? "To get push notifications on iPhone, add LedgerlyGo to your home screen first (Share → Add to Home Screen), then reopen it from there."
+            : "Push notifications aren't supported in this browser."}
+        </div>
+      )}
+      {pushState === "denied" && (
+        <div className="banner banner-warning">Notifications are blocked for this app. Enable them in your browser/phone settings to turn them back on.</div>
+      )}
+      {pushState === "unsubscribed" && (
+        <button type="button" className="btn-outline" style={{ marginBottom: "1rem" }} onClick={enablePush} disabled={pushBusy}>
+          <Bell size={16} style={{ marginRight: "0.5rem", verticalAlign: "-3px" }} />
+          {pushBusy ? "Enabling…" : "Enable push notifications"}
+        </button>
+      )}
+      {pushState === "subscribed" && (
+        <button type="button" className="btn-outline" style={{ marginBottom: "1rem" }} onClick={disablePush} disabled={pushBusy}>
+          <BellSlash size={16} style={{ marginRight: "0.5rem", verticalAlign: "-3px" }} />
+          {pushBusy ? "Disabling…" : "Disable push notifications"}
+        </button>
+      )}
 
       {error && <p className="error-text">{error}</p>}
       {items === null && !error && <p className="subtitle">Loading…</p>}

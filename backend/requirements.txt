@@ -16,3 +16,4 @@ reportlab>=4.1.0
 Pillow>=10.0.0
 python-multipart>=0.0.9
 tzdata>=2024.2
+pywebpush>=2.0.0

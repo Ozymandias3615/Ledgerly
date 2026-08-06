@@ -11,6 +11,7 @@ import json
 import uuid
 import string
 import base64
+import asyncio
 import calendar
 import logging
 import secrets
@@ -40,6 +41,7 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from pywebpush import webpush, WebPushException
 
 # Re-registers the built-in Helvetica/Helvetica-Bold font names against a
 # Unicode-coverage TTF (DejaVu Sans), instead of ReportLab's default base-14
@@ -60,6 +62,13 @@ FIREBASE_PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID")
 # own key in Settings to bypass the shared daily cap below.
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 SHARED_AI_DAILY_LIMIT = 10
+# Web Push - VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY are a matched keypair (raw
+# base64url, not PEM) generated once for this deployment; push simply no-ops
+# if they're unset (e.g. a fresh local checkout) rather than failing requests
+# that happen to trigger a notification.
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY")
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:support@ledgerly.app")
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
@@ -122,10 +131,56 @@ async def _create_membership(user_id: str, business_id: str, role: str) -> dict:
     return membership
 
 
+def _send_one_push(subscription: dict, payload: dict):
+    """Runs in a worker thread (pywebpush's webpush() is a blocking call) -
+    returns "expired" for a subscription the push service says is dead
+    (410/404, e.g. the user uninstalled the PWA or cleared its storage) so
+    the caller can clean it up, "ok" on success, or raises/returns "error"
+    for anything else (transient failures aren't treated as reasons to
+    delete a subscription)."""
+    try:
+        webpush(
+            subscription_info={"endpoint": subscription["endpoint"], "keys": subscription["keys"]},
+            data=json.dumps(payload),
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims={"sub": VAPID_SUBJECT},
+        )
+        return "ok"
+    except WebPushException as e:
+        status = e.response.status_code if e.response is not None else None
+        if status in (404, 410):
+            return "expired"
+        logging.warning("Push send failed (status=%s): %s", status, e)
+        return "error"
+
+async def _push_to_business(business_id: str, title: str, message: str, link: Optional[str]):
+    """Best-effort push to every subscribed device belonging to a member of
+    this business - mirrors the in-app notification's own scope (any
+    teammate can see it, so any teammate's subscribed devices get it too)."""
+    if not (VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY):
+        return
+    member_ids = await db.memberships.find({"business_id": business_id}, {"_id": 0, "user_id": 1}).to_list(500)
+    if not member_ids:
+        return
+    subs = await db.push_subscriptions.find(
+        {"user_id": {"$in": [m["user_id"] for m in member_ids]}}, {"_id": 0}
+    ).to_list(1000)
+    if not subs:
+        return
+    payload = {"title": title, "message": message, "link": link}
+    results = await asyncio.gather(
+        *(asyncio.to_thread(_send_one_push, sub, payload) for sub in subs),
+        return_exceptions=True,
+    )
+    expired_endpoints = [sub["endpoint"] for sub, result in zip(subs, results) if result == "expired"]
+    if expired_endpoints:
+        await db.push_subscriptions.delete_many({"endpoint": {"$in": expired_endpoints}})
+
 async def _notify(business_id: str, type_: str, title: str, message: str = "", link: Optional[str] = None):
     """Records a business-scoped notification (shown in the app's bell menu)
     for a meaningful change or alert - not called for high-frequency actions
-    like individual transactions, to keep the feed useful rather than noisy."""
+    like individual transactions, to keep the feed useful rather than noisy.
+    Also best-effort pushes it to any subscribed devices for the business."""
     await db.notifications.insert_one({
         "id": str(uuid.uuid4()),
         "business_id": business_id,
@@ -136,6 +191,7 @@ async def _notify(business_id: str, type_: str, title: str, message: str = "", l
         "read": False,
         "created_at": now_utc().isoformat(),
     })
+    await _push_to_business(business_id, title, message, link)
 
 
 async def get_current_user(request: Request) -> dict:
@@ -283,6 +339,17 @@ class PayrollRunIn(BaseModel):
     period_start: str
     period_end: str
     employee_ids: Optional[List[str]] = None
+
+class PushSubscriptionKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+class PushSubscriptionIn(BaseModel):
+    endpoint: str
+    keys: PushSubscriptionKeys
+
+class PushUnsubscribeIn(BaseModel):
+    endpoint: str
 
 class InventoryItemIn(BaseModel):
     name: str
@@ -1350,6 +1417,33 @@ async def delete_notification(notif_id: str, user=Depends(get_current_user)):
     res = await db.notifications.delete_one({"id": notif_id, "business_id": user["business_id"]})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
+    return {"success": True}
+
+
+# ---- Web push ----
+@api_router.get("/push/vapid-public-key")
+async def push_vapid_public_key():
+    return {"key": VAPID_PUBLIC_KEY}
+
+@api_router.post("/push/subscribe")
+async def push_subscribe(payload: PushSubscriptionIn, user=Depends(get_current_user)):
+    await db.push_subscriptions.update_one(
+        {"endpoint": payload.endpoint},
+        {"$set": {
+            "id": str(uuid.uuid4()),
+            "user_id": user["user_id"],
+            "business_id": user["business_id"],
+            "endpoint": payload.endpoint,
+            "keys": {"p256dh": payload.keys.p256dh, "auth": payload.keys.auth},
+            "created_at": now_utc().isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"success": True}
+
+@api_router.delete("/push/subscribe")
+async def push_unsubscribe(payload: PushUnsubscribeIn, user=Depends(get_current_user)):
+    await db.push_subscriptions.delete_one({"endpoint": payload.endpoint, "user_id": user["user_id"]})
     return {"success": True}
 
 

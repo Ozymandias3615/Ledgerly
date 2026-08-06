@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Bell, Receipt, Package, FileText, SignOut, CaretRight } from "@phosphor-icons/react";
 import { clearToken, getUser } from "../lib/auth";
 import { useUnreadCount } from "../lib/notifications";
+import { unsubscribeFromPush } from "../lib/push";
 import Brand from "../components/Brand";
 import ThemeToggle from "../components/ThemeToggle";
 import RefreshButton from "../components/RefreshButton";
@@ -18,7 +19,10 @@ export default function HomeScreen() {
   const user = getUser();
   const unreadCount = useUnreadCount();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Best-effort - the subscription record just goes stale (and gets
+    // pruned on its next 404/410) if this fails for any reason.
+    await unsubscribeFromPush().catch(() => {});
     clearToken();
     navigate("/login");
   };
