@@ -19,7 +19,7 @@ services:
       - key: VAPID_PUBLIC_KEY
         value: BNax6Z7f21l9quz5to5qszmm_J9Ht3K4mFZytiNRZPuChHmBYtqT6oXaz7wFT2SZfg7R96kwbbUXUmHPgHE8vwM
       - key: VAPID_SUBJECT
-        value: mailto:support@ledgerly.app
+        value: mailto:n.abbiw10@gmail.com
       # Secrets - set these in the Render dashboard, never committed to git
       - key: JWT_SECRET
         sync: false
