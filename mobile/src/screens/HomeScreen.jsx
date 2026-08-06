@@ -3,6 +3,7 @@ import { Receipt, Package, FileText, SignOut, CaretRight } from "@phosphor-icons
 import { clearToken, getUser } from "../lib/auth";
 import Brand from "../components/Brand";
 import ThemeToggle from "../components/ThemeToggle";
+import RefreshButton from "../components/RefreshButton";
 import AppShell from "../components/AppShell";
 
 const modules = [
@@ -25,7 +26,10 @@ export default function HomeScreen() {
       <div className="screen screen-narrow">
         <div className="top-row">
           <Brand />
-          <ThemeToggle />
+          <div className="top-row-left">
+            <RefreshButton />
+            <ThemeToggle />
+          </div>
         </div>
         <div className="eyebrow">Welcome</div>
         <h2 className="heading">{user?.name || "Hi there"}</h2>

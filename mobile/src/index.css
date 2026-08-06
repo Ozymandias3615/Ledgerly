@@ -254,6 +254,22 @@ h2.heading {
   }
 }
 
+.spin {
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
 .card {
   background: hsl(var(--card));
   color: hsl(var(--card-foreground));
