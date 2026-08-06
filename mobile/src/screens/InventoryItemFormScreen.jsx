@@ -101,7 +101,10 @@ export default function InventoryItemFormScreen() {
       <h2 className="heading">{editing ? "Edit item" : "Add inventory item"}</h2>
 
       {loading ? (
-        <p className="subtitle">Loading…</p>
+        <p className="subtitle thinking">
+          <span className="thinking-dots"><span /><span /><span /></span>
+          Loading
+        </p>
       ) : (
         <div className="card">
           <form onSubmit={handleSubmit} className="form">

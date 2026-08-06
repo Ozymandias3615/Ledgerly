@@ -76,7 +76,10 @@ export default function InvoiceDetailScreen() {
             <Brand compact />
           </div>
         </div>
-        <p className="subtitle">Loading…</p>
+        <p className="subtitle thinking">
+          <span className="thinking-dots"><span /><span /><span /></span>
+          Loading
+        </p>
       </div>
     );
   }

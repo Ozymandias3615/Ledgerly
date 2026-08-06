@@ -261,7 +261,10 @@ function TeamSection() {
       {error && <p className="error-text">{error}</p>}
 
       {members === null ? (
-        <p className="subtitle">Loading…</p>
+        <p className="subtitle thinking">
+          <span className="thinking-dots"><span /><span /><span /></span>
+          Loading
+        </p>
       ) : (
         <div className="list">
           {members.map((m) => {

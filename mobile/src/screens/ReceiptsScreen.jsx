@@ -60,7 +60,12 @@ export default function ReceiptsScreen() {
         {justSubmitted && <div className="banner banner-success">Expense saved.</div>}
         {error && <p className="error-text">{error}</p>}
 
-        {receipts === null && !error && <p className="subtitle">Loading…</p>}
+        {receipts === null && !error && (
+          <p className="subtitle thinking">
+            <span className="thinking-dots"><span /><span /><span /></span>
+            Loading
+          </p>
+        )}
 
         {receipts && receipts.length === 0 && (
           <p className="subtitle">No receipts yet. Tap + to capture your first one.</p>

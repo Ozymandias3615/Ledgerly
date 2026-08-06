@@ -36,7 +36,12 @@ export default function InvoicesScreen() {
         <p className="subtitle">Track status and export invoices as PDFs.</p>
 
         {error && <p className="error-text">{error}</p>}
-        {invoices === null && !error && <p className="subtitle">Loading…</p>}
+        {invoices === null && !error && (
+          <p className="subtitle thinking">
+            <span className="thinking-dots"><span /><span /><span /></span>
+            Loading
+          </p>
+        )}
         {invoices && invoices.length === 0 && <p className="subtitle">No invoices yet.</p>}
 
         {invoices && invoices.length > 0 && (

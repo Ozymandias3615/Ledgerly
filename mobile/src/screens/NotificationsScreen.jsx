@@ -94,7 +94,12 @@ export default function NotificationsScreen() {
       <h2 className="heading">Notifications</h2>
 
       {error && <p className="error-text">{error}</p>}
-      {items === null && !error && <p className="subtitle">Loading…</p>}
+      {items === null && !error && (
+        <p className="subtitle thinking">
+          <span className="thinking-dots"><span /><span /><span /></span>
+          Loading
+        </p>
+      )}
       {items && items.length === 0 && <p className="subtitle">You're all caught up.</p>}
 
       {items && items.length > 0 && (

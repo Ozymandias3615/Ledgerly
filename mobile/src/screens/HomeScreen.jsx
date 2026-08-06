@@ -1,10 +1,22 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Gear, Receipt, Package, FileText, SignOut, CaretRight } from "@phosphor-icons/react";
+import { Bell, Gear, Receipt, Package, FileText, SignOut, CaretRight, X } from "@phosphor-icons/react";
+import api from "../lib/api";
 import { clearToken, getUser } from "../lib/auth";
+import { fmtAmount, isLowStock } from "../lib/format";
 import { useUnreadCount } from "../lib/notifications";
 import { unsubscribeFromPush } from "../lib/push";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
+
+function currentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function currentMonthLabel() {
+  return new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
 
 const modules = [
   { to: "/receipts", label: "Receipts", subtitle: "Capture and review expenses", Icon: Receipt },
@@ -16,6 +28,30 @@ export default function HomeScreen() {
   const navigate = useNavigate();
   const user = getUser();
   const unreadCount = useUnreadCount();
+  const [summary, setSummary] = useState(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([api.get("/reports/dashboard"), api.get("/invoices"), api.get("/inventory")])
+      .then(([dashboard, invoices, inventory]) => {
+        if (cancelled) return;
+        const month = dashboard.data.monthly.find((m) => m.month === currentMonthKey());
+        setSummary({
+          income: month?.income ?? 0,
+          expense: month?.expense ?? 0,
+          net: month?.net ?? 0,
+          overdueCount: invoices.data.filter((i) => i.status === "overdue").length,
+          lowStockCount: inventory.data.filter(isLowStock).length,
+        });
+      })
+      // Silent failure - the summary is a nice-to-have glance, not worth an
+      // error banner on the screen every screen re-enters through.
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleLogout = async () => {
     // Best-effort - the subscription record just goes stale (and gets
@@ -50,6 +86,53 @@ export default function HomeScreen() {
         <div className="eyebrow">Welcome</div>
         <h2 className="heading">{user?.name || "Hi there"}</h2>
         <p className="subtitle">Signed in as {user?.email}</p>
+
+        {summary && (
+          <div className="stat-grid">
+            <button type="button" className="stat-tile" onClick={() => setShowBreakdown(true)}>
+              <div className={`stat-value ${summary.net < 0 ? "stat-negative" : "stat-positive"}`}>{fmtAmount(summary.net, user?.currency)}</div>
+              <div className="stat-label">This month</div>
+            </button>
+            <button type="button" className="stat-tile" onClick={() => navigate("/invoices")}>
+              <div className={`stat-value${summary.overdueCount > 0 ? " stat-negative" : ""}`}>{summary.overdueCount}</div>
+              <div className="stat-label">Overdue</div>
+            </button>
+            <button type="button" className="stat-tile" onClick={() => navigate("/inventory")}>
+              <div className={`stat-value${summary.lowStockCount > 0 ? " stat-warning" : ""}`}>{summary.lowStockCount}</div>
+              <div className="stat-label">Low stock</div>
+            </button>
+          </div>
+        )}
+
+        {showBreakdown && summary && (
+          <div className="modal-overlay" onClick={() => setShowBreakdown(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <div className="list-title">This month</div>
+                  <div className="list-meta">{currentMonthLabel()}</div>
+                </div>
+                <button type="button" className="icon-btn" aria-label="Close" onClick={() => setShowBreakdown(false)}>
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="totals-box">
+                <div className="totals-row">
+                  <span>Income</span>
+                  <span>{fmtAmount(summary.income, user?.currency)}</span>
+                </div>
+                <div className="totals-row">
+                  <span>Expenses</span>
+                  <span>{fmtAmount(summary.expense, user?.currency)}</span>
+                </div>
+                <div className="totals-row-bold">
+                  <span>Net</span>
+                  <span>{fmtAmount(summary.net, user?.currency)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="module-grid">
           {modules.map(({ to, label, subtitle, Icon }) => (

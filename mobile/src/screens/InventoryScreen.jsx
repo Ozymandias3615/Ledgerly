@@ -79,7 +79,12 @@ export default function InventoryScreen() {
           </div>
         )}
 
-        {items === null && !error && <p className="subtitle">Loading…</p>}
+        {items === null && !error && (
+          <p className="subtitle thinking">
+            <span className="thinking-dots"><span /><span /><span /></span>
+            Loading
+          </p>
+        )}
         {items && items.length === 0 && <p className="subtitle">No inventory items yet. Tap + to add one.</p>}
 
         {items && items.length > 0 && (
