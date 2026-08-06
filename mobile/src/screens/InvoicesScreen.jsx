@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { fmt, fmtDate } from "../lib/format";
 import Brand from "../components/Brand";
-import ThemeToggle from "../components/ThemeToggle";
 import AppShell from "../components/AppShell";
 
 export default function InvoicesScreen() {
@@ -31,7 +30,6 @@ export default function InvoicesScreen() {
       <div className="screen screen-narrow">
         <div className="top-row">
           <Brand compact />
-          <ThemeToggle />
         </div>
         <div className="eyebrow">Billing</div>
         <h2 className="heading">Invoices</h2>

@@ -9,6 +9,7 @@ import InventoryItemFormScreen from "./screens/InventoryItemFormScreen";
 import InvoicesScreen from "./screens/InvoicesScreen";
 import InvoiceDetailScreen from "./screens/InvoiceDetailScreen";
 import NotificationsScreen from "./screens/NotificationsScreen";
+import SettingsScreen from "./screens/SettingsScreen";
 import { isAuthenticated } from "./lib/auth";
 
 function RequireAuth({ children }) {
@@ -96,6 +97,14 @@ export default function App() {
         element={
           <RequireAuth>
             <NotificationsScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <RequireAuth>
+            <SettingsScreen />
           </RequireAuth>
         }
       />

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import api from "../lib/api";
 import Brand from "../components/Brand";
-import ThemeToggle from "../components/ThemeToggle";
 import BackButton from "../components/BackButton";
 
 const emptyForm = { name: "", category: "", quantity: "", unit: "units", reorder_point: "0", unit_cost: "0" };
@@ -97,7 +96,6 @@ export default function InventoryItemFormScreen() {
           <BackButton to="/inventory" />
           <Brand compact />
         </div>
-        <ThemeToggle />
       </div>
       <div className="eyebrow">{editing ? "Edit" : "New"}</div>
       <h2 className="heading">{editing ? "Edit item" : "Add inventory item"}</h2>

@@ -4,7 +4,6 @@ import { DownloadSimple } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { fmt, fmtDate } from "../lib/format";
 import Brand from "../components/Brand";
-import ThemeToggle from "../components/ThemeToggle";
 import BackButton from "../components/BackButton";
 
 const STATUSES = ["draft", "sent", "paid", "overdue"];
@@ -76,7 +75,6 @@ export default function InvoiceDetailScreen() {
             <BackButton to="/invoices" />
             <Brand compact />
           </div>
-          <ThemeToggle />
         </div>
         <p className="subtitle">Loading…</p>
       </div>
@@ -91,7 +89,6 @@ export default function InvoiceDetailScreen() {
             <BackButton to="/invoices" />
             <Brand compact />
           </div>
-          <ThemeToggle />
         </div>
         <p className="error-text">{error || "Invoice not found."}</p>
       </div>
@@ -107,12 +104,9 @@ export default function InvoiceDetailScreen() {
           <BackButton to="/invoices" />
           <Brand compact />
         </div>
-        <div className="top-row-left">
-          <button type="button" className="icon-btn" aria-label="Export as PDF" title="Export as PDF" disabled={exporting} onClick={exportPdf}>
-            <DownloadSimple size={18} />
-          </button>
-          <ThemeToggle />
-        </div>
+        <button type="button" className="icon-btn" aria-label="Export as PDF" title="Export as PDF" disabled={exporting} onClick={exportPdf}>
+          <DownloadSimple size={18} />
+        </button>
       </div>
       <div className="eyebrow">Invoice</div>
       <h2 className="heading">{invoice.invoice_number}</h2>

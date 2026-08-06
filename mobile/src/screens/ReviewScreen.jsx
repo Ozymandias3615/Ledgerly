@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { getUser } from "../lib/auth";
 import Brand from "../components/Brand";
-import ThemeToggle from "../components/ThemeToggle";
 import BackButton from "../components/BackButton";
 
 function todayIso() {
@@ -147,7 +146,6 @@ export default function ReviewScreen() {
           <BackButton to="/capture" />
           <Brand compact />
         </div>
-        <ThemeToggle />
       </div>
       <div className="eyebrow">Review</div>
       <h2 className="heading">{extracting ? "Reading receipt…" : "Check the details"}</h2>

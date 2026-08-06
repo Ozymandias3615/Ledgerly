@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getUser } from "../lib/auth";
 import Brand from "../components/Brand";
-import ThemeToggle from "../components/ThemeToggle";
 import BackButton from "../components/BackButton";
 
 export default function CaptureScreen() {
@@ -29,7 +28,6 @@ export default function CaptureScreen() {
           <BackButton to="/receipts" />
           <Brand compact />
         </div>
-        <ThemeToggle />
       </div>
       <div className="eyebrow">New expense</div>
       <h2 className="heading">Capture a receipt</h2>

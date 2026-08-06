@@ -4,7 +4,6 @@ import { Plus, Minus, Warning } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { isLowStock, stockRatio, stockBarColor } from "../lib/format";
 import Brand from "../components/Brand";
-import ThemeToggle from "../components/ThemeToggle";
 import AppShell from "../components/AppShell";
 
 export default function InventoryScreen() {
@@ -62,12 +61,9 @@ export default function InventoryScreen() {
       <div className="screen screen-narrow">
         <div className="top-row">
           <Brand compact />
-          <div className="top-row-left">
-            <button type="button" className="icon-btn" aria-label="Add item" title="Add item" onClick={() => navigate("/inventory/new")}>
-              <Plus size={18} />
-            </button>
-            <ThemeToggle />
-          </div>
+          <button type="button" className="icon-btn" aria-label="Add item" title="Add item" onClick={() => navigate("/inventory/new")}>
+            <Plus size={18} />
+          </button>
         </div>
         <div className="eyebrow">Stock</div>
         <h2 className="heading">Inventory</h2>

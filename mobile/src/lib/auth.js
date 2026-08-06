@@ -15,6 +15,12 @@ export function getUser() {
   return raw ? JSON.parse(raw) : null;
 }
 
+export function updateStoredUser(patch) {
+  const updated = { ...getUser(), ...patch };
+  localStorage.setItem(USER_KEY, JSON.stringify(updated));
+  return updated;
+}
+
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
