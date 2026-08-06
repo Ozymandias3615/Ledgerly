@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import api from "../lib/api";
-import { setSession } from "../lib/auth";
+import { isAuthenticated, setSession } from "../lib/auth";
 import { auth } from "../lib/firebase";
 import Brand from "../components/Brand";
 import ThemeToggle from "../components/ThemeToggle";
@@ -83,6 +83,14 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
+
+  // The installed PWA's start_url always lands here on relaunch, so without
+  // this check a user with a perfectly valid stored session would see the
+  // login form every time they reopen the app and re-authenticate for no
+  // reason - this is what "always asks me to sign in with Google again" was.
+  if (isAuthenticated()) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="screen screen-center">
