@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { Receipt, Package, FileText, SignOut, CaretRight } from "@phosphor-icons/react";
+import { Bell, Receipt, Package, FileText, SignOut, CaretRight } from "@phosphor-icons/react";
 import { clearToken, getUser } from "../lib/auth";
+import { useUnreadCount } from "../lib/notifications";
 import Brand from "../components/Brand";
 import ThemeToggle from "../components/ThemeToggle";
 import RefreshButton from "../components/RefreshButton";
@@ -15,6 +16,7 @@ const modules = [
 export default function HomeScreen() {
   const navigate = useNavigate();
   const user = getUser();
+  const unreadCount = useUnreadCount();
 
   const handleLogout = () => {
     clearToken();
@@ -27,6 +29,17 @@ export default function HomeScreen() {
         <div className="top-row">
           <Brand />
           <div className="top-row-left">
+            <button
+              type="button"
+              className="icon-btn"
+              style={{ position: "relative" }}
+              aria-label="Notifications"
+              title="Notifications"
+              onClick={() => navigate("/notifications")}
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+            </button>
             <RefreshButton />
             <ThemeToggle />
           </div>
