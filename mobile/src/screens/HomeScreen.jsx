@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Gear, Receipt, Package, FileText, SignOut, CaretRight, X } from "@phosphor-icons/react";
 import api from "../lib/api";
-import { clearToken, getUser } from "../lib/auth";
+import { clearToken, getUser, updateStoredUser } from "../lib/auth";
 import { fmtAmount, isLowStock } from "../lib/format";
 import { useUnreadCount } from "../lib/notifications";
 import { unsubscribeFromPush } from "../lib/push";
@@ -30,11 +30,17 @@ export default function HomeScreen() {
   const unreadCount = useUnreadCount();
   const [summary, setSummary] = useState(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  // Business currency can change after login (e.g. desktop Settings > Business),
+  // but the cached user in localStorage doesn't - re-fetch it here rather than
+  // trusting `user.currency`, which is what left this figure showing the old
+  // symbol after a currency relabel while every record-backed screen (which
+  // reads currency off each transaction/invoice) updated immediately.
+  const [currency, setCurrency] = useState(user?.currency);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api.get("/reports/dashboard"), api.get("/invoices"), api.get("/inventory")])
-      .then(([dashboard, invoices, inventory]) => {
+    Promise.all([api.get("/reports/dashboard"), api.get("/invoices"), api.get("/inventory"), api.get("/auth/me")])
+      .then(([dashboard, invoices, inventory, me]) => {
         if (cancelled) return;
         const month = dashboard.data.monthly.find((m) => m.month === currentMonthKey());
         setSummary({
@@ -44,6 +50,10 @@ export default function HomeScreen() {
           overdueCount: invoices.data.filter((i) => i.status === "overdue").length,
           lowStockCount: inventory.data.filter(isLowStock).length,
         });
+        if (me.data.currency) {
+          setCurrency(me.data.currency);
+          updateStoredUser({ currency: me.data.currency });
+        }
       })
       // Silent failure - the summary is a nice-to-have glance, not worth an
       // error banner on the screen every screen re-enters through.
@@ -92,7 +102,7 @@ export default function HomeScreen() {
             <button type="button" className="stat-tile" onClick={() => setShowBreakdown(true)}>
               {/* Sign is dropped here - the red/green color already says profit vs.
                   loss, and the breakdown modal has the exact signed figures. */}
-              <div className={`stat-value ${summary.net < 0 ? "stat-negative" : "stat-positive"}`}>{fmtAmount(Math.abs(summary.net), user?.currency)}</div>
+              <div className={`stat-value ${summary.net < 0 ? "stat-negative" : "stat-positive"}`}>{fmtAmount(Math.abs(summary.net), currency)}</div>
               <div className="stat-label">This month</div>
             </button>
             <button type="button" className="stat-tile" onClick={() => navigate("/invoices")}>
@@ -133,15 +143,15 @@ export default function HomeScreen() {
               <div className="totals-box">
                 <div className="totals-row">
                   <span>Income</span>
-                  <span>{fmtAmount(summary.income, user?.currency)}</span>
+                  <span>{fmtAmount(summary.income, currency)}</span>
                 </div>
                 <div className="totals-row">
                   <span>Expenses</span>
-                  <span>{fmtAmount(summary.expense, user?.currency)}</span>
+                  <span>{fmtAmount(summary.expense, currency)}</span>
                 </div>
                 <div className="totals-row-bold">
                   <span>Net</span>
-                  <span>{fmtAmount(summary.net, user?.currency)}</span>
+                  <span>{fmtAmount(summary.net, currency)}</span>
                 </div>
               </div>
             </div>
