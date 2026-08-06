@@ -38,6 +38,18 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+# Re-registers the built-in Helvetica/Helvetica-Bold font names against a
+# Unicode-coverage TTF (DejaVu Sans), instead of ReportLab's default base-14
+# fonts which only support WinAnsi and render exotic currency symbols like
+# GHS's ₵ or INR's ₹ as missing-glyph boxes. Every PDF style below already
+# references "Helvetica"/"Helvetica-Bold" by name, so this swaps the glyphs
+# everywhere without touching any of those call sites.
+_FONTS_DIR = ROOT_DIR / "fonts"
+pdfmetrics.registerFont(TTFont("Helvetica", str(_FONTS_DIR / "DejaVuSans.ttf")))
+pdfmetrics.registerFont(TTFont("Helvetica-Bold", str(_FONTS_DIR / "DejaVuSans-Bold.ttf")))
 
 # ---- Config ----
 JWT_ALGORITHM = "HS256"
