@@ -28,10 +28,19 @@ export function fmtDate(iso) {
 }
 
 export function fmtAmount(amount, currency) {
+  const code = currency || "USD";
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency: currency || "USD" }).format(amount);
+    // Intl's own currency-symbol resolution falls back to the bare ISO code
+    // for currencies without curated symbol data in this locale (GHS -> "GHS"
+    // instead of "GH₵") - format with currencyDisplay: "code" to get correct
+    // per-currency grouping/decimals (e.g. JPY has none), strip the code
+    // token, and prepend our own curated symbol instead for consistency with
+    // fmt() above.
+    const parts = new Intl.NumberFormat(undefined, { style: "currency", currency: code, currencyDisplay: "code" }).formatToParts(Number(amount || 0));
+    const numberPart = parts.filter((p) => p.type !== "currency").map((p) => p.value).join("").trim();
+    return `${currencySymbol(code)}${numberPart}`;
   } catch {
-    return `${currency || ""} ${amount}`.trim();
+    return `${code} ${amount}`.trim();
   }
 }
 
