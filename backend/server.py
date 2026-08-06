@@ -64,7 +64,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 def create_access_token(user_id: str, email: str) -> str:
-    payload = {"sub": user_id, "email": email, "exp": datetime.now(timezone.utc) + timedelta(days=7), "type": "access"}
+    payload = {"sub": user_id, "email": email, "exp": datetime.now(timezone.utc) + timedelta(days=30), "type": "access"}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 def now_utc():
@@ -358,7 +358,7 @@ async def register(payload: RegisterIn, response: Response):
         await _create_membership(user_id, business["business_id"], "owner")
 
     token = create_access_token(user_id, email)
-    response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+    response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=2592000, path="/")
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     return await _enrich_user(user)
 
@@ -369,7 +369,7 @@ async def login(payload: LoginIn, response: Response):
     if not user or not user.get("password_hash") or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     token = create_access_token(user["user_id"], email)
-    response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+    response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=2592000, path="/")
     user.pop("_id", None)
     user.pop("password_hash", None)
     # Also returned in the body (in addition to the httpOnly cookie above) so
@@ -476,7 +476,7 @@ async def firebase_session(payload: FirebaseSessionIn, response: Response):
         business = await _create_business(f"{name}'s Business", "USD", user_id, onboarding_complete=False)
         await _create_membership(user_id, business["business_id"], "owner")
     token = create_access_token(user_id, email)
-    response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+    response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=2592000, path="/")
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     # Also returned in the body, same reason as /auth/login: the mobile PWA
     # uses this as a Bearer token instead of the cross-origin cookie.
