@@ -87,10 +87,12 @@ export default function HomeScreen() {
         <h2 className="heading">{user?.name || "Hi there"}</h2>
         <p className="subtitle">Signed in as {user?.email}</p>
 
-        {summary && (
+        {summary ? (
           <div className="stat-grid">
             <button type="button" className="stat-tile" onClick={() => setShowBreakdown(true)}>
-              <div className={`stat-value ${summary.net < 0 ? "stat-negative" : "stat-positive"}`}>{fmtAmount(summary.net, user?.currency)}</div>
+              {/* Sign is dropped here - the red/green color already says profit vs.
+                  loss, and the breakdown modal has the exact signed figures. */}
+              <div className={`stat-value ${summary.net < 0 ? "stat-negative" : "stat-positive"}`}>{fmtAmount(Math.abs(summary.net), user?.currency)}</div>
               <div className="stat-label">This month</div>
             </button>
             <button type="button" className="stat-tile" onClick={() => navigate("/invoices")}>
@@ -101,6 +103,18 @@ export default function HomeScreen() {
               <div className={`stat-value${summary.lowStockCount > 0 ? " stat-warning" : ""}`}>{summary.lowStockCount}</div>
               <div className="stat-label">Low stock</div>
             </button>
+          </div>
+        ) : (
+          // Reserves the same grid space immediately instead of the tiles
+          // popping in once the 3 parallel requests resolve, which read as a
+          // layout jump ("spawns in a few seconds after everything else").
+          <div className="stat-grid" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="stat-tile">
+                <div className="skeleton-bar skeleton-bar-value" />
+                <div className="skeleton-bar skeleton-bar-label" />
+              </div>
+            ))}
           </div>
         )}
 
