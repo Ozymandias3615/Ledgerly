@@ -82,7 +82,8 @@ export default function RegisterPage() {
             </div>
             <div>
               <Label>Password</Label>
-              <PasswordInput required value={form.password} onChange={(e) => update("password", e.target.value)} data-testid="register-password-input" />
+              <PasswordInput required minLength={8} value={form.password} onChange={(e) => update("password", e.target.value)} data-testid="register-password-input" />
+              <div className="text-xs text-slate-400 mt-1">At least 8 characters</div>
             </div>
             <div>
               <Label>Invite code (optional)</Label>

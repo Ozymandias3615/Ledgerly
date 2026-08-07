@@ -24,6 +24,9 @@ import bcrypt
 import jwt
 import httpx
 import sentry_sdk
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_auth_requests
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, Query, UploadFile, File
@@ -82,6 +85,19 @@ if SENTRY_DSN:
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
+
+# Render sits in front of the app as a reverse proxy, so the direct socket
+# peer is always Render's edge, not the real client - X-Forwarded-For (which
+# Render sets reliably) is what rate limiting needs to key on instead.
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return get_remote_address(request)
+
+limiter = Limiter(key_func=_client_ip)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.get("/health")
@@ -254,7 +270,7 @@ def require_role(*roles):
 # ---- Auth models ----
 class RegisterIn(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8)
     name: str
     business_name: Optional[str] = None
     currency: Optional[str] = "USD"
@@ -413,7 +429,8 @@ def _invite_expiry(expires_at):
 
 # ---- Auth endpoints ----
 @api_router.post("/auth/register")
-async def register(payload: RegisterIn, response: Response):
+@limiter.limit("10/hour")
+async def register(request: Request, payload: RegisterIn, response: Response):
     email = payload.email.lower()
     existing = await db.users.find_one({"email": email})
     if existing:
@@ -454,7 +471,8 @@ async def register(payload: RegisterIn, response: Response):
     return await _enrich_user(user)
 
 @api_router.post("/auth/login")
-async def login(payload: LoginIn, response: Response):
+@limiter.limit("5/minute")
+async def login(request: Request, payload: LoginIn, response: Response):
     email = payload.email.lower()
     user = await db.users.find_one({"email": email})
     if not user or not user.get("password_hash") or not verify_password(payload.password, user["password_hash"]):

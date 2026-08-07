@@ -18,3 +18,4 @@ python-multipart>=0.0.9
 tzdata>=2024.2
 pywebpush>=2.0.0
 sentry-sdk>=2.66.0
+slowapi>=0.1.10

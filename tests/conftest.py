@@ -28,8 +28,12 @@ import server as app_module
 @pytest_asyncio.fixture(autouse=True)
 async def _fresh_db():
     """Every test gets its own empty in-memory Mongo - real MongoDB is never
-    touched, and tests can't see each other's data."""
+    touched, and tests can't see each other's data. Also resets the login/
+    register rate limiter, which would otherwise accumulate across the whole
+    test session (httpx's ASGITransport always reports the same client IP)
+    and start rejecting real test requests partway through the suite."""
     app_module.db = AsyncMongoMockClient()["ledgerly_test"]
+    app_module.limiter.reset()
     await app_module.app.router.startup()
     yield
 
