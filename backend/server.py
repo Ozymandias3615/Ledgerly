@@ -2054,7 +2054,8 @@ async def extract_receipt(file: UploadFile = File(...), user=Depends(get_current
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}},
                 ],
             }],
-            max_completion_tokens=500,
+            max_completion_tokens=800,
+            reasoning_effort="none",
             response_format={"type": "json_object"},
         )
         extracted = json.loads(resp.choices[0].message.content)
