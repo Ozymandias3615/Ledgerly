@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Terms of Service — Ledgerly</title>
+<meta name="description" content="The terms for using Ledgerly and LedgerlyGo." />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --black: #000000;
+    --ink: #0a0a0a;
+    --gray-900: #18181b;
+    --gray-700: #3f3f46;
+    --gray-600: #52525b;
+    --gray-500: #71717a;
+    --gray-400: #a1a1aa;
+    --gray-300: #d4d4d8;
+    --gray-200: #e4e4e7;
+    --gray-100: #f4f4f5;
+    --gray-50: #fafafa;
+    --white: #ffffff;
+    --line: rgba(0,0,0,.1);
+    --line-soft: rgba(0,0,0,.06);
+    --ok: #059669;
+    --warn: #b45309;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'IBM Plex Sans', system-ui, sans-serif; color: var(--ink); background: var(--white); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { font-family: 'Manrope', sans-serif; letter-spacing: -0.03em; color: var(--black); }
+  a { color: inherit; }
+  .container { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .label { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--gray-500); font-weight: 500; }
+  ::selection { background: var(--black); color: var(--white); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+
+  /* Nav (same as the main site) */
+  nav { position: sticky; top: 0; z-index: 50; border-bottom: 1px solid var(--line-soft); background: rgba(255,255,255,.78); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 18px; text-decoration: none; }
+  .mark { width: 30px; height: 30px; border-radius: 8px; background: var(--black); display: grid; place-items: center; flex-shrink: 0; }
+  .mark svg { width: 16px; height: 16px; fill: #fff; }
+  .nav-links { display: flex; align-items: center; gap: 30px; font-size: 14px; font-weight: 500; color: var(--gray-700); }
+  .nav-links a { text-decoration: none; position: relative; padding: 4px 0; }
+  .nav-links a:not(.nav-cta)::after { content: ""; position: absolute; left: 0; right: 100%; bottom: -1px; height: 1px; background: var(--black); transition: right .2s ease; }
+  .nav-links a:not(.nav-cta):hover::after { right: 0; }
+  .nav-links a:not(.nav-cta):hover { color: var(--black); }
+  .nav-links a.nav-cta { display: inline-flex; align-items: center; background: var(--black); color: #fff !important; padding: 9px 16px; border-radius: 7px; font-weight: 600; font-size: 13px; transition: transform .15s ease, background .15s ease; }
+  .nav-cta:hover { background: var(--gray-800, #27272a); transform: translateY(-1px); }
+  @media (max-width: 720px) { .nav-links a:not(.nav-cta) { display: none; } }
+
+  /* Legal content */
+  .legal-head { padding: 64px 0 40px; border-bottom: 1px solid var(--line-soft); }
+  .legal-head .label { margin-bottom: 14px; }
+  .legal-head h1 { font-size: clamp(30px, 4.4vw, 42px); font-weight: 800; }
+  .legal-head p.sub { color: var(--gray-600); margin-top: 14px; font-size: 15px; max-width: 640px; }
+  .legal { padding: 56px 0 96px; }
+  .legal-body { max-width: 680px; margin: 0 auto; }
+  .legal-body h2 { font-size: 20px; font-weight: 800; margin: 44px 0 14px; }
+  .legal-body h2:first-child { margin-top: 0; }
+  .legal-body p { color: var(--gray-700); font-size: 15px; margin: 12px 0; }
+  .legal-body ul { color: var(--gray-700); font-size: 15px; margin: 12px 0; padding-left: 22px; }
+  .legal-body li { margin: 8px 0; }
+  .legal-body li strong { color: var(--black); }
+  .legal-body a { color: var(--black); text-decoration: underline; text-decoration-color: var(--gray-300); text-underline-offset: 2px; }
+  .legal-body a:hover { text-decoration-color: var(--black); }
+  .callout { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line); background: var(--gray-50); border-radius: 10px; padding: 16px 18px; margin: 20px 0; font-size: 13.5px; color: var(--gray-700); }
+  .callout svg { flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; color: var(--warn); }
+  .callout strong { color: var(--black); }
+
+  /* Footer (same as the main site) */
+  footer { background: var(--black); color: var(--gray-400); padding: 48px 0; font-size: 13px; }
+  .footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 18px; }
+  .footer-brand { display: flex; align-items: center; gap: 9px; color: #fff; font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 16px; }
+  .footer-brand .mark { width: 26px; height: 26px; background: #fff; }
+  .footer-brand .mark svg { fill: var(--black); width: 14px; height: 14px; }
+  .footer-links { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .footer-links a { text-decoration: none; display: flex; align-items: center; gap: 7px; transition: color .15s ease; }
+  .footer-links a:hover { color: #fff; }
+  .footer-links svg { width: 15px; height: 15px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="container nav-inner">
+    <a class="brand" href="index.html">
+      <span class="mark"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M216,72H56a8,8,0,0,1,0-16H192a8,8,0,0,0,0-16H56A24,24,0,0,0,32,64V192a24,24,0,0,0,24,24H216a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72Zm-36,80a12,12,0,1,1,12-12A12,12,0,0,1,180,152Z"/></svg></span>
+      Ledgerly
+    </a>
+    <div class="nav-links">
+      <a href="index.html#features">Features</a>
+      <a href="index.html#ledgerly-go">LedgerlyGo</a>
+      <a href="index.html#faq">FAQ</a>
+      <a href="index.html#get-started" class="nav-cta">Download</a>
+    </div>
+  </div>
+</nav>
+
+<header class="legal-head">
+  <div class="container">
+    <div class="label">Legal</div>
+    <h1>Terms of Service</h1>
+    <p class="sub">The terms for using Ledgerly (the desktop app) and LedgerlyGo (the companion web app). Plain language, same as the <a href="privacy.html">Privacy Policy</a>.</p>
+  </div>
+</header>
+
+<section class="legal">
+  <div class="container">
+    <div class="legal-body">
+      <p class="mono" style="font-size:12.5px;color:var(--gray-500);">Effective August 6, 2026</p>
+
+      <h2>1. Agreement to these terms</h2>
+      <p>By downloading, installing, or using Ledgerly or LedgerlyGo, you agree to these terms. If you don't agree, don't use the app.</p>
+
+      <h2>2. What Ledgerly is</h2>
+      <p>Ledgerly is a free bookkeeping tool for small businesses — transactions, invoices, inventory, payroll, and AI-assisted insights. It's a record-keeping and organization tool, not a substitute for professional accounting, tax, or legal advice, and it doesn't file anything with any tax authority on your behalf.</p>
+
+      <h2>3. Your account</h2>
+      <ul>
+        <li>You need an account to use Ledgerly, created with an email and password or Google sign-in.</li>
+        <li>You're responsible for keeping your credentials secure and for activity under your account.</li>
+        <li>If you invite teammates to your business, you're responsible for the access you grant them.</li>
+      </ul>
+
+      <h2>4. Your data</h2>
+      <p>Everything you enter — transactions, invoices, clients, receipts, and everything else — belongs to you. Ledgerly doesn't claim ownership over your business records. You're solely responsible for the accuracy of what you enter; Ledgerly doesn't audit, verify, or guarantee your bookkeeping. See the <a href="privacy.html">Privacy Policy</a> for how that data is stored and who it's shared with.</p>
+
+      <h2>5. AI features</h2>
+      <p>AI receipt scanning and AI Insights use a third-party AI model and can make mistakes — misread amounts, miscategorize an expense, or give an incomplete or wrong answer. Always review AI-extracted or AI-generated content before relying on it. AI Insights is not financial, tax, or legal advice.</p>
+
+      <h2>6. Acceptable use</h2>
+      <p>You agree not to:</p>
+      <ul>
+        <li>use Ledgerly for anything illegal</li>
+        <li>try to access another business's data without authorization</li>
+        <li>abuse, scrape, or overload the shared AI quota or the service generally</li>
+        <li>reverse-engineer the app to bypass its security</li>
+        <li>use the app to violate anyone else's rights</li>
+      </ul>
+
+      <h2>7. Availability</h2>
+      <p>Ledgerly is free, runs on free-tier hosting, and is provided as-is with no uptime guarantee — the backend can take up to a minute to wake up on the first request of the day. It's still actively developed (currently v0.1.5), so features can change; see the <a href="changelog.html">Changelog</a> for what's shipped.</p>
+
+      <h2>8. Suspension &amp; termination</h2>
+      <p>You can delete your own account at any time from Settings — see the Privacy Policy for exactly what that does. We may suspend or terminate accounts that violate Section 6 above.</p>
+
+      <h2>9. No warranty, limited liability</h2>
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+        <div>Ledgerly is provided <strong>"as is,"</strong> without warranty of any kind. To the fullest extent permitted by law, Ledgerly isn't liable for losses — financial or otherwise — arising from your use of the app, including bugs, data loss, downtime, or decisions made based on the app's output, AI-generated or otherwise.</div>
+      </div>
+
+      <h2>10. Source code</h2>
+      <p>Ledgerly's source is publicly visible on <a href="https://github.com/Ozymandias3615/Ledgerly" target="_blank" rel="noopener">GitHub</a> for transparency, but it's proprietary — copyright &copy; 2026 Ledgerly, all rights reserved. Viewing the code doesn't grant any license to copy, modify, or redistribute it.</p>
+
+      <h2>11. Changes to these terms</h2>
+      <p>If these terms change meaningfully, we'll update the effective date above.</p>
+
+      <h2>12. Contact</h2>
+      <p>Questions about these terms — reach out at <a href="mailto:n.abbiw10@gmail.com">n.abbiw10@gmail.com</a>, or open an issue on <a href="https://github.com/Ozymandias3615/Ledgerly" target="_blank" rel="noopener">GitHub</a>.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="mark"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M216,72H56a8,8,0,0,1,0-16H192a8,8,0,0,0,0-16H56A24,24,0,0,0,32,64V192a24,24,0,0,0,24,24H216a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72Zm-36,80a12,12,0,1,1,12-12A12,12,0,0,1,180,152Z"/></svg></span>
+      Ledgerly
+    </div>
+    <div class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="https://github.com/Ozymandias3615/Ledgerly">GitHub</a>
+      <a href="Ledgerly-User-Guide.pdf" target="_blank" rel="noopener">User Guide</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
+  </div>
+  <div class="container" style="margin-top:26px;padding-top:26px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:var(--gray-500)">
+    &copy; 2026 Ledgerly — Business Finance OS
+  </div>
+</footer>
+
+</body>
+</html>
