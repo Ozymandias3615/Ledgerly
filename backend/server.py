@@ -84,6 +84,11 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 # ---- Utilities ----
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
