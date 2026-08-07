@@ -1,0 +1,28 @@
+name: Backend Tests
+
+# Runs on every push/PR (unlike build-windows.yml/build-mac.yml, which only
+# fire on version tags) so a broken change is caught before it ships, not
+# after. Tests run against an in-memory Mongo mock, not the real database -
+# no secrets needed here.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
