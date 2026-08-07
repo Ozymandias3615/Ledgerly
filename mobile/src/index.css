@@ -146,8 +146,10 @@ h1, h2, h3 {
 
 /* Same content width cap as .screen-center, without the vertical centering -
    for screens whose content flows top-down (forms, lists) rather than
-   sitting in the middle of the viewport. Keeps the phone-width layout from
-   stretching edge-to-edge on tablets/wider phones. */
+   sitting in the middle of the viewport. Phone width (the default here)
+   stays exactly this narrow; the min-width: 700px block further down widens
+   it back out for tablets/desktop instead of leaving it stranded at
+   phone-width in the middle of a much bigger screen. */
 .screen-narrow {
   max-width: 420px;
   width: 100%;
@@ -556,6 +558,11 @@ button:disabled {
   backdrop-filter: blur(8px);
   padding-bottom: env(safe-area-inset-bottom);
   z-index: 40;
+  /* Matches the .screen-narrow content width cap above it - without this the
+     nav stays full-bleed on tablets, spreading its items far apart from the
+     narrow centered content column they're supposed to sit under. */
+  max-width: 420px;
+  margin: 0 auto;
 }
 
 .bottom-nav-item {
@@ -1112,4 +1119,49 @@ button.stat-tile:hover {
 }
 :root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
+}
+
+/* Tablet/desktop only - phone width (everything above) is untouched. Widens
+   the shared content rail so the app doesn't sit as a stranded phone-width
+   column in the middle of a much bigger screen, and reflows the pieces that
+   would otherwise just stretch awkwardly at that width. */
+@media (min-width: 700px) {
+  .screen-narrow,
+  .bottom-nav {
+    max-width: 720px;
+  }
+
+  .screen-center {
+    max-width: 480px;
+  }
+
+  /* Home's module list becomes a row of tiles instead of stacked full-width
+     list rows, which is the part of the phone layout that looked worst
+     stretched to 720px - and the button-row group on the capture screen
+     (take photo / upload photo) sits side by side instead of stacked. */
+  .module-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.875rem;
+  }
+
+  .module-card {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.625rem;
+    padding: 1.25rem 1rem;
+  }
+
+  .module-card-chevron {
+    display: none;
+  }
+
+  .button-row {
+    flex-direction: row;
+  }
+
+  .button-row > button {
+    flex: 1;
+  }
 }

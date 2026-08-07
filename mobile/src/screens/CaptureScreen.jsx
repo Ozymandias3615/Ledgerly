@@ -7,7 +7,8 @@ import BackButton from "../components/BackButton";
 export default function CaptureScreen() {
   const navigate = useNavigate();
   const user = getUser();
-  const inputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const libraryInputRef = useRef(null);
   const [error, setError] = useState("");
 
   const handleFileChange = (e) => {
@@ -35,15 +36,25 @@ export default function CaptureScreen() {
 
       {error && <p className="error-text">{error}</p>}
 
-      <div className="form">
-        <button type="button" className="btn-primary" onClick={() => inputRef.current?.click()}>
+      <div className="form button-row">
+        <button type="button" className="btn-primary" onClick={() => cameraInputRef.current?.click()}>
           Take a photo of a receipt
         </button>
+        <button type="button" className="btn-outline" onClick={() => libraryInputRef.current?.click()}>
+          Upload a photo
+        </button>
         <input
-          ref={inputRef}
+          ref={cameraInputRef}
           type="file"
           accept="image/*"
           capture="environment"
+          onChange={handleFileChange}
+          style={{ display: "none" }}
+        />
+        <input
+          ref={libraryInputRef}
+          type="file"
+          accept="image/*"
           onChange={handleFileChange}
           style={{ display: "none" }}
         />
