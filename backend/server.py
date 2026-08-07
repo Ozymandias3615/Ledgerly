@@ -23,6 +23,7 @@ from typing import List, Optional, Literal
 import bcrypt
 import jwt
 import httpx
+import sentry_sdk
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_auth_requests
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, Query, UploadFile, File
@@ -72,6 +73,12 @@ VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:support@ledgerly.app")
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Error monitoring - no-ops locally if SENTRY_DSN isn't set, same as the
+# VAPID keys above.
+SENTRY_DSN = os.environ.get("SENTRY_DSN")
+if SENTRY_DSN:
+    sentry_sdk.init(dsn=SENTRY_DSN, send_default_pii=True)
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")

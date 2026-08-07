@@ -31,6 +31,8 @@ services:
         sync: false
       - key: VAPID_PRIVATE_KEY
         sync: false
+      - key: SENTRY_DSN
+        sync: false
 
   - type: static
     name: ledgerly-mobile
@@ -50,6 +52,8 @@ services:
         value: 1:129649921204:web:e06edaaddcf550c5465be1
       - key: VITE_GOOGLE_CLIENT_ID
         value: 129649921204-uu2ol3vak73mltqd3t4sdnsf095tir5k.apps.googleusercontent.com
+      - key: VITE_SENTRY_DSN
+        value: https://ee572d901530290ef6169ed84a7297fd@o4511870539661312.ingest.us.sentry.io/4511870664507392
     routes:
       - type: rewrite
         source: /*
