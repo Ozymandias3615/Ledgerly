@@ -1,12 +1,14 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getUser } from "../lib/auth";
+import { useOnlineStatus } from "../lib/useOnlineStatus";
 import Brand from "../components/Brand";
 import BackButton from "../components/BackButton";
 
 export default function CaptureScreen() {
   const navigate = useNavigate();
   const user = getUser();
+  const online = useOnlineStatus();
   const cameraInputRef = useRef(null);
   const libraryInputRef = useRef(null);
   const [error, setError] = useState("");
@@ -34,6 +36,11 @@ export default function CaptureScreen() {
       <h2 className="heading">Capture a receipt</h2>
       <p className="subtitle">Signed in as {user?.email}</p>
 
+      {!online && (
+        <div className="banner banner-warning">
+          You're offline — you can still capture a receipt and fill in the details by hand. It'll upload once you're back online.
+        </div>
+      )}
       {error && <p className="error-text">{error}</p>}
 
       <div className="form button-row">

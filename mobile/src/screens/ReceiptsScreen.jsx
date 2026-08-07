@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Plus } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { fmtDate, fmtAmount } from "../lib/format";
+import { flushQueuedReceipts, listQueuedReceipts, removeQueuedReceipt } from "../lib/offlineQueue";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
 
@@ -10,23 +11,41 @@ export default function ReceiptsScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const justSubmitted = Boolean(location.state?.justSubmitted);
+  const queuedOffline = Boolean(location.state?.queuedOffline);
   const [receipts, setReceipts] = useState(null);
+  const [pending, setPending] = useState([]);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadReceipts = () =>
     api
       .get("/transactions", { params: { has_receipt: true } })
-      .then(({ data }) => {
-        if (!cancelled) setReceipts(data);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.response?.data?.detail || "Couldn't load your receipts.");
+      .then(({ data }) => setReceipts(data))
+      .catch((err) => setError(err.response?.data?.detail || "Couldn't load your receipts."));
+
+  useEffect(() => {
+    let cancelled = false;
+    loadReceipts();
+
+    // Picks up anything captured while offline, both on first load and
+    // whenever the connection comes back - there's no Background Sync
+    // fallback (iOS Safari doesn't support it), so this only ever runs while
+    // the app is actually open.
+    const sync = () => {
+      flushQueuedReceipts(api).then(({ synced }) => {
+        if (cancelled) return;
+        listQueuedReceipts().then((items) => {
+          if (!cancelled) setPending(items);
+        });
+        if (synced > 0) loadReceipts();
       });
+    };
+    sync();
+    window.addEventListener("online", sync);
     return () => {
       cancelled = true;
+      window.removeEventListener("online", sync);
     };
   }, []);
 
@@ -34,8 +53,13 @@ export default function ReceiptsScreen() {
     if (!window.confirm("Delete this receipt? This can't be undone.")) return;
     setDeletingId(receipt.id);
     try {
-      await api.delete(`/transactions/${receipt.id}`);
-      setReceipts((prev) => prev.filter((r) => r.id !== receipt.id));
+      if (receipt.pending) {
+        await removeQueuedReceipt(receipt.id);
+        setPending((prev) => prev.filter((r) => r.localId !== receipt.id));
+      } else {
+        await api.delete(`/transactions/${receipt.id}`);
+        setReceipts((prev) => prev.filter((r) => r.id !== receipt.id));
+      }
       if (preview?.id === receipt.id) setPreview(null);
     } catch (err) {
       setError(err.response?.data?.detail || "Couldn't delete this receipt.");
@@ -43,6 +67,8 @@ export default function ReceiptsScreen() {
       setDeletingId(null);
     }
   };
+
+  const items = [...pending.map((r) => ({ ...r, id: r.localId, pending: true })), ...(receipts || [])];
 
   return (
     <AppShell>
@@ -58,22 +84,25 @@ export default function ReceiptsScreen() {
         <p className="subtitle">Everything you've captured, saved as expenses.</p>
 
         {justSubmitted && <div className="banner banner-success">Expense saved.</div>}
+        {queuedOffline && (
+          <div className="banner banner-warning">Saved offline — will upload once you're back online.</div>
+        )}
         {error && <p className="error-text">{error}</p>}
 
-        {receipts === null && !error && (
+        {receipts === null && pending.length === 0 && !error && (
           <p className="subtitle thinking">
             <span className="thinking-dots"><span /><span /><span /></span>
             Loading
           </p>
         )}
 
-        {receipts && receipts.length === 0 && (
+        {receipts !== null && items.length === 0 && (
           <p className="subtitle">No receipts yet. Tap + to capture your first one.</p>
         )}
 
-        {receipts && receipts.length > 0 && (
+        {items.length > 0 && (
           <div className="list">
-            {receipts.map((r) => (
+            {items.map((r) => (
               <div className="list-card" key={r.id}>
                 <button
                   type="button"
@@ -94,6 +123,7 @@ export default function ReceiptsScreen() {
                 <div className="list-info">
                   <div className="list-title">{r.description || "Receipt"}</div>
                   <div className="list-meta">
+                    {r.pending && <span className="status-badge status-badge-draft" style={{ marginRight: "0.375rem" }}>Pending sync</span>}
                     {fmtDate(r.date)}
                     {r.category ? ` · ${r.category}` : ""}
                   </div>
