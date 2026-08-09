@@ -136,11 +136,18 @@
     },
     "mac": {
       "target": [
-        "dmg",
-        "zip"
-      ],
-      "arch": [
-        "universal"
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "icon": "build-resources/icon.icns",
       "category": "public.app-category.finance",
