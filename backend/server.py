@@ -128,6 +128,7 @@ async def _enrich_user(user: dict) -> dict:
     business_name/currency from the linked business doc - so every existing
     caller reading user.business_id / user.role / user.business_name / user.currency
     keeps working unchanged, now reflecting whichever business is active."""
+    user["active_context"] = user.get("active_context", "business")
     membership = await db.memberships.find_one(
         {"user_id": user["user_id"], "business_id": user.get("active_business_id")}, {"_id": 0}
     )
@@ -311,6 +312,9 @@ class InviteRedeemIn(BaseModel):
 
 class MembershipSwitchIn(BaseModel):
     business_id: str
+
+class ContextSwitchIn(BaseModel):
+    context: Literal["business", "personal"]
 
 
 # ---- Domain models ----
@@ -787,6 +791,17 @@ async def switch_membership(payload: MembershipSwitchIn, user=Depends(get_curren
     if not membership:
         raise HTTPException(status_code=404, detail="You're not a member of that business")
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_business_id": payload.business_id}})
+    updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    return await _enrich_user(updated)
+
+
+# ---- Context switch (Business vs Personal) ----
+# Purely presentational: picks which nav/layout the frontend renders. Every
+# personal-* endpoint scopes strictly by user_id regardless of this value, so
+# a stale or wrong active_context can never expose or hide the wrong data.
+@api_router.post("/context/switch")
+async def switch_context(payload: ContextSwitchIn, user=Depends(get_current_user)):
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_context": payload.context}})
     updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     return await _enrich_user(updated)
 

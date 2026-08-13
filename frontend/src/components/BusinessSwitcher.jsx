@@ -29,11 +29,26 @@ export default function BusinessSwitcher() {
   useEffect(() => { if (open) load(); }, [open]);
 
   const switchTo = async (businessId) => {
-    if (businessId === user?.business_id) { setOpen(false); return; }
+    if (businessId === user?.business_id && user?.active_context === "business") { setOpen(false); return; }
     try {
       await api.post("/memberships/switch", { business_id: businessId });
+      if (user?.active_context !== "business") {
+        await api.post("/context/switch", { context: "business" });
+      }
       await refresh();
       toast.success("Switched business");
+      setOpen(false);
+    } catch (err) {
+      toast.error(formatApiError(err));
+    }
+  };
+
+  const switchToPersonal = async () => {
+    if (user?.active_context === "personal") { setOpen(false); return; }
+    try {
+      await api.post("/context/switch", { context: "personal" });
+      await refresh();
+      toast.success("Switched to Personal");
       setOpen(false);
     } catch (err) {
       toast.error(formatApiError(err));
@@ -64,13 +79,29 @@ export default function BusinessSwitcher() {
           data-testid="business-switcher-trigger"
         >
           <div className="min-w-0 flex-1">
-            <div className="font-extrabold tracking-tight text-lg truncate" style={{ fontFamily: "Manrope, sans-serif" }}>{user?.business_name}</div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Business Finance</div>
+            <div className="font-extrabold tracking-tight text-lg truncate" style={{ fontFamily: "Manrope, sans-serif" }}>
+              {user?.active_context === "personal" ? "Personal" : user?.business_name}
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+              {user?.active_context === "personal" ? "Personal Finance" : "Business Finance"}
+            </div>
           </div>
           <CaretUpDown size={14} className="text-slate-400 shrink-0" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-2" data-testid="business-switcher-menu">
+        <div className="mb-2 pb-2 border-b border-slate-100">
+          <button
+            onClick={switchToPersonal}
+            className="w-full flex items-center justify-between text-left px-2 py-1.5 rounded-md text-sm hover:bg-slate-100"
+            data-testid="switch-context-personal"
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              {user?.active_context === "personal" && <Check size={14} className="text-emerald-600 shrink-0" />}
+              <span className="truncate">Personal</span>
+            </span>
+          </button>
+        </div>
         <div className="text-[10px] uppercase tracking-[0.15em] text-slate-500 px-2 py-1">Your businesses</div>
         <div className="space-y-0.5 mb-2">
           {loading ? (
@@ -83,7 +114,7 @@ export default function BusinessSwitcher() {
               data-testid={`switch-business-${m.business_id}`}
             >
               <span className="flex items-center gap-2 min-w-0">
-                {m.active && <Check size={14} className="text-emerald-600 shrink-0" />}
+                {m.active && user?.active_context === "business" && <Check size={14} className="text-emerald-600 shrink-0" />}
                 <span className="truncate">{m.business_name}</span>
               </span>
               <span className="text-xs text-slate-400 uppercase tracking-wide shrink-0 ml-2">{m.role}</span>

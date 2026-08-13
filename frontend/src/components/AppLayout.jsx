@@ -58,7 +58,7 @@ export default function AppLayout({ children }) {
   // Remounts the routed page whenever the active business changes (automatic
   // refresh) or the manual refresh button is clicked, so every page re-fetches
   // its data instead of showing stale content from the previous business.
-  const pageKey = `${user?.business_id || "none"}:${refreshNonce}`;
+  const pageKey = `${user?.active_context || "business"}:${user?.business_id || "none"}:${refreshNonce}`;
 
   const handleLogout = async () => {
     await logout();
