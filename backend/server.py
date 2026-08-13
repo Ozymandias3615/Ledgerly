@@ -489,8 +489,8 @@ async def login(request: Request, payload: LoginIn, response: Response):
 
 @api_router.post("/auth/logout")
 async def logout(response: Response):
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("session_token", path="/")
+    response.delete_cookie("access_token", path="/", secure=True, httponly=True, samesite="none")
+    response.delete_cookie("session_token", path="/", secure=True, httponly=True, samesite="none")
     return {"success": True}
 
 @api_router.get("/auth/me")
@@ -1999,8 +1999,8 @@ async def delete_account(payload: AccountDeleteIn, response: Response, user=Depe
     await db.user_sessions.delete_many({"user_id": user_id})
     await db.users.delete_one({"user_id": user_id})
 
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("session_token", path="/")
+    response.delete_cookie("access_token", path="/", secure=True, httponly=True, samesite="none")
+    response.delete_cookie("session_token", path="/", secure=True, httponly=True, samesite="none")
     return {"success": True}
 
 
