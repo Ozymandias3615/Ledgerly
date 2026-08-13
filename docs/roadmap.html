@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Roadmap — Ledgerly</title>
-<meta name="description" content="Where Ledgerly is headed next, including the plan to split into a business app and a personal-finance app." />
+<meta name="description" content="Where Ledgerly is headed next, including the plan to split into Ledgerly Business and a new Ledgerly Personal app for budgeting." />
 <link rel="icon" type="image/svg+xml" href="icon.svg" />
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -61,22 +61,29 @@
   .legal-head h1 { font-size: clamp(30px, 4.4vw, 42px); font-weight: 800; }
   .legal-head p.sub { color: var(--gray-600); margin-top: 14px; font-size: 15px; max-width: 640px; }
 
-  /* Timeline (same component as the changelog) */
-  .log { padding: 56px 0 96px; }
-  .timeline { max-width: 700px; margin: 0 auto; position: relative; }
-  .timeline::before { content: ""; position: absolute; left: 39px; top: 10px; bottom: 10px; width: 1px; background: var(--line); }
-  .log-item { position: relative; display: flex; gap: 22px; padding: 28px 0; border-bottom: 1px solid var(--line-soft); }
-  .log-item:last-child { border-bottom: none; }
-  .log-version { flex-shrink: 0; width: 80px; z-index: 1; }
-  .log-pill { display: inline-flex; align-items: center; gap: 6px; background: var(--white); border: 1px solid var(--gray-300); border-radius: 999px; padding: 5px 10px; font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 12.5px; color: var(--black); }
-  .log-item.latest .log-pill { border-color: var(--black); background: var(--black); color: #fff; }
-  .log-date { display: block; margin-top: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--gray-500); }
-  .log-body h3 { font-size: 15.5px; font-weight: 700; margin-bottom: 6px; }
-  .log-body p { font-size: 14px; color: var(--gray-600); }
-  .log-body .log-tag { display: inline-flex; align-items: center; gap: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ok); margin-bottom: 8px; }
-  .log-body .log-tag .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ok); }
-  .log-body a.log-link { display: inline-block; margin-top: 10px; font-size: 12.5px; color: var(--gray-500); text-decoration: underline; text-decoration-color: var(--gray-300); text-underline-offset: 2px; }
-  .log-body a.log-link:hover { color: var(--black); text-decoration-color: var(--black); }
+  /* Roadmap steps (same numbered-step component as "Getting started") */
+  .roadmap { padding: 64px 0 100px; }
+  .steps { max-width: 700px; margin: 0 auto; position: relative; }
+  .steps::before { content: ""; position: absolute; left: 21px; top: 6px; bottom: 6px; width: 1px; background: var(--line); }
+  .step { position: relative; display: flex; gap: 26px; padding-bottom: 48px; }
+  .step:last-child { padding-bottom: 0; }
+  .step-body { flex: 1 1 auto; min-width: 0; }
+  .step-num { flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; background: var(--white); border: 1px solid var(--gray-300); color: var(--gray-500); z-index: 1;
+    display: grid; place-items: center; font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 13px; }
+  .step.now .step-num { background: var(--black); border-color: var(--black); color: #fff; }
+  .step-tag { display: inline-flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ok); margin-bottom: 8px; }
+  .step-tag .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ok); }
+  .step h3 { font-size: 19px; font-weight: 700; margin-bottom: 8px; padding-top: 10px; }
+  .step p { font-size: 14.5px; color: var(--gray-600); max-width: 560px; }
+  .step a.step-link { display: inline-block; margin-top: 10px; font-size: 12.5px; color: var(--gray-500); text-decoration: underline; text-decoration-color: var(--gray-300); text-underline-offset: 2px; }
+  .step a.step-link:hover { color: var(--black); text-decoration-color: var(--black); }
+
+  /* Mini feature list, nested under the Ledgerly Personal step */
+  .mini-note { font-size: 12px; color: var(--gray-500); margin-top: 14px; margin-bottom: 4px; }
+  .mini-features { margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; max-width: 560px; }
+  .mini-feature { background: #fff; padding: 16px 18px; }
+  .mini-feature strong { display: block; font-size: 13.5px; font-weight: 700; margin-bottom: 3px; }
+  .mini-feature span { display: block; font-size: 12.5px; color: var(--gray-600); }
 
   /* Footer (same as the main site) */
   footer { background: var(--black); color: var(--gray-400); padding: 48px 0; font-size: 13px; }
@@ -112,43 +119,46 @@
   <div class="container">
     <div class="label">Looking ahead</div>
     <h1>Roadmap</h1>
-    <p class="sub">Ledgerly today is built for running a business. Here's where things are headed — including a plan to split into a dedicated business app and a new app for personal finances. Nothing below is available yet except the first entry.</p>
+    <p class="sub">Ledgerly today is built for running a business. Here's where things are headed — including a plan to split into a dedicated business app and a new app for personal finances. Nothing below is available yet except the first step.</p>
   </div>
 </header>
 
-<section class="log">
+<section class="roadmap">
   <div class="container">
-    <div class="timeline">
+    <div class="steps">
 
-      <div class="log-item latest">
-        <div class="log-version">
-          <span class="log-pill">Now</span>
-        </div>
-        <div class="log-body">
-          <div class="log-tag"><span class="dot"></span> Live</div>
+      <div class="step now">
+        <div class="step-num">01</div>
+        <div class="step-body">
+          <div class="step-tag"><span class="dot"></span> Live now</div>
           <h3>Ledgerly, for business</h3>
           <p>The app as it exists today: bookkeeping, invoices, inventory, payroll, reports, team roles, and AI insights — everything on the main site right now.</p>
-          <a class="log-link" href="index.html#features">See current features →</a>
+          <a class="step-link" href="index.html#features">See current features →</a>
         </div>
       </div>
 
-      <div class="log-item">
-        <div class="log-version">
-          <span class="log-pill">Next</span>
-        </div>
-        <div class="log-body">
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-body">
           <h3>Split the brand</h3>
           <p>The current app is renamed <strong>Ledgerly Business</strong> — same product, same features, a name that reflects it's built for running a company rather than personal finances.</p>
         </div>
       </div>
 
-      <div class="log-item">
-        <div class="log-version">
-          <span class="log-pill">Later</span>
-        </div>
-        <div class="log-body">
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-body">
           <h3>Ledgerly Personal launches</h3>
-          <p>A new, separate app for personal finances and budgeting — tracking your own spending, income, and savings goals, kept apart from any business's books.</p>
+          <p>A new, separate app for personal finances and budgeting — kept apart from any business's books, with its own take on the tools Ledgerly Business already does well.</p>
+          <div class="mini-note label">Planned features — subject to change</div>
+          <div class="mini-features">
+            <div class="mini-feature"><strong>Budgeting</strong><span>Set monthly budgets by category and see where you stand at a glance.</span></div>
+            <div class="mini-feature"><strong>Expense &amp; income tracking</strong><span>Log personal transactions, categorized automatically.</span></div>
+            <div class="mini-feature"><strong>Savings goals</strong><span>Set a target and watch your progress over time.</span></div>
+            <div class="mini-feature"><strong>Bill reminders</strong><span>A heads-up before recurring bills are due.</span></div>
+            <div class="mini-feature"><strong>Net worth over time</strong><span>See how your accounts and assets trend.</span></div>
+            <div class="mini-feature"><strong>AI spending insights</strong><span>Ask questions about your own money, same AI as Business.</span></div>
+          </div>
         </div>
       </div>
 
