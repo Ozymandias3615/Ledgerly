@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Changelog — Ledgerly</title>
-<meta name="description" content="What's new in each Ledgerly desktop app release." />
+<title>Roadmap — Ledgerly</title>
+<meta name="description" content="Where Ledgerly is headed next, including the plan to split into a business app and a personal-finance app." />
 <link rel="icon" type="image/svg+xml" href="icon.svg" />
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -61,7 +61,7 @@
   .legal-head h1 { font-size: clamp(30px, 4.4vw, 42px); font-weight: 800; }
   .legal-head p.sub { color: var(--gray-600); margin-top: 14px; font-size: 15px; max-width: 640px; }
 
-  /* Timeline */
+  /* Timeline (same component as the changelog) */
   .log { padding: 56px 0 96px; }
   .timeline { max-width: 700px; margin: 0 auto; position: relative; }
   .timeline::before { content: ""; position: absolute; left: 39px; top: 10px; bottom: 10px; width: 1px; background: var(--line); }
@@ -75,6 +75,8 @@
   .log-body p { font-size: 14px; color: var(--gray-600); }
   .log-body .log-tag { display: inline-flex; align-items: center; gap: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ok); margin-bottom: 8px; }
   .log-body .log-tag .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ok); }
+  .log-body .log-tag.tbd { color: var(--gray-500); }
+  .log-body .log-tag.tbd .dot { background: var(--gray-400); }
   .log-body a.log-link { display: inline-block; margin-top: 10px; font-size: 12.5px; color: var(--gray-500); text-decoration: underline; text-decoration-color: var(--gray-300); text-underline-offset: 2px; }
   .log-body a.log-link:hover { color: var(--black); text-decoration-color: var(--black); }
 
@@ -101,6 +103,7 @@
     <div class="nav-links">
       <a href="index.html#features">Features</a>
       <a href="index.html#ledgerly-go">LedgerlyGo</a>
+      <a href="changelog.html">Changelog</a>
       <a href="index.html#faq">FAQ</a>
       <a href="index.html#get-started" class="nav-cta">Download</a>
     </div>
@@ -109,9 +112,9 @@
 
 <header class="legal-head">
   <div class="container">
-    <div class="label">Release notes</div>
-    <h1>Changelog</h1>
-    <p class="sub">What's shipped in each Ledgerly desktop release. The app checks for updates automatically once installed (Settings → Check for Updates).</p>
+    <div class="label">Looking ahead</div>
+    <h1>Roadmap</h1>
+    <p class="sub">Ledgerly today is built for running a business. Here's where things are headed — including a plan to split into a dedicated business app and a new app for personal finances. Nothing below is available yet except the first entry.</p>
   </div>
 </header>
 
@@ -121,99 +124,38 @@
 
       <div class="log-item latest">
         <div class="log-version">
-          <span class="log-pill">v0.1.7</span>
-          <span class="log-date">Aug 13, 2026</span>
+          <span class="log-pill">Now</span>
+          <span class="log-date">Live today</span>
         </div>
         <div class="log-body">
-          <div class="log-tag"><span class="dot"></span> Latest</div>
-          <h3>Fixed Google sign-in</h3>
-          <p>"Continue with Google" was silently broken in every released installer since it launched — the desktop build was missing its OAuth credentials. Fixed the release process so Google sign-in now works in the packaged app on both Windows and Mac.</p>
-          <a class="log-link" href="https://github.com/Ozymandias3615/Ledgerly/releases/tag/v0.1.7" target="_blank" rel="noopener">View on GitHub →</a>
+          <div class="log-tag"><span class="dot"></span> Shipping</div>
+          <h3>Ledgerly, for business</h3>
+          <p>The app as it exists today: bookkeeping, invoices, inventory, payroll, reports, team roles, and AI insights — everything on the main site right now.</p>
+          <a class="log-link" href="index.html#features">See current features →</a>
         </div>
       </div>
 
       <div class="log-item">
         <div class="log-version">
-          <span class="log-pill">v0.1.6</span>
-          <span class="log-date">Aug 8, 2026</span>
+          <span class="log-pill">Next</span>
+          <span class="log-date">Planned</span>
         </div>
         <div class="log-body">
-          <h3>Stronger account security</h3>
-          <p>New accounts now require an 8-character minimum password, and login/signup are rate-limited against automated attempts. Also added behind-the-scenes error monitoring and reliability improvements, plus routine dependency updates.</p>
-          <a class="log-link" href="https://github.com/Ozymandias3615/Ledgerly/releases/tag/v0.1.6" target="_blank" rel="noopener">View on GitHub →</a>
+          <div class="log-tag tbd"><span class="dot"></span> Not started</div>
+          <h3>Split the brand</h3>
+          <p>The current app is renamed <strong>Ledgerly Business</strong> — same product, same features, a name that reflects it's built for running a company rather than personal finances.</p>
         </div>
       </div>
 
       <div class="log-item">
         <div class="log-version">
-          <span class="log-pill">v0.1.5</span>
-          <span class="log-date">Aug 3, 2026</span>
+          <span class="log-pill">Later</span>
+          <span class="log-date">Planned</span>
         </div>
         <div class="log-body">
-          <h3>Smarter notification behavior</h3>
-          <p>OS-level notifications now only pop up while the app window is closed or minimized — the in-app notification bell keeps updating live either way, so you're not double-notified while you're already looking at the app.</p>
-          <a class="log-link" href="https://github.com/Ozymandias3615/Ledgerly/releases/tag/v0.1.5" target="_blank" rel="noopener">View on GitHub →</a>
-        </div>
-      </div>
-
-      <div class="log-item">
-        <div class="log-version">
-          <span class="log-pill">v0.1.4</span>
-          <span class="log-date">Jul 31, 2026</span>
-        </div>
-        <div class="log-body">
-          <h3>macOS icon fix</h3>
-          <p>Rebuilt so existing v0.1.3 installs pick up the corrected macOS app icon automatically through the in-app updater.</p>
-          <a class="log-link" href="https://github.com/Ozymandias3615/Ledgerly/releases/tag/v0.1.4" target="_blank" rel="noopener">View on GitHub →</a>
-        </div>
-      </div>
-
-      <div class="log-item">
-        <div class="log-version">
-          <span class="log-pill">v0.1.3</span>
-          <span class="log-date">Jul 30, 2026</span>
-        </div>
-        <div class="log-body">
-          <h3>Filtering, animations, and a dark-mode fix</h3>
-          <p>Added filtering for invoices and transactions, fixed a date-picker icon that was invisible in dark mode, and added theme-switching and accordion animations throughout the app.</p>
-          <a class="log-link" href="https://github.com/Ozymandias3615/Ledgerly/releases/tag/v0.1.3" target="_blank" rel="noopener">View on GitHub →</a>
-        </div>
-      </div>
-
-      <div class="log-item">
-        <div class="log-version">
-          <span class="log-pill">v0.1.2</span>
-          <span class="log-date">Jul 29, 2026</span>
-        </div>
-        <div class="log-body">
-          <h3>Consistent confirmation dialogs</h3>
-          <p>Replaced the browser's native confirm() popups with custom-styled dialogs across the app, for a more consistent look and feel.</p>
-          <a class="log-link" href="https://github.com/Ozymandias3615/Ledgerly/releases/tag/v0.1.2" target="_blank" rel="noopener">View on GitHub →</a>
-        </div>
-      </div>
-
-      <div class="log-item">
-        <div class="log-version">
-          <span class="log-pill">v0.1.1</span>
-          <span class="log-date">Jul 28, 2026</span>
-        </div>
-        <div class="log-body">
-          <h3>Switched AI Insights to Groq</h3>
-          <p>Moved the AI backend from Gemini to Groq, with updated in-app copy for the AI Insights feature.</p>
-          <a class="log-link" href="https://github.com/Ozymandias3615/Ledgerly/releases/tag/v0.1.1" target="_blank" rel="noopener">View on GitHub →</a>
-        </div>
-      </div>
-
-      <div class="log-item">
-        <div class="log-version">
-          <span class="log-pill">v0.1.0</span>
-          <span class="log-date">Jul 10, 2026</span>
-        </div>
-        <div class="log-body">
-          <div class="log-tag" style="color:var(--gray-500);"><span class="dot" style="background:var(--gray-400);"></span> Initial release</div>
-          <h3>Ledgerly launches</h3>
-          <p>First public release: a landing page with download links, setup docs, API key instructions, and FAQ, served via GitHub Pages.</p>
-          <a class="log-link" href="https://github.com/Ozymandias3615/Ledgerly/releases/tag/v0.1.0" target="_blank" rel="noopener">View on GitHub →</a>
+          <div class="log-tag tbd"><span class="dot"></span> Not started</div>
+          <h3>Ledgerly Personal launches</h3>
+          <p>A new, separate app for personal finances and budgeting — tracking your own spending, income, and savings goals, kept apart from any business's books.</p>
         </div>
       </div>
 
@@ -231,7 +173,7 @@
       <a href="index.html">Home</a>
       <a href="https://github.com/Ozymandias3615/Ledgerly">GitHub</a>
       <a href="Ledgerly-User-Guide.pdf" target="_blank" rel="noopener">User Guide</a>
-      <a href="roadmap.html">Roadmap</a>
+      <a href="changelog.html">Changelog</a>
       <a href="privacy.html">Privacy</a>
       <a href="terms.html">Terms</a>
     </div>
