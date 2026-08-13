@@ -36,6 +36,16 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Write Google OAuth config
+        # See build-windows.yml for why this is needed. Values come from
+        # repo secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET.
+        shell: bash
+        run: |
+          echo 'module.exports = {' > electron/config.js
+          echo '  GOOGLE_CLIENT_ID: "${{ secrets.GOOGLE_CLIENT_ID }}",' >> electron/config.js
+          echo '  GOOGLE_CLIENT_SECRET: "${{ secrets.GOOGLE_CLIENT_SECRET }}",' >> electron/config.js
+          echo '};' >> electron/config.js
+
       - name: Build macOS installer
         run: npm run electron:pack:mac
         env:

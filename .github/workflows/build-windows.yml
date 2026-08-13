@@ -35,6 +35,21 @@ jobs:
         # older than the pinned date-fns@4, which npm ci otherwise rejects.
         run: npm ci --legacy-peer-deps
 
+      - name: Write Google OAuth config
+        # electron/config.js is gitignored (holds the Desktop OAuth client
+        # credentials) so it doesn't exist on this runner - without it,
+        # main.js silently disables Google sign-in rather than crashing,
+        # which means every previously-released build has had Google
+        # sign-in quietly broken. Values come from repo secrets (Settings
+        # -> Secrets and variables -> Actions): GOOGLE_CLIENT_ID,
+        # GOOGLE_CLIENT_SECRET.
+        shell: bash
+        run: |
+          echo 'module.exports = {' > electron/config.js
+          echo '  GOOGLE_CLIENT_ID: "${{ secrets.GOOGLE_CLIENT_ID }}",' >> electron/config.js
+          echo '  GOOGLE_CLIENT_SECRET: "${{ secrets.GOOGLE_CLIENT_SECRET }}",' >> electron/config.js
+          echo '};' >> electron/config.js
+
       - name: Build Windows installer
         # CI=false: CRA treats lint warnings as build failures when CI is set
         # (which GitHub Actions does automatically); the local build only warns.
