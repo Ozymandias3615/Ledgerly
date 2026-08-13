@@ -35,6 +35,12 @@ export function AuthProvider({ children }) {
     checkAuth();
   }, [checkAuth]);
 
+  useEffect(() => {
+    const onUnauthorized = () => setUser(false);
+    window.addEventListener("auth:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("auth:unauthorized", onUnauthorized);
+  }, []);
+
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
     setUser(data);
