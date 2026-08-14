@@ -105,9 +105,43 @@ function KPI({ label, value, Icon, tone = "default", testId }) {
   );
 }
 
-function currentMonthKey() {
+// Date range for the top KPI row (Income/Expenses/Net - flows, mirroring the
+// business dashboard's adjustable Revenue/Expenses/Net Profit). Defaults to
+// the current calendar month, matching this dashboard's original behavior.
+const DASHBOARD_RANGE_KEY = "ledgerly:personal-dashboard:kpi-range";
+
+function firstDayOfMonth() {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+}
+function defaultKpiRange() {
+  return { start: firstDayOfMonth(), end: todayISO() };
+}
+
+function KpiRangeFilter({ range, setRange }) {
+  const isCurrentMonth = range.start === defaultKpiRange().start && range.end === defaultKpiRange().end;
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <Input
+        type="date" value={range.start} onChange={(e) => setRange({ ...range, start: e.target.value })}
+        className="h-7 w-[135px] text-xs md:text-xs px-2" data-testid="personal-kpi-range-start"
+      />
+      <span className="text-xs text-slate-400">to</span>
+      <Input
+        type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })}
+        className="h-7 w-[135px] text-xs md:text-xs px-2" data-testid="personal-kpi-range-end"
+      />
+      {!isCurrentMonth && (
+        <button
+          type="button" onClick={() => setRange(defaultKpiRange())}
+          className="text-xs text-slate-400 hover:text-slate-700 underline underline-offset-2"
+          data-testid="personal-kpi-range-clear"
+        >
+          This month
+        </button>
+      )}
+    </div>
+  );
 }
 
 // ---- Chart filters + expand, mirroring the business DashboardPage.jsx's
@@ -563,7 +597,10 @@ function GoalsProgress() {
 export default function PersonalDashboardPage() {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState(null);
+  const [range, setRange] = useState(() => loadPersisted(DASHBOARD_RANGE_KEY, defaultKpiRange()));
   const cur = user?.currency || "USD";
+
+  useEffect(() => { savePersisted(DASHBOARD_RANGE_KEY, range); }, [range]);
 
   useEffect(() => {
     api.get("/personal/transactions").then(({ data }) => setTransactions(data));
@@ -571,18 +608,25 @@ export default function PersonalDashboardPage() {
 
   if (!transactions) return <div className="p-10 text-slate-500" data-testid="personal-dashboard-loading">Loading dashboard...</div>;
 
-  const monthKey = currentMonthKey();
-  const thisMonth = transactions.filter((t) => t.date?.slice(0, 7) === monthKey);
-  const income = thisMonth.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount || 0), 0);
-  const expense = thisMonth.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount || 0), 0);
+  const inRange = transactions.filter((t) => t.date >= range.start && t.date <= range.end);
+  const income = inRange.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount || 0), 0);
+  const expense = inRange.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount || 0), 0);
   const net = income - expense;
+  const isCurrentMonth = range.start === defaultKpiRange().start && range.end === defaultKpiRange().end;
 
   return (
     <div className="p-8 space-y-6" data-testid="personal-dashboard-page">
       <div>
         <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Overview</div>
         <h1 className="text-4xl font-extrabold tracking-tight mt-1" style={{ fontFamily: "Manrope, sans-serif" }}>Welcome, {user?.name?.split(" ")[0]}</h1>
-        <div className="text-sm text-slate-500 mt-1">Your personal finances — this month</div>
+        <div className="text-sm text-slate-500 mt-1">
+          Your personal finances — {isCurrentMonth ? "this month" : `${fmtDate(range.start)} → ${fmtDate(range.end)}`}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Income · Expenses · Net period</div>
+        <KpiRangeFilter range={range} setRange={setRange} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
