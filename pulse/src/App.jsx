@@ -5,6 +5,7 @@ import TransactionsScreen from "./screens/TransactionsScreen";
 import TransactionFormScreen from "./screens/TransactionFormScreen";
 import CaptureScreen from "./screens/CaptureScreen";
 import ReviewScreen from "./screens/ReviewScreen";
+import ReceiptsScreen from "./screens/ReceiptsScreen";
 import BudgetsScreen from "./screens/BudgetsScreen";
 import BillsScreen from "./screens/BillsScreen";
 import GoalsScreen from "./screens/GoalsScreen";
@@ -66,6 +67,14 @@ export default function App() {
         element={
           <RequireAuth>
             <ReviewScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/receipts"
+        element={
+          <RequireAuth>
+            <ReceiptsScreen />
           </RequireAuth>
         }
       />

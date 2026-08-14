@@ -42,6 +42,8 @@ class PersonalTransactionIn(BaseModel):
     date: str  # ISO date
     currency: str = "USD"
     bill_id: Optional[str] = None
+    receipt_image: Optional[str] = None  # base64, from POST /receipts/extract
+    receipt_content_type: Optional[str] = None
 
 
 class PersonalBudgetIn(BaseModel):
@@ -88,6 +90,7 @@ async def list_personal_transactions(
     category: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    has_receipt: Optional[bool] = None,
     user=Depends(get_current_user),
 ):
     query = {"user_id": user["user_id"]}
@@ -95,6 +98,8 @@ async def list_personal_transactions(
         query["type"] = type
     if category:
         query["category"] = category
+    if has_receipt:
+        query["receipt_image"] = {"$ne": None}
     if date_from or date_to:
         date_query = {}
         if date_from:

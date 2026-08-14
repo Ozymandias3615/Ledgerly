@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Article, PiggyBank, Calendar, Target, CaretRight, SignOut, Bell, Gear } from "@phosphor-icons/react";
+import { Article, PiggyBank, Calendar, Target, Receipt, CaretRight, SignOut, Bell, Gear } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { clearToken, getUser } from "../lib/auth";
 import { fmtAmount } from "../lib/format";
@@ -16,6 +16,7 @@ function currentMonthKey() {
 
 const modules = [
   { to: "/transactions", label: "Transactions", subtitle: "Log your income and spending", Icon: Article },
+  { to: "/receipts", label: "Receipts", subtitle: "Everything you've scanned", Icon: Receipt },
   { to: "/budgets", label: "Budgets", subtitle: "See where you stand", Icon: PiggyBank },
   { to: "/bills", label: "Bills", subtitle: "Upcoming bills", Icon: Calendar },
   { to: "/goals", label: "Goals", subtitle: "Track your progress", Icon: Target },
