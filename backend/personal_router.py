@@ -5,14 +5,17 @@ filter convention.
 """
 import asyncio
 import calendar
+import json
 import uuid
 from datetime import datetime, timedelta
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from groq import AsyncGroq, AuthenticationError as GroqAuthenticationError, RateLimitError as GroqRateLimitError, APIStatusError as GroqAPIStatusError
 from pydantic import BaseModel
 
-from server import db, get_current_user, now_utc, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, _send_one_push
+from server import db, get_current_user, now_utc, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, _send_one_push, _resolve_ai_key
 
 personal_router = APIRouter(prefix="/api/personal")
 
@@ -27,6 +30,43 @@ class PersonalTransactionIn(BaseModel):
     date: str  # ISO date
     currency: str = "USD"
     bill_id: Optional[str] = None
+
+
+class PersonalBudgetIn(BaseModel):
+    category: str
+    monthly_limit: float
+    currency: str = "USD"
+
+
+class PersonalBillIn(BaseModel):
+    name: str
+    category: str
+    amount: float
+    due_date: str  # ISO date
+    currency: str = "USD"
+    recurring: bool = True
+
+
+class PersonalGoalIn(BaseModel):
+    name: str
+    target_amount: float
+    target_date: Optional[str] = None
+    currency: str = "USD"
+
+
+class PersonalGoalContributionIn(BaseModel):
+    amount: float
+    date: str  # ISO date
+    note: Optional[str] = ""
+
+
+class PersonalChatIn(BaseModel):
+    message: str
+    conversation_id: Optional[str] = None
+
+
+class PersonalConversationRenameIn(BaseModel):
+    title: str
 
 
 # ---- Personal Transactions ----
@@ -88,7 +128,32 @@ async def delete_personal_transaction(tx_id: str, user=Depends(get_current_user)
     return {"success": True}
 
 
-# ---- Budgets (view + delete only - no create/edit UI in Pulse v1) ----
+# ---- Budgets ----
+# Spend-vs-limit is computed live from personal_transactions matching the
+# budget's category (see get_budgets_summary below) - that's the read side
+# of the two-way relationship. create/update here is the write side: users
+# set the limit, transactions in that category drive what fills it.
+@personal_router.post("/budgets")
+async def create_personal_budget(payload: PersonalBudgetIn, user=Depends(get_current_user)):
+    existing = await db.personal_budgets.find_one({"user_id": user["user_id"], "category": payload.category})
+    if existing:
+        raise HTTPException(status_code=400, detail=f"A budget for {payload.category} already exists")
+    budget = payload.model_dump()
+    budget["id"] = str(uuid.uuid4())
+    budget["user_id"] = user["user_id"]
+    await db.personal_budgets.insert_one(budget)
+    budget.pop("_id", None)
+    return budget
+
+@personal_router.put("/budgets/{budget_id}")
+async def update_personal_budget(budget_id: str, payload: PersonalBudgetIn, user=Depends(get_current_user)):
+    res = await db.personal_budgets.update_one(
+        {"id": budget_id, "user_id": user["user_id"]}, {"$set": payload.model_dump()}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return await db.personal_budgets.find_one({"id": budget_id}, {"_id": 0})
+
 @personal_router.get("/budgets/summary")
 async def get_budgets_summary(month: Optional[str] = None, user=Depends(get_current_user)):
     month = month or now_utc().date().isoformat()[:7]
@@ -123,7 +188,7 @@ async def delete_personal_budget(budget_id: str, user=Depends(get_current_user))
     return {"success": True}
 
 
-# ---- Bills (view + delete + mark-paid only - no create/edit UI in Pulse v1) ----
+# ---- Bills ----
 def _advance_one_month(date_str: str) -> str:
     from datetime import date as _date
     d = _date.fromisoformat(date_str)
@@ -146,6 +211,27 @@ async def _advance_or_clear_bill(bill: dict) -> None:
 async def list_personal_bills(user=Depends(get_current_user)):
     cursor = db.personal_bills.find({"user_id": user["user_id"]}, {"_id": 0}).sort("due_date", 1)
     return await cursor.to_list(500)
+
+@personal_router.post("/bills")
+async def create_personal_bill(payload: PersonalBillIn, user=Depends(get_current_user)):
+    bill = payload.model_dump()
+    bill["id"] = str(uuid.uuid4())
+    bill["user_id"] = user["user_id"]
+    bill["last_reminder_sent_at"] = None
+    await db.personal_bills.insert_one(bill)
+    bill.pop("_id", None)
+    return bill
+
+@personal_router.put("/bills/{bill_id}")
+async def update_personal_bill(bill_id: str, payload: PersonalBillIn, user=Depends(get_current_user)):
+    upd = payload.model_dump()
+    # due_date may have moved - clear the one-shot reminder guard so
+    # _check_bills_due_soon re-evaluates against the new date next cycle.
+    upd["last_reminder_sent_at"] = None
+    res = await db.personal_bills.update_one({"id": bill_id, "user_id": user["user_id"]}, {"$set": upd})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return await db.personal_bills.find_one({"id": bill_id}, {"_id": 0})
 
 @personal_router.delete("/bills/{bill_id}")
 async def delete_personal_bill(bill_id: str, user=Depends(get_current_user)):
@@ -177,7 +263,7 @@ async def mark_bill_paid(bill_id: str, user=Depends(get_current_user)):
     return tx
 
 
-# ---- Savings goals (view + delete only - no create/edit UI in Pulse v1) ----
+# ---- Savings goals ----
 @personal_router.get("/goals")
 async def list_personal_goals(user=Depends(get_current_user)):
     goals = await db.personal_savings_goals.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(200)
@@ -188,6 +274,51 @@ async def list_personal_goals(user=Depends(get_current_user)):
         ).to_list(2000)
         result.append({**g, "current_amount": sum(c["amount"] for c in contributions)})
     return result
+
+@personal_router.post("/goals")
+async def create_personal_goal(payload: PersonalGoalIn, user=Depends(get_current_user)):
+    goal = payload.model_dump()
+    goal["id"] = str(uuid.uuid4())
+    goal["user_id"] = user["user_id"]
+    await db.personal_savings_goals.insert_one(goal)
+    goal.pop("_id", None)
+    return {**goal, "current_amount": 0}
+
+@personal_router.put("/goals/{goal_id}")
+async def update_personal_goal(goal_id: str, payload: PersonalGoalIn, user=Depends(get_current_user)):
+    res = await db.personal_savings_goals.update_one(
+        {"id": goal_id, "user_id": user["user_id"]}, {"$set": payload.model_dump()}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    goal = await db.personal_savings_goals.find_one({"id": goal_id}, {"_id": 0})
+    contributions = await db.personal_goal_contributions.find(
+        {"goal_id": goal_id, "user_id": user["user_id"]}, {"amount": 1}
+    ).to_list(2000)
+    return {**goal, "current_amount": sum(c["amount"] for c in contributions)}
+
+@personal_router.post("/goals/{goal_id}/contributions")
+async def add_goal_contribution(goal_id: str, payload: PersonalGoalContributionIn, user=Depends(get_current_user)):
+    goal = await db.personal_savings_goals.find_one({"id": goal_id, "user_id": user["user_id"]}, {"_id": 0})
+    if not goal:
+        raise HTTPException(status_code=404, detail="Not found")
+    existing = await db.personal_goal_contributions.find(
+        {"goal_id": goal_id, "user_id": user["user_id"]}, {"amount": 1}
+    ).to_list(2000)
+    previous_amount = sum(c["amount"] for c in existing)
+
+    contrib = payload.model_dump()
+    contrib["id"] = str(uuid.uuid4())
+    contrib["goal_id"] = goal_id
+    contrib["user_id"] = user["user_id"]
+    await db.personal_goal_contributions.insert_one(contrib)
+    contrib.pop("_id", None)
+
+    current_amount = previous_amount + contrib["amount"]
+    # "just_reached" only fires on the contribution that crosses the line,
+    # not on every contribution made after a goal is already complete.
+    just_reached = previous_amount < goal["target_amount"] <= current_amount
+    return {"contribution": contrib, "current_amount": current_amount, "just_reached": just_reached}
 
 @personal_router.delete("/goals/{goal_id}")
 async def delete_personal_goal(goal_id: str, user=Depends(get_current_user)):
@@ -203,6 +334,177 @@ async def list_goal_contributions(goal_id: str, user=Depends(get_current_user)):
         {"goal_id": goal_id, "user_id": user["user_id"]}, {"_id": 0}
     ).sort("date", -1)
     return await cursor.to_list(2000)
+
+
+# ---- AI Insights ----
+# Reuses server._resolve_ai_key (shared Groq key/quota lives on the business
+# record, and get_current_user always attaches business_id regardless of
+# active_context) - the quota is per-account, not per-context. Everything
+# else here stays user_id-scoped like the rest of this file.
+async def _personal_context(user: dict) -> str:
+    user_id = user["user_id"]
+    currency = user.get("currency", "USD")
+    txs = await db.personal_transactions.find({"user_id": user_id}, {"_id": 0}).to_list(2000)
+    income = sum(t["amount"] for t in txs if t["type"] == "income")
+    expenses = sum(t["amount"] for t in txs if t["type"] == "expense")
+    by_category = {}
+    for t in txs:
+        if t["type"] == "expense":
+            by_category[t["category"]] = by_category.get(t["category"], 0) + t["amount"]
+
+    budgets = await get_budgets_summary(month=None, user=user)
+    bills = await db.personal_bills.find({"user_id": user_id}, {"_id": 0}).sort("due_date", 1).to_list(500)
+    goals = await list_personal_goals(user=user)
+
+    budgets_str = "; ".join(f"{b['category']}: {b['spent']:.2f}/{b['monthly_limit']:.2f}" for b in budgets) or "none set"
+    bills_str = "; ".join(f"{b['name']} ({b['category']}) ${b['amount']:.2f} due {b['due_date']}" for b in bills) or "none"
+    goals_str = "; ".join(f"{g['name']}: {g['current_amount']:.2f}/{g['target_amount']:.2f}" for g in goals) or "none"
+
+    return f"""Currency: {currency}
+
+Financial Summary (all time):
+- Total Income: {income:.2f}
+- Total Expenses: {expenses:.2f}
+- Net: {income - expenses:.2f}
+- Total Transactions: {len(txs)}
+
+Expense Categories (all time): {by_category}
+
+Budgets this month (category: spent/limit): {budgets_str}
+Upcoming Bills: {bills_str}
+Savings Goals (current/target): {goals_str}
+"""
+
+@personal_router.post("/insights/chat")
+async def personal_insights_chat(payload: PersonalChatIn, user=Depends(get_current_user)):
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    api_key = await _resolve_ai_key(user)
+
+    conversation = None
+    if payload.conversation_id:
+        conversation = await db.personal_ai_conversations.find_one(
+            {"conversation_id": payload.conversation_id, "user_id": user["user_id"]}, {"_id": 0}
+        )
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+    history = conversation["messages"] if conversation else []
+    ctx = await _personal_context(user)
+    messages = [{
+        "role": "system",
+        "content": (
+            "You are a friendly personal finance coach helping someone understand their own money. "
+            "Be direct, concrete, and cite specific numbers. Use plain markdown: paragraphs, **bold**, and bullet "
+            "lists. Never use markdown tables (pipe/dash grid syntax) - the chat UI doesn't render them, so present "
+            "any comparison or breakdown as a short bullet list or prose instead. Never invent numbers not provided. "
+            "Keep answers focused and conversational - structure with headings/bullets only when it genuinely helps.\n\n"
+            f"Current personal finance data:\n{ctx}"
+        ),
+    }]
+    messages += [{"role": m["role"], "content": m["content"]} for m in history]
+    messages.append({"role": "user", "content": message})
+
+    conversation_id = conversation["conversation_id"] if conversation else str(uuid.uuid4())
+    now_iso = now_utc().isoformat()
+
+    def sse(payload: dict) -> str:
+        return f"data: {json.dumps(payload)}\n\n"
+
+    async def event_stream():
+        yield sse({"type": "meta", "conversation_id": conversation_id})
+        reply_parts = []
+        client = AsyncGroq(api_key=api_key)
+        try:
+            stream = await client.chat.completions.create(
+                model="openai/gpt-oss-120b",
+                messages=messages,
+                max_completion_tokens=2048,
+                reasoning_effort="low",
+                stream=True,
+            )
+            async for chunk in stream:
+                text = chunk.choices[0].delta.content
+                if text:
+                    reply_parts.append(text)
+                    yield sse({"type": "chunk", "text": text})
+        except GroqAuthenticationError:
+            yield sse({"type": "error", "message": "Invalid Groq API key. Update it in Settings → Business → AI Insights."})
+            return
+        except GroqRateLimitError:
+            yield sse({"type": "error", "message": "Groq API rate limit or quota exceeded. Please try again shortly."})
+            return
+        except GroqAPIStatusError as e:
+            yield sse({"type": "error", "message": f"AI service error: {e.message}"})
+            return
+        except Exception:
+            yield sse({"type": "error", "message": "AI service temporarily unavailable. Please try again shortly."})
+            return
+
+        reply = "".join(reply_parts)
+        new_messages = [
+            {"role": "user", "content": message, "at": now_iso},
+            {"role": "assistant", "content": reply, "at": now_iso},
+        ]
+        if conversation:
+            await db.personal_ai_conversations.update_one(
+                {"conversation_id": conversation_id},
+                {"$push": {"messages": {"$each": new_messages}}, "$set": {"updated_at": now_iso}},
+            )
+        else:
+            title = message if len(message) <= 60 else message[:57] + "..."
+            await db.personal_ai_conversations.insert_one({
+                "conversation_id": conversation_id,
+                "user_id": user["user_id"],
+                "title": title,
+                "messages": new_messages,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            })
+        yield sse({"type": "done"})
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+@personal_router.get("/insights/conversations")
+async def list_personal_conversations(user=Depends(get_current_user)):
+    return await db.personal_ai_conversations.find(
+        {"user_id": user["user_id"]}, {"_id": 0, "conversation_id": 1, "title": 1, "updated_at": 1}
+    ).sort("updated_at", -1).to_list(100)
+
+@personal_router.get("/insights/conversations/{conversation_id}")
+async def get_personal_conversation(conversation_id: str, user=Depends(get_current_user)):
+    convo = await db.personal_ai_conversations.find_one(
+        {"conversation_id": conversation_id, "user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not convo:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return convo
+
+@personal_router.put("/insights/conversations/{conversation_id}")
+async def rename_personal_conversation(conversation_id: str, payload: PersonalConversationRenameIn, user=Depends(get_current_user)):
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title cannot be empty")
+    res = await db.personal_ai_conversations.update_one(
+        {"conversation_id": conversation_id, "user_id": user["user_id"]}, {"$set": {"title": title}}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"success": True}
+
+@personal_router.delete("/insights/conversations/{conversation_id}")
+async def delete_personal_conversation(conversation_id: str, user=Depends(get_current_user)):
+    res = await db.personal_ai_conversations.delete_one(
+        {"conversation_id": conversation_id, "user_id": user["user_id"]}
+    )
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"success": True}
 
 
 # ---- Notifications + push ----

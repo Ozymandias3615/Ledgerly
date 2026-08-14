@@ -25,6 +25,7 @@ const personalNav = [
   { to: "/personal/budgets", label: "Budgets", Icon: PiggyBank, testId: "nav-personal-budgets" },
   { to: "/personal/bills", label: "Bills", Icon: Calendar, testId: "nav-personal-bills" },
   { to: "/personal/goals", label: "Goals", Icon: Target, testId: "nav-personal-goals" },
+  { to: "/personal/insights", label: "AI Insights", Icon: Sparkle, testId: "nav-personal-insights" },
 ];
 
 // A NavLink whose active background is a single shared element (layoutId):
