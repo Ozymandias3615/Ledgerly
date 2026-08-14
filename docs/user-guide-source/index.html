@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Ledgerly User Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --black: #000000;
+    --ink: #0a0a0a;
+    --gray-900: #18181b;
+    --gray-700: #3f3f46;
+    --gray-600: #52525b;
+    --gray-500: #71717a;
+    --gray-400: #a1a1aa;
+    --gray-300: #d4d4d8;
+    --gray-200: #e4e4e7;
+    --gray-100: #f4f4f5;
+    --gray-50: #fafafa;
+    --white: #ffffff;
+    --line: rgba(0,0,0,.12);
+    --line-soft: rgba(0,0,0,.07);
+    --ok: #059669;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'IBM Plex Sans', system-ui, sans-serif; color: var(--ink); background: var(--white); line-height: 1.55; font-size: 13px; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { font-family: 'Manrope', sans-serif; letter-spacing: -0.02em; color: var(--black); }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+  @page { size: letter; margin: 0.85in 0.75in 0.75in 0.75in; }
+
+  .sheet { page-break-after: always; position: relative; min-height: 9.2in; }
+  .sheet:last-child { page-break-after: avoid; }
+
+  .footer { position: absolute; bottom: -0.5in; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 10px; color: var(--gray-500); border-top: 1px solid var(--line-soft); padding-top: 8px; }
+
+  /* Cover */
+  .cover { display: flex; flex-direction: column; justify-content: flex-end; height: 9.2in; }
+  .cover .mark { width: 46px; height: 46px; border-radius: 12px; background: var(--black); display: grid; place-items: center; margin-bottom: 14px; }
+  .cover .mark svg { width: 24px; height: 24px; fill: #fff; }
+  .cover .brand { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: 0.08em; color: var(--gray-700); margin-bottom: 26px; }
+  .cover h1 { font-size: 46px; font-weight: 800; line-height: 1.05; }
+  .cover .sub { font-size: 15px; color: var(--gray-600); margin-top: 14px; max-width: 5.4in; }
+  .cover .meta { margin-top: 60px; font-size: 11px; color: var(--gray-500); }
+  .cover .meta div + div { margin-top: 4px; }
+
+  /* Contents */
+  .toc h1 { font-size: 26px; font-weight: 800; margin-bottom: 20px; }
+  .toc ol { list-style: none; counter-reset: toc; }
+  .toc li { counter-increment: toc; display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line-soft); font-size: 13.5px; }
+  .toc li::before { content: counter(toc); font-family: 'IBM Plex Mono', monospace; color: var(--gray-400); width: 18px; flex-shrink: 0; }
+
+  /* Section chrome */
+  .label { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ok); font-weight: 500; margin-bottom: 6px; }
+  h1.title { font-size: 27px; font-weight: 800; margin-bottom: 8px; }
+  h2.sub-title { font-size: 17px; font-weight: 700; margin: 18px 0 6px; }
+  h3.sub2-title { font-size: 14px; font-weight: 700; margin: 14px 0 5px; }
+  p { margin-bottom: 9px; color: var(--gray-700); }
+  ul.bullets { margin: 6px 0 10px 0; padding-left: 18px; }
+  ul.bullets li { margin-bottom: 6px; color: var(--gray-700); }
+  ul.bullets strong { color: var(--ink); }
+
+  table.ref { width: 100%; border-collapse: collapse; margin: 10px 0 14px; font-size: 12px; }
+  table.ref th { background: var(--gray-900); color: #fff; text-align: left; padding: 7px 10px; font-weight: 600; font-size: 11px; }
+  table.ref td { padding: 7px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; color: var(--gray-700); }
+  table.ref tr:nth-child(even) td { background: var(--gray-50); }
+  table.ref td:first-child { font-weight: 600; color: var(--ink); white-space: nowrap; }
+
+  .tip { background: var(--gray-50); border: 1px solid var(--line-soft); border-radius: 8px; padding: 12px 14px; margin: 12px 0; font-size: 12px; }
+  .tip .tip-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ok); font-weight: 600; margin-bottom: 5px; }
+  .tip p { margin-bottom: 0; color: var(--gray-700); }
+
+  .fig { margin: 12px 0; }
+  .fig img { width: 100%; border: 1px solid var(--line); border-radius: 6px; display: block; }
+  .fig.narrow img { max-width: 3.2in; margin: 0 auto; display: block; }
+  .fig .cap { font-size: 11px; color: var(--gray-500); font-style: italic; margin-top: 5px; text-align: center; }
+
+  .pending { border: 1px dashed var(--gray-300); border-radius: 6px; padding: 16px; text-align: center; color: var(--gray-400); font-size: 11px; margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<section class="sheet cover">
+  <div class="mark"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M216,72H56a8,8,0,0,1,0-16H192a8,8,0,0,0,0-16H56A24,24,0,0,0,32,64V192a24,24,0,0,0,24,24H216a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72Zm-36,80a12,12,0,1,1,12-12A12,12,0,0,1,180,152Z"/></svg></div>
+  <div class="brand">LEDGERLY</div>
+  <h1>User Guide</h1>
+  <p class="sub">Everything you need to know to run your books, invoices, payroll, inventory, contacts, and reports in Ledgerly.</p>
+  <div class="meta">
+    <div>Based on a walkthrough of the Ledgerly Demo Co. workspace</div>
+    <div>Business Finance &middot; Bookkeeping &middot; Invoicing &middot; Payroll &middot; Inventory &middot; Reports</div>
+  </div>
+</section>
+
+<!-- CONTENTS -->
+<section class="sheet toc">
+  <h1>Contents</h1>
+  <ol>
+    <li>What Ledgerly Does</li>
+    <li>Signing In &amp; Getting Around</li>
+    <li>Dashboard</li>
+    <li>Bookkeeping (Transactions)</li>
+    <li>Invoices</li>
+    <li>Clients &amp; Vendors</li>
+    <li>Inventory</li>
+    <li>Payroll</li>
+    <li>Reports</li>
+    <li>Exporting Your Data</li>
+    <li>AI Insights</li>
+    <li>Settings, Business &amp; Team</li>
+    <li>Multi-Currency Support</li>
+    <li>Quick Reference &amp; Tips</li>
+  </ol>
+</section>
+
+<!-- SECTION 1 -->
+<section class="sheet">
+  <div class="label">Section 1</div>
+  <h1 class="title">What Ledgerly Does</h1>
+  <p>Ledgerly is an all-in-one business finance app. It replaces a spreadsheet-and-separate-tools setup with one place to track money in and out, send invoices, manage inventory, keep a client/vendor directory, run payroll, and see reports — with support for nine currencies and AI-generated insights on top of your live numbers.</p>
+
+  <h2 class="sub-title">Core modules</h2>
+  <ul class="bullets">
+    <li><strong>Bookkeeping</strong> — log income and expense transactions with categories, tax amounts, and optional vendor tags. Filter the list by month and year.</li>
+    <li><strong>Invoices</strong> — build line-item invoices, pick a saved client to autofill their details, track status, filter by status, and download them as PDFs.</li>
+    <li><strong>Clients &amp; Vendors</strong> — a saved directory of contacts you bill and contacts you pay, reused across invoices and expenses.</li>
+    <li><strong>Inventory</strong> — track stock levels, unit cost, and get low-stock warnings.</li>
+    <li><strong>Payroll</strong> — maintain an employee list and run payroll, which automatically logs the expense.</li>
+    <li><strong>Reports</strong> — Profit &amp; Loss and Tax Summary statements for any date range.</li>
+    <li><strong>Dashboard</strong> — a live snapshot of revenue, expenses, cash flow, and invoicing health, with a per-chart time filter that remembers your last view.</li>
+    <li><strong>Notifications</strong> — a bell in the top bar that tracks meaningful changes: paid invoices, low stock, new team members, and payroll runs.</li>
+    <li><strong>AI Insights</strong> — a chat assistant (powered by Groq) that answers questions about your books.</li>
+    <li><strong>Exports</strong> — almost every list and report can be exported to CSV, XLSX, or PDF, with a native dialog to choose the file name and location. Your entire business can also be exported as one ZIP from Settings.</li>
+  </ul>
+
+  <h2 class="sub-title">Supported currencies</h2>
+  <p>USD, EUR, GBP, JMD, GHS, CAD, INR, AUD, and JPY. Each transaction, invoice, and employee record keeps whatever currency it was created in.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 2</span></div>
+</section>
+
+<!-- SECTION 2 -->
+<section class="sheet">
+  <div class="label">Section 2</div>
+  <h1 class="title">Signing In &amp; Getting Around</h1>
+  <h2 class="sub-title">Signing in</h2>
+  <p>Ledgerly supports email/password sign-in as well as Google sign-in. Once signed in, you land on the Dashboard.</p>
+
+  <h2 class="sub-title">The sidebar</h2>
+  <p>Every screen shares the same left-hand sidebar. From top to bottom:</p>
+  <ul class="bullets">
+    <li>Your business name, with a chevron next to it — click it to open the <strong>business switcher</strong> if your account belongs to more than one business. Selecting a different one switches your whole workspace (dashboard, ledger, invoices, everything) to that business.</li>
+    <li>The main sections: Dashboard, Bookkeeping, Invoices, Clients, Inventory, Payroll, Reports, and AI Insights.</li>
+    <li>At the bottom: your account name/email, a link to Help, Settings, and Sign out.</li>
+  </ul>
+
+  <h2 class="sub-title">The top bar</h2>
+  <p>In the top-right of every page you'll find a bell icon and a Refresh button. The bell opens your recent notifications — things like an invoice being marked paid, an item running low, a payroll run completing, or a teammate joining. Unread notifications show a red count on the bell; opening the panel marks them read, and each one is clickable to jump straight to the relevant page. You can dismiss a single notification with its &times; or clear the whole list with Clear all.</p>
+  <div class="fig narrow"><img src="assets/notifications-panel.png" alt="Notifications panel" /><div class="cap">The notification panel, opened from the bell icon.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 3</span></div>
+</section>
+
+<section class="sheet">
+  <h2 class="sub-title">Consistent page pattern</h2>
+  <p>Almost every page follows the same layout: a small category label (e.g. "BOOKKEEPING"), a large page title, a one-line description underneath, and a Refresh button in the top-right corner to pull the latest data.</p>
+
+  <h2 class="sub-title">Appearance</h2>
+  <p>Ledgerly isn't locked to one look. Under Settings &rarr; Appearance you can pick from nine built-in themes — Light, Dark, Ocean, Grey, Sage, Amber, Violet, Indigo, and Rose — or choose Custom to set your own background and accent color. The change applies immediately across the whole app. See Section 12 for details.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 4</span></div>
+</section>
+
+<!-- SECTION 3 -->
+<section class="sheet">
+  <div class="label">Section 3</div>
+  <h1 class="title">Dashboard</h1>
+  <p>The Dashboard is your financial pulse at a glance, using all-time totals unless a card has its own date filter. It's built from several cards:</p>
+  <table class="ref">
+    <tr><th>Field</th><th>What it means</th></tr>
+    <tr><td>Revenue / Expenses / Net Profit</td><td>Three headline numbers at the top, each with a trend arrow icon.</td></tr>
+    <tr><td>Outstanding</td><td>Total value of unpaid invoices, shown with a document icon.</td></tr>
+    <tr><td>Cash Flow — Revenue vs Expenses</td><td>A bar chart comparing income and spending, filterable by day, week, month, or year.</td></tr>
+    <tr><td>Breakdown — Expense Categories</td><td>A donut chart showing what share of spending went to each category for the selected period.</td></tr>
+    <tr><td>Business Growth — Profit &amp; Loss</td><td>A bar chart of net profit; hover a bar to see its exact figure in a tooltip.</td></tr>
+    <tr><td>Trend — Sales</td><td>A line chart of sales across the selected period.</td></tr>
+    <tr><td>Invoicing</td><td>Two progress bars: Paid vs Outstanding, and Overdue vs Not Yet Due, for the selected period.</td></tr>
+    <tr><td>Tax Snapshot (all-time)</td><td>Tax collected, paid invoices total, and total transaction count, all-time.</td></tr>
+    <tr><td>Live Exchange Rates</td><td>Reference rates (1 USD = &hellip;) for all nine supported currencies, refreshed on demand. Informational only — not used in any totals.</td></tr>
+  </table>
+  <div class="tip"><div class="tip-label">Tip</div><p>Each chart card has its own Day / Week / Month / Year selector (with an exact-date, week, month, or year picker to match) in the top-right, so you can compare different periods without leaving the Dashboard. Your choice for each chart is remembered — come back later and it'll still show what you were last looking at, instead of resetting. Click the expand icon on any chart to view it larger.</p></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 5</span></div>
+</section>
+
+<section class="sheet">
+  <div class="fig"><img src="assets/dashboard-top.png" alt="Dashboard top" /><div class="cap">The Dashboard — revenue, expenses, net profit, cash flow, and expense breakdown.</div></div>
+  <div class="fig"><img src="assets/dashboard-scrolled.png" alt="Dashboard scrolled" /><div class="cap">Scrolled down: profit &amp; loss trend, sales trend, invoicing progress, and the tax snapshot.</div></div>
+  <p>If any inventory items are running low, a red banner appears near the top of the Dashboard with a "View inventory &rarr;" link straight to the Inventory page.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 6</span></div>
+</section>
+
+<!-- SECTION 4 -->
+<section class="sheet">
+  <div class="label">Section 4</div>
+  <h1 class="title">Bookkeeping (Transactions)</h1>
+  <p>This is your day-to-day ledger of money in and out. The Transactions table lists every entry with Date, Type (Income or Expense), Category, Description, Tax, and Amount — income shows in green with a plus sign, expenses in red with a minus sign.</p>
+  <div class="fig"><img src="assets/transactions-list.png" alt="Transactions list" /><div class="cap">The Transactions list in Bookkeeping.</div></div>
+
+  <h2 class="sub-title">Filtering the list</h2>
+  <p>Two dropdowns above the table — Month and Year — narrow the list down to a specific period. Both default to "all," showing your full history.</p>
+
+  <h2 class="sub-title">Adding a transaction</h2>
+  <p>Click <strong>+ New transaction</strong> in the top-right. The dialog asks for:</p>
+  <table class="ref">
+    <tr><th>Field</th><th>What it means</th></tr>
+    <tr><td>Type</td><td>Income or Expense.</td></tr>
+    <tr><td>Date</td><td>Defaults to today.</td></tr>
+    <tr><td>Amount</td><td>The transaction value.</td></tr>
+    <tr><td>Currency</td><td>Any of the nine supported currencies (defaults to USD).</td></tr>
+    <tr><td>Category</td><td>e.g. Sales, Services, Interest, Refunds, Other Income for income; Software, Marketing, Supplies, Utilities, Taxes, Meals, Professional Fees, Other Expense for expenses. You can also add your own custom category.</td></tr>
+  </table>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 7</span></div>
+</section>
+
+<section class="sheet">
+  <table class="ref">
+    <tr><th>Field</th><th>What it means</th></tr>
+    <tr><td>Vendor</td><td>Expenses only — optionally pick a saved vendor from your Clients &amp; Vendors directory to tag who the money went to. If the description is empty, picking a vendor fills it in with the vendor's name. If you haven't saved any vendors yet, you'll see a prompt linking to the Clients page instead.</td></tr>
+    <tr><td>Tax amount</td><td>Optional tax associated with the transaction.</td></tr>
+    <tr><td>Description</td><td>Free text notes.</td></tr>
+  </table>
+  <p>Click <strong>Add</strong> to save it to the ledger.</p>
+  <div class="fig narrow"><img src="assets/new-transaction-dialog.png" alt="New transaction dialog" /><div class="cap">The New Transaction dialog.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 8</span></div>
+</section>
+
+<section class="sheet">
+  <div class="fig narrow"><img src="assets/vendor-picker.png" alt="Vendor picker" /><div class="cap">The Vendor picker, shown for an Expense transaction.</div></div>
+  <h2 class="sub-title">Managing entries</h2>
+  <p>Each row has a menu icon (three dots) on the right for row-level actions.</p>
+  <h2 class="sub-title">Exporting</h2>
+  <p>Click <strong>Export</strong> in the top-right for a dropdown with three formats: Export CSV, Export XLSX, and Export PDF. See Section 10, Exporting Your Data, for how the download itself works.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 9</span></div>
+</section>
+
+<!-- SECTION 5 -->
+<section class="sheet">
+  <div class="label">Section 5</div>
+  <h1 class="title">Invoices</h1>
+  <p>The Invoices list shows Invoice #, Client, Issued and Due dates, Status, and Total. Status is color-coded: Draft (gray), Sent (blue), Overdue (red), and Paid (green).</p>
+  <div class="fig"><img src="assets/invoices-list.png" alt="Invoices list" /><div class="cap">The Invoices list, with color-coded statuses.</div></div>
+
+  <h2 class="sub-title">Filtering by status</h2>
+  <p>A row of clickable status pills — Draft, Sent, Paid, Overdue — sits above the list. Click one or more to show only invoices in those statuses; click again to remove the filter. With none selected, every invoice shows.</p>
+
+  <h2 class="sub-title">Creating an invoice</h2>
+  <p>Click <strong>+ New invoice</strong>. If you have any saved clients, a Client directory picker appears at the top of the form — choosing one autofills the name, email, and address below, which you can still edit. Otherwise, or for a one-off client, just fill the fields in manually.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 10</span></div>
+</section>
+
+<section class="sheet">
+  <table class="ref">
+    <tr><th>Field</th><th>What it means</th></tr>
+    <tr><td>Client name / email / address</td><td>Who the invoice is billed to.</td></tr>
+    <tr><td>Issue date / Due date</td><td>Default to today and two weeks out.</td></tr>
+    <tr><td>Currency</td><td>Any of the nine supported currencies.</td></tr>
+    <tr><td>Line items</td><td>Description, Qty, and Unit Price per line; use + Add line for more rows. A line item can optionally be linked to an inventory item, so marking the invoice sent/paid/overdue automatically deducts that quantity from stock. Subtotal is calculated automatically.</td></tr>
+    <tr><td>Tax rate (%)</td><td>Applied across the invoice subtotal.</td></tr>
+    <tr><td>Status</td><td>Draft, Sent, Paid, or Overdue.</td></tr>
+    <tr><td>Notes</td><td>Optional free text shown on the invoice.</td></tr>
+  </table>
+  <div class="fig narrow"><img src="assets/new-invoice-form.png" alt="New invoice form" /><div class="cap">The New Invoice form, with the Client directory picker at the top.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 11</span></div>
+</section>
+
+<section class="sheet">
+  <h2 class="sub-title">Working with an existing invoice</h2>
+  <p>Open the row's menu (three dots) on any invoice row for three actions: Download PDF (a client-ready PDF of that invoice), Edit, and Delete.</p>
+  <div class="fig narrow"><img src="assets/invoice-row-menu.png" alt="Invoice row menu" /><div class="cap">The row menu on an invoice.</div></div>
+  <div class="tip"><div class="tip-label">Tip</div><p>Marking an invoice Paid automatically logs a matching income transaction in Bookkeeping, linked back to that invoice, so your Revenue and Reports actually reflect money you've been paid — no need to log it twice. If you change the status away from Paid again (say, a correction), that transaction is removed, since the money isn't actually there. Editing a still-paid invoice's total keeps the linked transaction's amount in sync automatically.</p></div>
+  <h2 class="sub-title">Exporting the list</h2>
+  <p>The Export button (top-right, next to New invoice) offers the same three formats: CSV, XLSX, and PDF.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 12</span></div>
+</section>
+
+<!-- SECTION 6 -->
+<section class="sheet">
+  <div class="label">Section 6</div>
+  <h1 class="title">Clients &amp; Vendors</h1>
+  <p>Clients &amp; Vendors is a saved directory of the people and businesses you deal with, so you don't have to retype the same details every time you create an invoice or log an expense. It's split into two tabs.</p>
+  <div class="fig"><img src="assets/clients-tab.png" alt="Clients tab" /><div class="cap">The Clients tab.</div></div>
+  <h2 class="sub-title">Clients tab</h2>
+  <p>Everyone you bill. Click <strong>+ Add client</strong> to save a Name, Email, Phone, Address, and Notes. Saved clients show up in the Client directory picker when you create a new invoice (see Section 5) — selecting one autofills the invoice's client details.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 13</span></div>
+</section>
+
+<section class="sheet">
+  <div class="fig"><img src="assets/vendors-tab.png" alt="Vendors tab" /><div class="cap">The Vendors tab.</div></div>
+  <h2 class="sub-title">Vendors tab</h2>
+  <p>Everyone you pay — suppliers, software subscriptions, landlords, and so on. Click <strong>+ Add vendor</strong> to save the same set of details. Saved vendors show up in the Vendor picker when you log an expense transaction (see Section 4), letting you tag which vendor the money went to.</p>
+  <div class="fig narrow"><img src="assets/new-contact-dialog.png" alt="New contact dialog" /><div class="cap">The New contact dialog, shared by both tabs.</div></div>
+  <h2 class="sub-title">Managing a contact</h2>
+  <p>Open a row's menu (three dots) to Edit or Remove a client or vendor. Removing a contact only removes it from the directory — any invoices or transactions that already reference it are unaffected.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 14</span></div>
+</section>
+
+<!-- SECTION 7 -->
+<section class="sheet">
+  <div class="label">Section 7</div>
+  <h1 class="title">Inventory</h1>
+  <p>Inventory tracks the physical stock your business holds — merch, supplies, equipment, and more — so you always know what's on hand, what it's worth, and when to reorder.</p>
+  <table class="ref">
+    <tr><th>Field</th><th>What it means</th></tr>
+    <tr><td>Items tracked</td><td>The number of distinct inventory items on file.</td></tr>
+    <tr><td>Inventory value</td><td>Total value of everything in stock: each item's quantity multiplied by its unit cost, summed together.</td></tr>
+    <tr><td>Running low</td><td>Count of items at or below their low-stock threshold.</td></tr>
+  </table>
+  <div class="tip"><div class="tip-label">Tip</div><p>Whenever one or more items fall at or below their threshold, a red banner lists them by name at the top of the page — and the same alert also surfaces on the Dashboard with a link straight back here.</p></div>
+  <div class="fig"><img src="assets/inventory-list.png" alt="Inventory list" /><div class="cap">The Inventory list — stock levels, value, and low-stock alerts.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 15</span></div>
+</section>
+
+<section class="sheet">
+  <h2 class="sub-title">Adding an item</h2>
+  <p>Click <strong>+ Add item</strong> in the top-right.</p>
+  <table class="ref">
+    <tr><th>Field</th><th>What it means</th></tr>
+    <tr><td>Name</td><td>The item's name.</td></tr>
+    <tr><td>Category</td><td>Optional grouping, e.g. Merch, Facilities, Office Supplies.</td></tr>
+    <tr><td>Quantity</td><td>How many you currently have on hand.</td></tr>
+    <tr><td>Unit</td><td>What you're counting in, e.g. units, packs, kg, bottles, rolls.</td></tr>
+    <tr><td>Low stock threshold</td><td>Get a reminder when quantity falls at or below this level.</td></tr>
+    <tr><td>Unit cost</td><td>Cost per unit, used to calculate the item's total value.</td></tr>
+  </table>
+  <div class="fig narrow"><img src="assets/new-inventory-dialog.png" alt="New inventory item dialog" /><div class="cap">The New Inventory Item dialog.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 16</span></div>
+</section>
+
+<section class="sheet">
+  <h2 class="sub-title">Managing stock</h2>
+  <p>Each row has quick -/+ steppers next to the quantity for fast adjustments, and a colored bar shows stock level at a glance (green when healthy, red at or below the low-stock threshold). Open the row's menu (three dots) to fully Edit an item or remove it.</p>
+  <div class="fig narrow"><img src="assets/edit-inventory-dialog.png" alt="Edit inventory item dialog" /><div class="cap">The Edit Inventory Item dialog.</div></div>
+  <h2 class="sub-title">Exporting</h2>
+  <p>Click Export in the top-right for the same CSV, XLSX, and PDF options as everywhere else, listing every item's category, stock, unit cost, and total value.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 17</span></div>
+</section>
+
+<!-- SECTION 8 -->
+<section class="sheet">
+  <div class="label">Section 8</div>
+  <h1 class="title">Payroll</h1>
+  <p>Payroll has two tabs: Employees and Payroll runs.</p>
+  <h2 class="sub-title">Employees tab</h2>
+  <p>Click <strong>+ Add employee</strong> to open the New Employee form:</p>
+  <table class="ref">
+    <tr><th>Field</th><th>What it means</th></tr>
+    <tr><td>Name</td><td>Employee's full name.</td></tr>
+    <tr><td>Email</td><td>Optional contact email.</td></tr>
+    <tr><td>Position</td><td>Job title.</td></tr>
+    <tr><td>Salary</td><td>Pay amount per period.</td></tr>
+    <tr><td>Tax rate (%)</td><td>Withholding rate applied when payroll runs.</td></tr>
+    <tr><td>Currency</td><td>Any of the nine supported currencies.</td></tr>
+    <tr><td>Pay frequency</td><td>e.g. Monthly.</td></tr>
+  </table>
+  <div class="fig narrow"><img src="assets/new-employee-form.png" alt="New employee form" /><div class="cap">The New Employee form.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 18</span></div>
+</section>
+
+<section class="sheet">
+  <p>The Employees table lists Name, Position, Frequency, Salary, and Tax % for everyone on file.</p>
+  <div class="fig"><img src="assets/employees-tab.png" alt="Employees tab" /><div class="cap">The Employees tab in Payroll.</div></div>
+  <h2 class="sub-title">Payroll runs tab</h2>
+  <p>This is where you actually run payroll and see history. A Run payroll button processes the current employee list — each run calculates gross pay, tax, and net pay per employee (a payslip) and automatically logs the total as an expense in Bookkeeping, so your books stay in sync without double entry.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 19</span></div>
+</section>
+
+<section class="sheet">
+  <p>Completed runs appear in a table with Period, Employees, Gross, Tax, and Net. Three export buttons sit above the table: CSV, XLSX, and PDF, for payroll run history and payslips.</p>
+  <div class="fig"><img src="assets/payroll-runs-tab.png" alt="Payroll runs tab" /><div class="cap">The Payroll runs tab.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 20</span></div>
+</section>
+
+<!-- SECTION 9 -->
+<section class="sheet">
+  <div class="label">Section 9</div>
+  <h1 class="title">Reports</h1>
+  <p>The Reports page generates two statements for any date range you choose. Set the From and To dates and click Run reports. Your last-used date range is remembered the next time you visit.</p>
+  <h2 class="sub-title">Profit &amp; Loss</h2>
+  <p>Lists income by category (e.g. Sales, Refunds, Interest, Other Income, Services) with a Total income line, then expenses by category (e.g. Software, Other Expense, Utilities) with a Total expenses line, and finishes with Net profit for the period.</p>
+  <h2 class="sub-title">Tax Summary</h2>
+  <p>Shows Tax collected (on income), Tax paid (on expenses), and the resulting Net liability for the same date range.</p>
+  <p>Each panel has its own Export button to download that specific statement.</p>
+  <div class="fig"><img src="assets/reports-page.png" alt="Reports page" /><div class="cap">The Reports page — Profit &amp; Loss and Tax Summary.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 21</span></div>
+</section>
+
+<!-- SECTION 10 -->
+<section class="sheet">
+  <div class="label">Section 10</div>
+  <h1 class="title">Exporting Your Data</h1>
+  <p>Ledgerly lets you get your data out in three formats almost everywhere: CSV (for spreadsheets or importing elsewhere), XLSX (a formatted Excel workbook), and PDF (a client- or record-ready document). Look for an Export button (sometimes a dropdown, sometimes three separate buttons) in the top-right of these screens:</p>
+  <ul class="bullets">
+    <li><strong>Bookkeeping</strong> — export the full transaction ledger, including any tagged vendor.</li>
+    <li><strong>Invoices</strong> — export the invoice list, or download a single invoice as PDF from its row menu.</li>
+    <li><strong>Inventory</strong> — export the full stock list.</li>
+    <li><strong>Payroll runs</strong> — export payroll history and payslips.</li>
+    <li><strong>Reports</strong> — export the Profit &amp; Loss statement or the Tax Summary independently.</li>
+  </ul>
+
+  <h2 class="sub-title">Exporting everything at once</h2>
+  <p>For a full backup rather than one list at a time, go to <strong>Settings &rarr; Data &amp; Account &rarr; Export my data</strong>. It downloads a single ZIP containing every transaction, invoice, client, inventory item, employee, and payslip in your business as CSV files.</p>
+
+  <h2 class="sub-title">Choosing where files go</h2>
+  <p>Clicking any Export option opens a native Save dialog, defaulting to your Downloads folder with a suggested file name — you can rename the file or pick a different folder right there before saving. While the file is being prepared you'll see a "Downloading&hellip;" notification, which updates to "Downloaded" with an Open button once it's ready, so you can jump straight to the file without hunting for it.</p>
+  <div class="tip"><div class="tip-label">Tip</div><p>Your business logo (set in Settings &rarr; Business) appears automatically on PDF exports — invoices, reports, and more — once you've uploaded one.</p></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 22</span></div>
+</section>
+
+<!-- SECTION 11 -->
+<section class="sheet">
+  <div class="label">Section 11</div>
+  <h1 class="title">AI Insights</h1>
+  <p>AI Insights is a chat assistant, powered by Groq, that answers questions grounded in your live business data. Start a conversation with + New chat, or use one of the suggested prompts:</p>
+  <ul class="bullets">
+    <li>&ldquo;Give me an overview of my business financial health.&rdquo;</li>
+    <li>&ldquo;Where am I spending the most, and what can I cut?&rdquo;</li>
+    <li>&ldquo;How is my cash flow trending month over month?&rdquo;</li>
+  </ul>
+  <p>You can also type your own question in the message box at the bottom of the page. Past conversations are saved in the left-hand list.</p>
+  <h2 class="sub-title">Usage limits</h2>
+  <p>AI Insights works out of the box on a small shared daily quota. For unlimited use, add your own free Groq API key under Settings &rarr; Business &rarr; AI Insights (get a key at console.groq.com/keys). Usage then bills to that key's account, not Ledgerly.</p>
+  <div class="pending">Screenshot pending — the previous one showed a stale "Powered by Gemini" label from before the provider switch.</div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 23</span></div>
+</section>
+
+<!-- SECTION 12 -->
+<section class="sheet">
+  <div class="label">Section 12</div>
+  <h1 class="title">Settings, Business &amp; Team</h1>
+  <p>Settings is organized into tabs across the top: <strong>Profile</strong>, <strong>Business</strong>, <strong>Team</strong> (owner/admin only), <strong>Appearance</strong>, <strong>Data &amp; Account</strong>, and — in the desktop app only — <strong>Check for Updates</strong>.</p>
+
+  <h2 class="sub-title">Profile</h2>
+  <p>Update your account Email and Name, then click Save changes.</p>
+  <div class="fig narrow"><img src="assets/settings-profile.png" alt="Profile settings" /><div class="cap">The Profile tab in Settings.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 24</span></div>
+</section>
+
+<section class="sheet">
+  <h2 class="sub-title">Business</h2>
+  <table class="ref">
+    <tr><th>Field</th><th>What it means</th></tr>
+    <tr><td>Logo</td><td>Upload a PNG, JPEG, or WEBP up to 1MB. It appears on your PDF exports (invoices, reports, and more).</td></tr>
+    <tr><td>Business name</td><td>Shown across the app and on exported documents.</td></tr>
+    <tr><td>Primary currency</td><td>Your business's default currency.</td></tr>
+    <tr><td>Relabel existing records</td><td>A one-click action to relabel all existing transactions, invoices, employees, and payslips to your current primary currency. Important: this only changes the currency label shown, it does not convert the amounts.</td></tr>
+    <tr><td>AI Insights key</td><td>Field to add your own Groq API key for unlimited AI Insights usage.</td></tr>
+  </table>
+  <div class="fig narrow"><img src="assets/settings-business.png" alt="Business settings" /><div class="cap">The Business tab in Settings.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 25</span></div>
+</section>
+
+<section class="sheet">
+  <h2 class="sub-title">Team</h2>
+  <p>Shows current members and their role (e.g. Owner). To add someone, choose a role from the dropdown (e.g. Staff) and click Generate code to create an invite code; generated codes are listed under Invite Codes.</p>
+  <div class="fig narrow"><img src="assets/settings-team.png" alt="Team settings" /><div class="cap">The Team tab in Settings.</div></div>
+
+  <h2 class="sub-title">Appearance</h2>
+  <p>Pick from nine built-in themes — Light, Dark, Ocean, Grey, Sage, Amber, Violet, Indigo, Rose — or choose Custom to set your own background and accent color with color pickers. The change applies immediately.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 26</span></div>
+</section>
+
+<section class="sheet">
+  <h2 class="sub-title">Data &amp; Account</h2>
+  <p>Two things live here, kept deliberately separate:</p>
+  <ul class="bullets">
+    <li><strong>Export my data</strong> — downloads a ZIP of every transaction, invoice, client, inventory item, employee, and payslip in your business as CSV files. Good for a full backup or moving your data elsewhere.</li>
+    <li><strong>Delete my account</strong> (Danger zone) — permanently deletes your account. This can't be undone. If you're the <em>sole</em> member of a business, deleting your account deletes that business's data too. If you own a business that still has other members, you'll be blocked and asked to transfer ownership or remove the other members first — so nobody else silently loses access to shared data. Password-based accounts need to confirm their password before the button unlocks.</li>
+  </ul>
+
+  <h2 class="sub-title">Check for Updates <span style="font-weight: 400; color: var(--gray-500); font-size: 11px;">(desktop app only)</span></h2>
+  <p>Shows your currently installed version number and a Check for Updates button to manually check for a newer release, in addition to the automatic check the app does on its own.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 27</span></div>
+</section>
+
+<!-- SECTION 13 -->
+<section class="sheet">
+  <div class="label">Section 13</div>
+  <h1 class="title">Multi-Currency Support</h1>
+  <p>Ledgerly supports nine currencies: USD, EUR, GBP, JMD, GHS, CAD, INR, AUD, and JPY. Currency is chosen per record — each transaction, invoice, and employee keeps whatever currency it was created with, even if you later change your business's primary currency in Settings.</p>
+  <p>The Dashboard's Live Exchange Rates card shows current reference rates against USD, but these are informational only and are not applied to convert amounts anywhere in the app. If you want every record to display the same currency label, use Relabel existing records in Settings &rarr; Business — remembering that it changes the label only, not the underlying amount.</p>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 28</span></div>
+</section>
+
+<!-- SECTION 14 -->
+<section class="sheet">
+  <div class="label">Section 14</div>
+  <h1 class="title">Quick Reference &amp; Tips</h1>
+  <h2 class="sub-title">Where to find things</h2>
+  <table class="ref">
+    <tr><th>Field</th><th>What it means</th></tr>
+    <tr><td>Add money in/out</td><td>Bookkeeping &rarr; + New transaction</td></tr>
+    <tr><td>Filter transactions by period</td><td>Bookkeeping &rarr; Month / Year dropdowns</td></tr>
+    <tr><td>Tag an expense to a vendor</td><td>Bookkeeping &rarr; New transaction &rarr; Expense &rarr; Vendor</td></tr>
+    <tr><td>Bill a client</td><td>Invoices &rarr; + New invoice</td></tr>
+    <tr><td>Filter invoices by status</td><td>Invoices &rarr; status pills above the list</td></tr>
+    <tr><td>Download a single invoice PDF</td><td>Invoices &rarr; row menu (three dots) &rarr; Download PDF</td></tr>
+    <tr><td>Save a client or vendor</td><td>Clients &rarr; Add client / Add vendor</td></tr>
+    <tr><td>Add or restock an inventory item</td><td>Inventory &rarr; + Add item (or the -/+ steppers on a row)</td></tr>
+    <tr><td>Add a team member to payroll</td><td>Payroll &rarr; Employees tab &rarr; + Add employee</td></tr>
+    <tr><td>Run payroll for the period</td><td>Payroll &rarr; Payroll runs tab &rarr; Run payroll</td></tr>
+    <tr><td>See profit for a date range</td><td>Reports &rarr; set From/To &rarr; Run reports</td></tr>
+    <tr><td>Export anything to CSV/XLSX/PDF</td><td>Look for the Export button in the top-right of that page</td></tr>
+    <tr><td>Export your whole business as a ZIP</td><td>Settings &rarr; Data &amp; Account &rarr; Export my data</td></tr>
+    <tr><td>Check recent activity &amp; alerts</td><td>Click the bell icon, top-right, next to Refresh</td></tr>
+    <tr><td>Ask a question about your finances</td><td>AI Insights &rarr; + New chat</td></tr>
+    <tr><td>Change your business currency label</td><td>Settings &rarr; Business &rarr; Relabel existing records</td></tr>
+    <tr><td>Add your own AI key</td><td>Settings &rarr; Business &rarr; AI Insights</td></tr>
+    <tr><td>Invite a teammate</td><td>Settings &rarr; Team &rarr; Generate code</td></tr>
+    <tr><td>Switch between businesses</td><td>Sidebar &rarr; click your business name</td></tr>
+    <tr><td>Change the app's theme</td><td>Settings &rarr; Appearance</td></tr>
+    <tr><td>Delete your account</td><td>Settings &rarr; Data &amp; Account &rarr; Danger zone</td></tr>
+  </table>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 29</span></div>
+</section>
+
+<section class="sheet">
+  <h2 class="sub-title">Good habits</h2>
+  <ul class="bullets">
+    <li>Log transactions as they happen rather than batching them — the Dashboard and Reports are only as current as your ledger.</li>
+    <li>Use consistent categories so your Reports and Dashboard charts stay meaningful.</li>
+    <li>Set an invoice's Status as it changes (Sent &rarr; Paid, or Overdue) — it drives the Dashboard's invoicing progress bars, and Paid also logs the income automatically.</li>
+    <li>Run payroll from the Payroll runs tab rather than logging salary as a manual transaction — it keeps payslips and the expense ledger in sync automatically.</li>
+    <li>Set a sensible low-stock threshold on each inventory item so the Inventory page (and the Dashboard) warns you before you actually run out.</li>
+    <li>Keep your Clients &amp; Vendors directory up to date — it saves retyping and keeps invoices and expenses consistent.</li>
+    <li>Upload your business logo early; it will carry through to every PDF export from then on.</li>
+    <li>If you're the sole owner of a business, think twice before Delete my account — there's no undo, and it takes the business's data with it.</li>
+  </ul>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 30</span></div>
+</section>
+
+</body>
+</html>
