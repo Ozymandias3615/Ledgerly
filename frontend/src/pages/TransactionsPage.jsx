@@ -39,18 +39,24 @@ export default function TransactionsPage() {
   const [filterMonth, setFilterMonth] = useState("all");
   const [filterYear, setFilterYear] = useState("all");
 
+  // t.date is a plain "YYYY-MM-DD" string - pulling year/month via
+  // `new Date(t.date).getFullYear()` round-trips through UTC-midnight
+  // parsing + local-timezone reading, which silently shifts dates near a
+  // year/month boundary backward by a day for anyone west of UTC (e.g. a
+  // Jan 1 transaction would report as December of the prior year). Slicing
+  // the string directly sidesteps timezone conversion entirely.
   const availableYears = useMemo(
-    () => Array.from(new Set(items.map((t) => new Date(t.date).getFullYear()))).sort((a, b) => b - a),
+    () => Array.from(new Set(items.map((t) => Number(t.date?.slice(0, 4))))).sort((a, b) => b - a),
     [items],
   );
 
   const filteredItems = useMemo(() => {
     let result = items;
     if (filterYear !== "all") {
-      result = result.filter((t) => new Date(t.date).getFullYear() === Number(filterYear));
+      result = result.filter((t) => t.date?.slice(0, 4) === filterYear);
     }
     if (filterMonth !== "all") {
-      result = result.filter((t) => new Date(t.date).getMonth() === Number(filterMonth));
+      result = result.filter((t) => String(Number(t.date?.slice(5, 7)) - 1) === filterMonth);
     }
     return result;
   }, [items, filterMonth, filterYear]);
