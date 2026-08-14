@@ -82,9 +82,17 @@
   .btn-dark:active { transform: translateY(0); }
   .btn-ghost { border: 1px solid var(--line); color: var(--gray-700); font-size: 14px; padding: 14px 22px; background: var(--white); }
   .btn-ghost:hover { border-color: var(--black); color: var(--black); }
+  .btn-light { background: #fff; color: var(--black); box-shadow: 0 1px 0 rgba(255,255,255,.2); }
+  .btn-light:hover { background: var(--gray-100); transform: translateY(-2px); box-shadow: 0 10px 24px -8px rgba(255,255,255,.25); }
+  .btn-light:active { transform: translateY(0); }
   .hero .meta { margin-top: 20px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--gray-500); letter-spacing: .01em; }
   .hero .meta span::after { content: "·"; margin: 0 9px; color: var(--gray-300); }
   .hero .meta span:last-child::after { content: none; }
+
+  /* Final CTA */
+  .final-cta { background: var(--black); text-align: center; }
+  .final-cta .kicker { color: #fff; font-size: clamp(28px, 3.6vw, 36px); font-weight: 800; }
+  .final-cta h2 { color: var(--gray-400); font-family: 'IBM Plex Sans', sans-serif; font-size: 17px; font-weight: 500; margin-top: 10px; }
 
   /* Sections */
   section { padding: 88px 0; }
@@ -94,6 +102,15 @@
   .section-head p { color: var(--gray-600); margin-top: 12px; font-size: 15px; }
 
   /* Features */
+  .side-toggle { position: relative; display: flex; justify-content: center; gap: 4px; background: var(--gray-100); border: 1px solid var(--line); border-radius: 999px; padding: 4px; width: fit-content; margin: 0 auto 40px; }
+  .side-toggle .pill { position: absolute; top: 4px; bottom: 4px; left: 0; border-radius: 999px; background: var(--black); transition: transform .32s cubic-bezier(.4,0,.2,1), width .32s cubic-bezier(.4,0,.2,1); z-index: 0; }
+  .side-toggle button { position: relative; z-index: 1; font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 14px; padding: 10px 24px; border-radius: 999px; border: none; background: transparent; color: var(--gray-600); cursor: pointer; transition: color .2s ease; }
+  .side-toggle button.active { color: #fff; }
+  .side-toggle button:not(.active):hover { color: var(--black); }
+  .panel { transition: opacity .22s ease, transform .22s ease; }
+  .panel[data-panel="personal"] { display: none; }
+  .companion { margin-top: 64px; padding-top: 56px; border-top: 1px solid var(--line-soft); }
+  .section-head h3 { font-size: clamp(22px, 2.8vw, 28px); font-weight: 800; margin-top: 12px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
   .card { padding: 30px 26px; background: #fff; transition: background .18s ease; }
   .grid .card { min-height: 280px; }
@@ -103,25 +120,6 @@
   .icon-box { width: 40px; height: 40px; border-radius: 9px; border: 1px solid var(--line); display: grid; place-items: center; color: var(--black); background: #fff; transition: background .18s ease, color .18s ease, border-color .18s ease; }
   .card:hover .icon-box { background: var(--black); color: #fff; border-color: var(--black); }
   .icon-box svg { width: 19px; height: 19px; }
-  /* The card count doesn't divide evenly into the grid's column count, so the
-     trailing row would otherwise leave empty tracks showing bare grey space -
-     this wrapper spans that full row (keeping the grey fill) and centers the
-     last card - still its normal white box - within it. */
-  .grid .last-row {
-    grid-column: 1 / -1;
-    background: var(--gray-50);
-    display: flex;
-    justify-content: center;
-  }
-  .grid .last-row .card {
-    flex: 0 1 320px;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    border-left: 1px solid var(--line);
-    border-right: 1px solid var(--line);
-  }
 
   /* Steps */
   .steps { max-width: 700px; margin: 0 auto; position: relative; }
@@ -141,21 +139,8 @@
   .callout.ok svg { color: var(--ok); }
   .callout strong { color: var(--black); }
 
-  /* FAQ */
-  .faq { max-width: 700px; margin: 0 auto; border-top: 1px solid var(--line); }
-  .faq details { border-bottom: 1px solid var(--line); }
-  .faq summary { cursor: pointer; font-weight: 600; font-size: 15px; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px 2px; }
-  .faq summary::-webkit-details-marker { display: none; }
-  .faq summary .plus { flex-shrink: 0; width: 20px; height: 20px; position: relative; }
-  .faq summary .plus::before, .faq summary .plus::after { content: ""; position: absolute; background: var(--black); border-radius: 1px; transition: transform .2s ease; }
-  .faq summary .plus::before { left: 0; top: 9px; width: 20px; height: 1.5px; }
-  .faq summary .plus::after { left: 9px; top: 0; width: 1.5px; height: 20px; }
-  .faq details[open] summary .plus::after { transform: rotate(90deg) scaleY(0); }
-  .faq details { overflow: hidden; }
-  .faq details p { padding: 0 2px 20px; font-size: 14px; color: var(--gray-600); max-width: 620px; }
-
   /* Footer */
-  footer { background: var(--black); color: var(--gray-400); padding: 48px 0; font-size: 13px; }
+  footer { background: var(--black); color: var(--gray-400); padding: 48px 0; font-size: 13px; border-top: 1px solid rgba(255,255,255,.08); }
   .footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 18px; }
   .footer-brand { display: flex; align-items: center; gap: 9px; color: #fff; font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 16px; }
   .footer-brand .mark { width: 26px; height: 26px; background: #fff; }
@@ -175,10 +160,10 @@
       Ledgerly
     </a>
     <div class="nav-links">
-      <a href="#features">Business</a>
-      <a href="#personal">Personal</a>
+      <a href="#features">Features</a>
       <a href="#get-started">Get started</a>
-      <a href="#faq">FAQ</a>
+      <a href="#ai-key">AI Insights</a>
+      <a href="faq.html">FAQ</a>
       <a class="nav-cta" href="#get-started">Download</a>
     </div>
   </div>
@@ -203,7 +188,7 @@
     <div class="meta"><span>Windows 10/11 &amp; macOS 12+</span><span>~125–172 MB</span><span>Free</span><span>Internet connection required</span></div>
     <div class="callout ok" style="margin:28px auto 0;max-width:640px;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>
-      <div><strong>One account, two sides.</strong> <a href="#features">Business</a> books for your company, and a completely separate <a href="#personal">Personal</a> mode for your own budgets, bills, and savings goals — switch between them anytime from the same login.</div>
+      <div><strong>One account, two sides.</strong> <a href="#features" data-side="business">Business</a> books for your company, and a completely separate <a href="#personal" data-side="personal">Personal</a> mode for your own budgets, bills, and savings goals — switch between them anytime from the same login.</div>
     </div>
   </div>
 </header>
@@ -211,10 +196,16 @@
 <section id="features">
   <div class="container">
     <div class="section-head reveal">
-      <div class="label">Business side &middot; everything included</div>
-      <h2>One app for the whole back office</h2>
-      <p>Your company's books, invoices, inventory, payroll, and team — kept entirely separate from the <a href="#personal">Personal</a> side of your account.</p>
+      <div class="label">One account, two sides</div>
+      <h2>Everything included</h2>
+      <p>Business books for your company, or a separate Personal mode for your own money — switch anytime from the same account.</p>
     </div>
+    <div class="side-toggle reveal" id="personal">
+      <span class="pill" aria-hidden="true"></span>
+      <button type="button" class="active" data-side="business">Business</button>
+      <button type="button" data-side="personal">Personal</button>
+    </div>
+    <div class="panel" data-panel="business">
     <div class="grid reveal">
       <div class="card">
         <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg></div>
@@ -248,67 +239,55 @@
         <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8Z"/><path d="M19 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8Z"/></svg></div>
         <h3>AI Insights</h3><p>Chat with an AI financial analyst grounded in your live business data. Ask anything about your numbers.</p>
       </div>
-      <div class="last-row">
+      <div class="card">
+        <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></div>
+        <h3>Personalize</h3><p>Nine built-in themes, or pick your own two colors and Ledgerly builds the rest of the palette around them automatically.</p>
+      </div>
+      <div class="card">
+        <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V6l6-3 6 3v15"/><path d="M16 21v-9l4 2v7"/><path d="M8 9h1M8 13h1M12 9h1M12 13h1"/></svg></div>
+        <h3>Multiple businesses</h3><p>Belong to several businesses with one account and switch between them like workspaces.</p>
+      </div>
+    </div>
+    <div class="companion" id="ledgerly-go">
+      <div class="section-head reveal">
+        <div class="label">New &middot; works on any phone</div>
+        <div style="width:44px;height:44px;border-radius:11px;background:#000;display:flex;align-items:center;justify-content:center;margin:14px auto 0;">
+          <svg width="24" height="24" viewBox="0 0 256 256" fill="none" stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+            <polyline points="81,60 131,128 81,196"/>
+            <polyline points="125,60 175,128 125,196"/>
+          </svg>
+        </div>
+        <h3>LedgerlyGo — your books, in your pocket</h3>
+        <p>A free companion web app for quick tasks on the move. Sign in with the same account and everything stays in sync with your desktop books.</p>
+      </div>
+      <div class="grid reveal" style="max-width:900px;margin:0 auto 40px;">
         <div class="card">
-          <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></div>
-          <h3>Personalize</h3><p>Nine built-in themes, or pick your own two colors and Ledgerly builds the rest of the palette around them automatically.</p>
+          <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>
+          <h3>Capture receipts</h3><p>Snap a photo — or upload one from your library — and AI reads the vendor, amount, date, and category for you. No signal? Capture still works; it saves on your phone and syncs the moment you're back online.</p>
         </div>
         <div class="card">
-          <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V6l6-3 6 3v15"/><path d="M16 21v-9l4 2v7"/><path d="M8 9h1M8 13h1M12 9h1M12 13h1"/></svg></div>
-          <h3>Multiple businesses</h3><p>Belong to several businesses with one account and switch between them like workspaces.</p>
+          <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></div>
+          <h3>Check &amp; adjust stock</h3><p>See live stock-level bars and low-stock alerts, and bump quantities up or down right from the list.</p>
+        </div>
+        <div class="card">
+          <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M9 12h6M9 16h6"/></svg></div>
+          <h3>Track &amp; export invoices</h3><p>See invoice status at a glance, mark one paid, sent, or overdue with a tap, and export any invoice as a PDF to send on the spot.</p>
         </div>
       </div>
+      <div class="cta-row" style="margin-top:0;">
+        <a class="btn btn-dark" href="https://ledgerly-mobile.onrender.com" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>
+          Open LedgerlyGo
+        </a>
+      </div>
+      <div class="callout ok reveal" style="margin-top:28px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>
+        <div><strong>No app store needed</strong> — it opens right in your phone's browser at <span class="mono">ledgerly-mobile.onrender.com</span>. To add it to your home screen like a native app: on iPhone, tap the Share icon &rarr; <strong>Add to Home Screen</strong>. On Android (Chrome), tap the menu (&#8942;) &rarr; <strong>Install app</strong> (or use the install icon in the address bar).</div>
+      </div>
     </div>
-  </div>
-</section>
+    </div>
 
-<section id="ledgerly-go">
-  <div class="container">
-    <div class="section-head reveal">
-      <div class="label">New &middot; works on any phone</div>
-      <div style="width:44px;height:44px;border-radius:11px;background:#000;display:flex;align-items:center;justify-content:center;margin:14px auto 0;">
-        <svg width="24" height="24" viewBox="0 0 256 256" fill="none" stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-          <polyline points="81,60 131,128 81,196"/>
-          <polyline points="125,60 175,128 125,196"/>
-        </svg>
-      </div>
-      <h2>LedgerlyGo — your books, in your pocket</h2>
-      <p>A free companion web app for quick tasks on the move. Sign in with the same account and everything stays in sync with your desktop books.</p>
-    </div>
-    <div class="grid reveal" style="max-width:900px;margin:0 auto 40px;">
-      <div class="card">
-        <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>
-        <h3>Capture receipts</h3><p>Snap a photo — or upload one from your library — and AI reads the vendor, amount, date, and category for you. No signal? Capture still works; it saves on your phone and syncs the moment you're back online.</p>
-      </div>
-      <div class="card">
-        <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></div>
-        <h3>Check &amp; adjust stock</h3><p>See live stock-level bars and low-stock alerts, and bump quantities up or down right from the list.</p>
-      </div>
-      <div class="card">
-        <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M9 12h6M9 16h6"/></svg></div>
-        <h3>Track &amp; export invoices</h3><p>See invoice status at a glance, mark one paid, sent, or overdue with a tap, and export any invoice as a PDF to send on the spot.</p>
-      </div>
-    </div>
-    <div class="cta-row" style="margin-top:0;">
-      <a class="btn btn-dark" href="https://ledgerly-mobile.onrender.com" target="_blank" rel="noopener">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>
-        Open LedgerlyGo
-      </a>
-    </div>
-    <div class="callout ok reveal" style="margin-top:28px;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>
-      <div><strong>No app store needed</strong> — it opens right in your phone's browser at <span class="mono">ledgerly-mobile.onrender.com</span>. To add it to your home screen like a native app: on iPhone, tap the Share icon &rarr; <strong>Add to Home Screen</strong>. On Android (Chrome), tap the menu (&#8942;) &rarr; <strong>Install app</strong> (or use the install icon in the address bar).</div>
-    </div>
-  </div>
-</section>
-
-<section id="personal" class="alt">
-  <div class="container">
-    <div class="section-head reveal">
-      <div class="label">Personal side &middot; same account, different books</div>
-      <h2>Your own money, kept apart from the business</h2>
-      <p>Flip a switch in the top-left of the app and Ledgerly becomes a personal finance tracker — your own income, spending, budgets, and goals, walled off from anything business.</p>
-    </div>
+    <div class="panel" data-panel="personal">
     <div class="grid reveal">
       <div class="card">
         <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg></div>
@@ -335,45 +314,44 @@
         <h3>AI Insights</h3><p>The same AI financial analyst as the business side, chatting with you about your own transactions, budgets, and goals instead.</p>
       </div>
     </div>
-  </div>
-</section>
+    <div class="companion" id="ledgerly-pulse">
+      <div class="section-head reveal">
+        <div class="label">New &middot; your own money, separate from the business</div>
+        <div style="width:44px;height:44px;border-radius:11px;background:#000;display:flex;align-items:center;justify-content:center;margin:14px auto 0;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+            <polyline points="2,12 7,12 9,6 13,18 15,12 22,12"/>
+          </svg>
+        </div>
+        <h3>LedgerlyPulse — your personal finances, in your pocket</h3>
+        <p>A free companion web app for your personal budgets, bills, and savings goals — kept separate from your business books. Sign in with the same account and everything stays in sync with the desktop app's Personal section.</p>
+      </div>
+      <div class="grid reveal" style="max-width:900px;margin:0 auto 40px;">
+        <div class="card">
+          <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="13" width="3" height="5"/><rect x="12" y="9" width="3" height="9"/><rect x="17" y="5" width="3" height="13"/></svg></div>
+          <h3>Track spending &amp; budgets</h3><p>Log income and expenses on the go, and see a color-coded progress bar for every budget so you always know what's left this month.</p>
+        </div>
+        <div class="card">
+          <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></div>
+          <h3>Bills &amp; savings goals</h3><p>Never miss a due date with due-soon reminders, and watch every savings goal's progress bar fill in as you contribute toward it.</p>
+        </div>
+        <div class="card">
+          <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>
+          <h3>Scan a receipt</h3><p>Snap a photo of a personal receipt and AI reads the amount, date, and category for you — works with no signal, syncs once you're back online.</p>
+        </div>
+      </div>
+      <div class="cta-row" style="margin-top:0;">
+        <a class="btn btn-dark" href="https://ledgerly-pulse.onrender.com" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>
+          Open LedgerlyPulse
+        </a>
+      </div>
+      <div class="callout ok reveal" style="margin-top:28px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>
+        <div><strong>No app store needed</strong> — it opens right in your phone's browser at <span class="mono">ledgerly-pulse.onrender.com</span>. To add it to your home screen like a native app: on iPhone, tap the Share icon &rarr; <strong>Add to Home Screen</strong>. On Android (Chrome), tap the menu (&#8942;) &rarr; <strong>Install app</strong> (or use the install icon in the address bar).</div>
+      </div>
+    </div>
+    </div>
 
-<section id="ledgerly-pulse">
-  <div class="container">
-    <div class="section-head reveal">
-      <div class="label">New &middot; your own money, separate from the business</div>
-      <div style="width:44px;height:44px;border-radius:11px;background:#000;display:flex;align-items:center;justify-content:center;margin:14px auto 0;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-          <polyline points="2,12 7,12 9,6 13,18 15,12 22,12"/>
-        </svg>
-      </div>
-      <h2>LedgerlyPulse — your personal finances, in your pocket</h2>
-      <p>A free companion web app for your personal budgets, bills, and savings goals — kept separate from your business books. Sign in with the same account and everything stays in sync with the desktop app's Personal section.</p>
-    </div>
-    <div class="grid reveal" style="max-width:900px;margin:0 auto 40px;">
-      <div class="card">
-        <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="13" width="3" height="5"/><rect x="12" y="9" width="3" height="9"/><rect x="17" y="5" width="3" height="13"/></svg></div>
-        <h3>Track spending &amp; budgets</h3><p>Log income and expenses on the go, and see a color-coded progress bar for every budget so you always know what's left this month.</p>
-      </div>
-      <div class="card">
-        <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></div>
-        <h3>Bills &amp; savings goals</h3><p>Never miss a due date with due-soon reminders, and watch every savings goal's progress bar fill in as you contribute toward it.</p>
-      </div>
-      <div class="card">
-        <div class="icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>
-        <h3>Scan a receipt</h3><p>Snap a photo of a personal receipt and AI reads the amount, date, and category for you — works with no signal, syncs once you're back online.</p>
-      </div>
-    </div>
-    <div class="cta-row" style="margin-top:0;">
-      <a class="btn btn-dark" href="https://ledgerly-pulse.onrender.com" target="_blank" rel="noopener">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>
-        Open LedgerlyPulse
-      </a>
-    </div>
-    <div class="callout ok reveal" style="margin-top:28px;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>
-      <div><strong>No app store needed</strong> — it opens right in your phone's browser at <span class="mono">ledgerly-pulse.onrender.com</span>. To add it to your home screen like a native app: on iPhone, tap the Share icon &rarr; <strong>Add to Home Screen</strong>. On Android (Chrome), tap the menu (&#8942;) &rarr; <strong>Install app</strong> (or use the install icon in the address bar).</div>
-    </div>
   </div>
 </section>
 
@@ -456,49 +434,12 @@
   </div>
 </section>
 
-<section id="faq" class="alt">
+<section class="final-cta">
   <div class="container">
-    <div class="section-head reveal">
-      <div class="label">Good to know</div>
-      <h2>Frequently asked questions</h2>
-    </div>
-    <div class="faq reveal">
-      <details>
-        <summary>Is Ledgerly free?<span class="plus"></span></summary>
-        <p>Yes. The app is free to download and use. AI Insights includes a free shared quota, and you can connect your own free Groq key for unlimited use.</p>
-      </details>
-      <details>
-        <summary>Where is my data stored?<span class="plus"></span></summary>
-        <p>Your data is stored securely in a cloud database and synced through an encrypted (HTTPS) connection — so your books are the same on any computer you sign in from, and nothing is lost if your PC dies. From <strong>Settings &rarr; Data &amp; Account</strong> you can export everything as a ZIP of CSVs, or permanently delete your account, anytime.</p>
-      </details>
-      <details>
-        <summary>What's the difference between the Business and Personal sides?<span class="plus"></span></summary>
-        <p><strong>Business</strong> is your company's books — transactions, invoices, inventory, payroll, and a team you can invite. <strong>Personal</strong> is your own money — income, spending, budgets, bills, and savings goals — kept completely separate, with no team or payroll. Both live in the same account: click the workspace name in the top-left of the app and choose <strong>Personal</strong> to switch, then switch back to your business anytime. Each side has its own dashboard, reports, and AI Insights.</p>
-      </details>
-      <details>
-        <summary>What are the roles, and what can each one do?<span class="plus"></span></summary>
-        <p><strong>Owner</strong> — created the business; full control.<br><strong>Admin</strong> — everything the owner can do day-to-day: manage the team, payroll, business settings.<br><strong>Staff</strong> — can work with transactions, invoices, and reports, but cannot see or run payroll or manage the team.</p>
-      </details>
-      <details>
-        <summary>Can I belong to more than one business?<span class="plus"></span></summary>
-        <p>Yes. Redeem an invite code from another business (click the business name in the top-left of the app → "Join another business") and switch between businesses anytime from that same menu.</p>
-      </details>
-      <details>
-        <summary>Why do I see a security warning when installing?<span class="plus"></span></summary>
-        <p>Ledgerly isn't yet code-signed with a paid certificate on either platform, so Windows SmartScreen and macOS Gatekeeper are cautious with it. The app is safe — on Windows click <strong>More info → Run anyway</strong>. On Mac, if right-click → <strong>Open</strong> doesn't work, go to <strong>System Settings → Privacy &amp; Security → Security</strong> and click <strong>Open Anyway</strong> (see the full steps in <a href="#get-started">Getting started</a>).</p>
-      </details>
-      <details>
-        <summary>Does it work offline?<span class="plus"></span></summary>
-        <p>Mostly no — the desktop app, <a href="#ledgerly-go">LedgerlyGo</a>, and <a href="#ledgerly-pulse">LedgerlyPulse</a> all need a connection for almost everything, since your data lives in the cloud and syncs in real time. The one exception: both LedgerlyGo and LedgerlyPulse let you capture a receipt with no signal — it saves on your phone and uploads automatically once you're back online.</p>
-      </details>
-      <details>
-        <summary>Is there a mobile app?<span class="plus"></span></summary>
-        <p>Yes — two, one for each side of the app. <a href="#ledgerly-go">LedgerlyGo</a> is a free companion web app for capturing receipts, checking inventory, and tracking invoices from your phone, at <a href="https://ledgerly-mobile.onrender.com" target="_blank" rel="noopener">ledgerly-mobile.onrender.com</a>. <a href="#ledgerly-pulse">LedgerlyPulse</a> is the equivalent for your personal budgets, bills, and savings goals, at <a href="https://ledgerly-pulse.onrender.com" target="_blank" rel="noopener">ledgerly-pulse.onrender.com</a>. Both sign in with your same Ledgerly account — no app store download needed.</p>
-      </details>
-      <details>
-        <summary>How do currencies work?<span class="plus"></span></summary>
-        <p>Your business has a primary currency used for dashboards and reports, and each record keeps the currency it was created in. The dashboard also shows live exchange rates for reference. If you switch your primary currency, Settings offers a one-click relabel of existing records.</p>
-      </details>
+    <p class="kicker reveal">Ready to get your books in order?</p>
+    <h2 class="reveal">Your books are two minutes away.</h2>
+    <div class="cta-row reveal">
+      <a class="btn btn-light" href="#get-started">Get Ledgerly free</a>
     </div>
   </div>
 </section>
@@ -522,6 +463,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
         Changelog
       </a>
+      <a href="faq.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 3.5"/><path d="M12 17h.01"/></svg>
+        FAQ
+      </a>
       <a href="Ledgerly-User-Guide.pdf" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
         User Guide
@@ -542,6 +487,66 @@
 </footer>
 
 <script>
+  // Business/Personal panel toggle - the segmented control's sliding pill,
+  // plus a crossfade between panels. Nav, hero, and FAQ links that carry a
+  // data-side attribute drive the same switch, since they all point at the
+  // one merged #features section (each panel bundles its companion app too:
+  // LedgerlyGo lives in the Business panel, LedgerlyPulse in Personal).
+  (function () {
+    var toggle = document.getElementById('personal');
+    var pill = toggle.querySelector('.pill');
+    var buttons = toggle.querySelectorAll('button');
+    var sideLinks = document.querySelectorAll('a[data-side]');
+
+    function movePill(side) {
+      var btn = toggle.querySelector('button[data-side="' + side + '"]');
+      pill.style.width = btn.offsetWidth + 'px';
+      pill.style.transform = 'translateX(' + btn.offsetLeft + 'px)';
+    }
+
+    function revealNested(panel) {
+      panel.style.display = 'block';
+      panel.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('in'); });
+    }
+
+    function setSide(side, animate) {
+      buttons.forEach(function (b) { b.classList.toggle('active', b.dataset.side === side); });
+      movePill(side);
+      var showPanel = document.querySelector('.panel[data-panel="' + side + '"]');
+      var hideSide = side === 'business' ? 'personal' : 'business';
+      var hidePanel = document.querySelector('.panel[data-panel="' + hideSide + '"]');
+      if (!animate) { hidePanel.style.display = 'none'; revealNested(showPanel); return; }
+      hidePanel.style.opacity = '0';
+      hidePanel.style.transform = 'translateY(6px)';
+      window.setTimeout(function () {
+        hidePanel.style.display = 'none';
+        revealNested(showPanel);
+        showPanel.style.opacity = '0';
+        showPanel.style.transform = 'translateY(6px)';
+        void showPanel.offsetWidth;
+        showPanel.style.opacity = '1';
+        showPanel.style.transform = 'translateY(0)';
+      }, 180);
+    }
+
+    buttons.forEach(function (b) { b.addEventListener('click', function () { setSide(b.dataset.side, true); }); });
+    sideLinks.forEach(function (a) { a.addEventListener('click', function () { setSide(a.dataset.side, true); }); });
+
+    // A link from another page (e.g. faq.html) can land directly on
+    // #ledgerly-pulse, which lives inside the Personal panel - initialize to
+    // that side first so the target isn't hidden when the browser scrolls to it.
+    var hash = window.location.hash.slice(1);
+    var initialSide = (hash === 'personal' || hash === 'ledgerly-pulse') ? 'personal' : 'business';
+    setSide(initialSide, false);
+    if (hash) {
+      var target = document.getElementById(hash);
+      if (target) window.setTimeout(function () { target.scrollIntoView(); }, 0);
+    }
+    window.addEventListener('resize', function () {
+      movePill(toggle.querySelector('button.active').dataset.side);
+    });
+  })();
+
   var els = document.querySelectorAll('.reveal');
   if ('IntersectionObserver' in window) {
     var io = new IntersectionObserver(function (entries) {
@@ -552,61 +557,6 @@
     els.forEach(function (el) { io.observe(el); });
   } else {
     els.forEach(function (el) { el.classList.add('in'); });
-  }
-
-  // Animates each FAQ <details> open/close (native toggling is instant, which
-  // reads as stiff) by driving the element's height with the Web Animations
-  // API, only flipping the `open` attribute once the collapse animation ends
-  // or right before the expand animation starts.
-  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduceMotion && 'Animation' in window) {
-    document.querySelectorAll('.faq details').forEach(function (el) {
-      var summary = el.querySelector('summary');
-      var answer = el.querySelector('p');
-      var animation = null;
-      var isClosing = false;
-      var isExpanding = false;
-
-      function onFinish(open) {
-        el.open = open;
-        animation = null;
-        isClosing = false;
-        isExpanding = false;
-        el.style.height = el.style.overflow = '';
-      }
-
-      function shrink() {
-        isClosing = true;
-        var startHeight = el.offsetHeight + 'px';
-        var endHeight = summary.offsetHeight + 'px';
-        if (animation) animation.cancel();
-        animation = el.animate({ height: [startHeight, endHeight] }, { duration: 220, easing: 'ease' });
-        animation.onfinish = function () { onFinish(false); };
-        animation.oncancel = function () { isClosing = false; };
-      }
-
-      function expand() {
-        isExpanding = true;
-        var startHeight = el.offsetHeight + 'px';
-        var endHeight = (summary.offsetHeight + answer.offsetHeight) + 'px';
-        if (animation) animation.cancel();
-        animation = el.animate({ height: [startHeight, endHeight] }, { duration: 220, easing: 'ease' });
-        animation.onfinish = function () { onFinish(true); };
-        animation.oncancel = function () { isExpanding = false; };
-      }
-
-      summary.addEventListener('click', function (e) {
-        e.preventDefault();
-        el.style.overflow = 'hidden';
-        if (isClosing || !el.open) {
-          el.style.height = el.offsetHeight + 'px';
-          el.open = true;
-          requestAnimationFrame(expand);
-        } else if (isExpanding || el.open) {
-          shrink();
-        }
-      });
-    });
   }
 </script>
 
