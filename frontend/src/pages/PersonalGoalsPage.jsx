@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import Confetti from "@/components/Confetti";
+import AnimatedBar from "@/components/AnimatedBar";
 import { fmt, fmtDate, formatApiError } from "@/lib/utils_app";
 import { Plus, PencilSimple, Trash } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -177,8 +178,8 @@ export default function PersonalGoalsPage() {
                   </button>
                 </div>
               </div>
-              <div className="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div className="h-full rounded-full bg-emerald-600 transition-[width] duration-500 ease-out" style={{ width: `${ratio(g.current_amount, g.target_amount) * 100}%` }} />
+              <div className="mt-4">
+                <AnimatedBar pct={ratio(g.current_amount, g.target_amount) * 100} className="h-2" />
               </div>
             </Card>
           ))}
@@ -194,9 +195,7 @@ export default function PersonalGoalsPage() {
                 {fmt(detailGoal.current_amount, detailGoal.currency)} of {fmt(detailGoal.target_amount, detailGoal.currency)}
                 {detailGoal.target_date ? ` · target ${fmtDate(detailGoal.target_date)}` : ""}
               </div>
-              <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div className="h-full rounded-full bg-emerald-600" style={{ width: `${ratio(detailGoal.current_amount, detailGoal.target_amount) * 100}%` }} />
-              </div>
+              <AnimatedBar pct={ratio(detailGoal.current_amount, detailGoal.target_amount) * 100} className="h-2" />
 
               <form onSubmit={addContribution} className="space-y-2">
                 <Label>Add contribution</Label>

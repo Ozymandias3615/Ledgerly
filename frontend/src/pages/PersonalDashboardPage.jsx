@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import AnimatedBar from "@/components/AnimatedBar";
 import { fmt, fmtDate, currencySymbol, loadPersisted, savePersisted } from "@/lib/utils_app";
 import { TrendUp, TrendDown, ArrowsDownUp, PiggyBank, Calendar, Target, Article, ArrowsOut } from "@phosphor-icons/react";
 import {
@@ -391,24 +392,6 @@ function barColor(spent, limit) {
   if (r >= 1) return "bg-red-600";
   if (r >= 0.75) return "bg-amber-500";
   return "bg-emerald-600";
-}
-
-// Mounts at 0 width and grows to its target on the next frame, so the bar
-// always animates in on load - recharts' bar/pie charts do this for free
-// (isAnimationActive defaults true), these plain CSS bars need it done by
-// hand since a transition can't animate a property that's already at its
-// final value on first paint.
-function AnimatedBar({ pct, colorClass }) {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setWidth(pct));
-    return () => cancelAnimationFrame(id);
-  }, [pct]);
-  return (
-    <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-      <div className={`h-full rounded-full transition-[width] duration-500 ease-out ${colorClass}`} style={{ width: `${width}%` }} />
-    </div>
-  );
 }
 
 function BudgetsSnapshot() {

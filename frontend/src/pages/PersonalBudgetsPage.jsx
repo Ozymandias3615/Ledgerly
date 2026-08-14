@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { fmt, formatApiError } from "@/lib/utils_app";
+import AnimatedBar from "@/components/AnimatedBar";
+import { fmt, fmtDate, formatApiError } from "@/lib/utils_app";
 import { Plus, PencilSimple, Trash, Receipt } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -44,8 +45,23 @@ export default function PersonalBudgetsPage() {
   const emptyLogForm = { amount: "", description: "", date: new Date().toISOString().slice(0, 10) };
   const [logForm, setLogForm] = useState(emptyLogForm);
 
+  const [detailBudget, setDetailBudget] = useState(null);
+  const [detailTransactions, setDetailTransactions] = useState(null);
+
   const load = () => api.get("/personal/budgets/summary").then(({ data }) => setBudgets(data));
   useEffect(() => { load(); }, []);
+
+  const openDetail = (b) => {
+    setDetailBudget(b);
+    setDetailTransactions(null);
+    // Same month window the backend sums into "spent" (see
+    // get_budgets_summary's date range) so this list always matches the
+    // number shown on the card.
+    const monthKey = new Date().toISOString().slice(0, 7);
+    api.get("/personal/transactions", {
+      params: { category: b.category, type: "expense", date_from: `${monthKey}-01`, date_to: `${monthKey}-32` },
+    }).then(({ data }) => setDetailTransactions(data));
+  };
 
   const openNew = () => { setEditing(null); setForm(emptyForm); setOpen(true); };
   const openEdit = (b) => {
@@ -150,7 +166,12 @@ export default function PersonalBudgetsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {budgets.map((b) => (
-            <Card key={b.id} className="p-5 border-slate-200 shadow-none" data-testid={`budget-card-${b.id}`}>
+            <Card
+              key={b.id}
+              className="p-5 border-slate-200 shadow-none cursor-pointer hover:border-slate-300 transition-colors"
+              onClick={() => openDetail(b)}
+              data-testid={`budget-card-${b.id}`}
+            >
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="font-bold text-lg" style={{ fontFamily: "Manrope, sans-serif" }}>{b.category}</div>
@@ -159,7 +180,7 @@ export default function PersonalBudgetsPage() {
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
-                    onClick={() => openLog(b)}
+                    onClick={(e) => { e.stopPropagation(); openLog(b); }}
                     className="h-8 w-8 grid place-items-center rounded-md text-slate-400 hover:text-primary hover:bg-slate-100 transition-colors"
                     title="Log an expense"
                     data-testid={`budget-log-${b.id}`}
@@ -168,7 +189,7 @@ export default function PersonalBudgetsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => openEdit(b)}
+                    onClick={(e) => { e.stopPropagation(); openEdit(b); }}
                     className="h-8 w-8 grid place-items-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                     title="Edit budget"
                     data-testid={`budget-edit-${b.id}`}
@@ -177,7 +198,7 @@ export default function PersonalBudgetsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPendingRemove(b)}
+                    onClick={(e) => { e.stopPropagation(); setPendingRemove(b); }}
                     className="h-8 w-8 grid place-items-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                     title="Delete budget"
                     data-testid={`budget-delete-${b.id}`}
@@ -186,8 +207,8 @@ export default function PersonalBudgetsPage() {
                   </button>
                 </div>
               </div>
-              <div className="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div className={`h-full rounded-full transition-[width] duration-500 ease-out ${barColor(b.spent, b.monthly_limit)}`} style={{ width: `${ratio(b.spent, b.monthly_limit) * 100}%` }} />
+              <div className="mt-4">
+                <AnimatedBar pct={ratio(b.spent, b.monthly_limit) * 100} colorClass={barColor(b.spent, b.monthly_limit)} className="h-2" />
               </div>
             </Card>
           ))}
@@ -216,6 +237,41 @@ export default function PersonalBudgetsPage() {
               <Button type="submit" data-testid="budget-log-submit-button">Add expense</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!detailBudget} onOpenChange={(open) => !open && setDetailBudget(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{detailBudget?.category}</DialogTitle></DialogHeader>
+          {detailBudget && (
+            <div className="space-y-4">
+              <div className="text-sm text-slate-500">
+                {fmt(detailBudget.spent, detailBudget.currency)} of {fmt(detailBudget.monthly_limit, detailBudget.currency)} spent this month
+              </div>
+              <AnimatedBar pct={ratio(detailBudget.spent, detailBudget.monthly_limit) * 100} colorClass={barColor(detailBudget.spent, detailBudget.monthly_limit)} className="h-2" />
+
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-2">Transactions this month</div>
+                {detailTransactions === null ? (
+                  <div className="text-sm text-slate-500 py-4">Loading...</div>
+                ) : detailTransactions.length === 0 ? (
+                  <div className="text-sm text-slate-500 py-4">No transactions in this category yet.</div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {detailTransactions.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between border-b border-slate-100 pb-2" data-testid={`budget-tx-${t.id}`}>
+                        <div>
+                          <div className="text-sm font-medium">{t.description || t.category}</div>
+                          <div className="text-xs text-slate-400">{fmtDate(t.date)}</div>
+                        </div>
+                        <div className="text-sm font-semibold text-red-700 dark:text-red-400">-{fmt(t.amount, t.currency)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
