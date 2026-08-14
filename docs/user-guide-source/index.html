@@ -29,15 +29,15 @@
   h1, h2, h3 { font-family: 'Manrope', sans-serif; letter-spacing: -0.02em; color: var(--black); }
   .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
 
-  @page { size: letter; margin: 0.85in 0.75in 0.75in 0.75in; }
+  @page { size: letter; margin: 0.85in 0.75in 0.3in 0.75in; }
 
-  .sheet { page-break-after: always; position: relative; min-height: 9.2in; }
+  .sheet { page-break-after: always; position: relative; min-height: 9.65in; padding-bottom: 0.45in; }
   .sheet:last-child { page-break-after: avoid; }
 
-  .footer { position: absolute; bottom: -0.5in; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 10px; color: var(--gray-500); border-top: 1px solid var(--line-soft); padding-top: 8px; }
+  .footer { position: absolute; bottom: 0; left: 0; right: 0; padding-top: 8px; display: flex; justify-content: space-between; font-size: 10px; color: var(--gray-500); border-top: 1px solid var(--line-soft); }
 
   /* Cover */
-  .cover { display: flex; flex-direction: column; justify-content: flex-end; height: 9.2in; }
+  .cover { display: flex; flex-direction: column; justify-content: flex-end; height: 9.65in; }
   .cover .mark { width: 46px; height: 46px; border-radius: 12px; background: var(--black); display: grid; place-items: center; margin-bottom: 14px; }
   .cover .mark svg { width: 24px; height: 24px; fill: #fff; }
   .cover .brand { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: 0.08em; color: var(--gray-700); margin-bottom: 26px; }
@@ -87,10 +87,10 @@
   <div class="mark"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M216,72H56a8,8,0,0,1,0-16H192a8,8,0,0,0,0-16H56A24,24,0,0,0,32,64V192a24,24,0,0,0,24,24H216a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72Zm-36,80a12,12,0,1,1,12-12A12,12,0,0,1,180,152Z"/></svg></div>
   <div class="brand">LEDGERLY</div>
   <h1>User Guide</h1>
-  <p class="sub">Everything you need to know to run your books, invoices, payroll, inventory, contacts, and reports in Ledgerly.</p>
+  <p class="sub">Everything you need to know to run your books, invoices, payroll, inventory, contacts, and reports in Ledgerly — plus your own personal budgets, bills, and savings goals on the Personal side of the same account.</p>
   <div class="meta">
     <div>Based on a walkthrough of the Ledgerly Demo Co. workspace</div>
-    <div>Business Finance &middot; Bookkeeping &middot; Invoicing &middot; Payroll &middot; Inventory &middot; Reports</div>
+    <div>Business Finance &middot; Bookkeeping &middot; Invoicing &middot; Payroll &middot; Inventory &middot; Reports &middot; Personal Finance</div>
   </div>
 </section>
 
@@ -112,6 +112,9 @@
     <li>Settings, Business &amp; Team</li>
     <li>Multi-Currency Support</li>
     <li>Quick Reference &amp; Tips</li>
+    <li>Personal Finances</li>
+    <li>Personal Transactions, Budgets, Bills &amp; Goals</li>
+    <li>Personal Reports &amp; AI Insights</li>
   </ol>
 </section>
 
@@ -428,7 +431,7 @@
   <p>You can also type your own question in the message box at the bottom of the page. Past conversations are saved in the left-hand list.</p>
   <h2 class="sub-title">Usage limits</h2>
   <p>AI Insights works out of the box on a small shared daily quota. For unlimited use, add your own free Groq API key under Settings &rarr; Business &rarr; AI Insights (get a key at console.groq.com/keys). Usage then bills to that key's account, not Ledgerly.</p>
-  <div class="pending">Screenshot pending — the previous one showed a stale "Powered by Gemini" label from before the provider switch.</div>
+  <div class="fig narrow"><img src="assets/ai-insights-groq.png" alt="AI Insights chat" /><div class="cap">AI Insights, now powered by Groq.</div></div>
   <div class="footer"><span>Ledgerly User Guide</span><span>Page 23</span></div>
 </section>
 
@@ -535,6 +538,93 @@
     <li>If you're the sole owner of a business, think twice before Delete my account — there's no undo, and it takes the business's data with it.</li>
   </ul>
   <div class="footer"><span>Ledgerly User Guide</span><span>Page 30</span></div>
+</section>
+
+<!-- SECTION 15 -->
+<section class="sheet">
+  <div class="label">Section 15</div>
+  <h1 class="title">Personal Finances</h1>
+  <p>Every Ledgerly account has two sides: <strong>Business</strong> — your company's books, invoices, payroll, and team — and <strong>Personal</strong> — your own income, spending, budgets, bills, and savings goals. They're kept completely separate (no shared team, no shared numbers), but live under the same login, so you can switch between them in a couple of clicks.</p>
+
+  <h2 class="sub-title">Switching to Personal</h2>
+  <p>Click your workspace name at the top of the sidebar (it shows either your business name or "Personal") to open the workspace switcher. It lists <strong>Personal</strong> at the top, followed by every business you belong to under "Your Businesses." Pick either one to switch your entire workspace — sidebar, dashboard, and every page — to that context.</p>
+  <div class="fig narrow"><img src="assets/workspace-switcher.png" alt="Workspace switcher" /><div class="cap">The workspace switcher, open on the Personal side.</div></div>
+  <div class="tip"><div class="tip-label">Tip</div><p>The same switcher is also how you join or move between multiple businesses (see Section 2) — Personal is just one more option in the same list, always available regardless of how many businesses you're part of.</p></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 31</span></div>
+</section>
+
+<section class="sheet">
+  <h2 class="sub-title">Personal Dashboard</h2>
+  <p>Once on the Personal side, the sidebar switches to a shorter set of sections built for one person's finances: Dashboard, Transactions, Budgets, Bills, Goals, Reports, and AI Insights. The Dashboard gives you this month's snapshot in one screen:</p>
+  <table class="ref">
+    <tr><th>Field</th><th>What it means</th></tr>
+    <tr><td>Income / Expenses / Net</td><td>Three headline numbers for the current month.</td></tr>
+    <tr><td>Income vs Expenses</td><td>A bar chart comparing the two across the year, filterable by day, week, month, or year like the Business dashboard.</td></tr>
+    <tr><td>Expense Categories</td><td>A donut chart of where your spending went for the selected period.</td></tr>
+    <tr><td>Budgets — This month at a glance</td><td>A compact progress bar per budget, color-coded green (on track), amber (near the limit), or red (over) — the same set you'll see in full on the Budgets page.</td></tr>
+    <tr><td>Recent transactions</td><td>Your last few personal transactions.</td></tr>
+    <tr><td>Upcoming bills</td><td>Bills coming due soonest.</td></tr>
+    <tr><td>Goal progress</td><td>A progress bar per savings goal.</td></tr>
+  </table>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 32</span></div>
+</section>
+
+<section class="sheet">
+  <div class="fig"><img src="assets/personal-dashboard-top.png" alt="Personal dashboard top" /><div class="cap">The Personal Dashboard — income, expenses, trend, and this month's budgets.</div></div>
+  <div class="fig"><img src="assets/personal-dashboard-scrolled.png" alt="Personal dashboard scrolled" /><div class="cap">Scrolled down: recent transactions, upcoming bills, and goal progress.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 33</span></div>
+</section>
+
+<!-- SECTION 16 -->
+<section class="sheet">
+  <div class="label">Section 16</div>
+  <h1 class="title">Personal Transactions, Budgets, Bills &amp; Goals</h1>
+  <h2 class="sub-title">Transactions</h2>
+  <p>Your personal ledger works just like Bookkeeping on the Business side (Section 4), minus the vendor tagging and multi-currency fields — it's just Type, Date, Category, Description, and Amount. Filter by Month and Year, and click <strong>+ New transaction</strong> to log income or an expense.</p>
+  <div class="fig"><img src="assets/personal-transactions.png" alt="Personal transactions list" /><div class="cap">The Transactions list on the Personal side.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 34</span></div>
+</section>
+
+<section class="sheet">
+  <h2 class="sub-title">Budgets</h2>
+  <p>Set a monthly spending limit per category from <strong>+ New budget</strong>. Each budget shows as a card with an animated progress bar — green while comfortably under, amber as you approach the limit, and red once you've gone over.</p>
+  <div class="fig"><img src="assets/personal-budgets.png" alt="Personal budgets" /><div class="cap">Budgets — Dining is over, Transportation is near its limit, the rest are on track.</div></div>
+  <div class="tip"><div class="tip-label">Tip</div><p>Click any budget card to drill down into exactly which transactions counted toward it this month — no need to go hunting through the full Transactions list.</p></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 35</span></div>
+</section>
+
+<section class="sheet">
+  <div class="fig narrow"><img src="assets/personal-budget-drilldown.png" alt="Budget drill-down" /><div class="cap">Clicking a budget card shows the transactions behind it.</div></div>
+  <h2 class="sub-title">Bills</h2>
+  <p>A simple list of recurring and one-off bills with a due date, category, and amount. Click <strong>Mark paid</strong> on a row once it's settled, or use the row's menu (three dots) for more actions. Bills due soon are called out so nothing slips through.</p>
+  <div class="fig"><img src="assets/personal-bills.png" alt="Personal bills" /><div class="cap">The Bills list.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 36</span></div>
+</section>
+
+<section class="sheet">
+  <h2 class="sub-title">Goals</h2>
+  <p>Set a savings target — an emergency fund, a vacation, a big purchase — with an optional target date, then log contributions toward it over time. Each goal shows as a card with a progress bar toward its target; reach 100% and Ledgerly celebrates with a burst of confetti.</p>
+  <div class="fig"><img src="assets/personal-goals.png" alt="Personal goals" /><div class="cap">Goals — Emergency Fund, Hawaii Vacation, and New Laptop, each with contribution progress.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 37</span></div>
+</section>
+
+<!-- SECTION 17 -->
+<section class="sheet">
+  <div class="label">Section 17</div>
+  <h1 class="title">Personal Reports &amp; AI Insights</h1>
+  <h2 class="sub-title">Reports</h2>
+  <p>Set a From/To date range and an optional category filter, then click <strong>Run report</strong> for an income-and-expenses breakdown over that period — total income by category, total expenses by category, and the net for the range.</p>
+  <div class="fig"><img src="assets/personal-reports.png" alt="Personal reports" /><div class="cap">A Personal income &amp; expenses report.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 38</span></div>
+</section>
+
+<section class="sheet">
+  <p>Click <strong>Export</strong> for the same CSV, XLSX, and PDF choices as everywhere else — each one opens a native Save dialog with a suggested file name that you can rename or redirect before saving, exactly as described in Section 10.</p>
+  <div class="fig"><img src="assets/personal-reports-export.png" alt="Personal report export menu" /><div class="cap">The Export menu on a Personal report.</div></div>
+  <h2 class="sub-title">AI Insights</h2>
+  <p>The same Groq-powered chat assistant as the Business side (Section 11), scoped to your personal transactions, budgets, and goals instead. Start with <strong>+ New chat</strong> or one of the suggested prompts, and it shares the same daily quota and Groq-key setup described in Section 11.</p>
+  <div class="fig narrow"><img src="assets/personal-ai-insights.png" alt="Personal AI Insights" /><div class="cap">AI Insights, scoped to your personal finances.</div></div>
+  <div class="footer"><span>Ledgerly User Guide</span><span>Page 39</span></div>
 </section>
 
 </body>
