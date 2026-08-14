@@ -1,12 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { House, Wallet, ChartPieSlice, Receipt, PiggyBank } from "@phosphor-icons/react";
+import { House, Article, PiggyBank, Calendar, Target } from "@phosphor-icons/react";
 
 const tabs = [
   { to: "/", label: "Home", Icon: House, end: true },
-  { to: "/transactions", label: "Transactions", Icon: Wallet },
-  { to: "/budgets", label: "Budgets", Icon: ChartPieSlice },
-  { to: "/bills", label: "Bills", Icon: Receipt },
-  { to: "/goals", label: "Goals", Icon: PiggyBank },
+  { to: "/transactions", label: "Transactions", Icon: Article },
+  { to: "/budgets", label: "Budgets", Icon: PiggyBank },
+  { to: "/bills", label: "Bills", Icon: Calendar },
+  { to: "/goals", label: "Goals", Icon: Target },
 ];
 
 export default function BottomNav() {
