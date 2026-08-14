@@ -5,18 +5,29 @@ filter convention.
 """
 import asyncio
 import calendar
+import csv
+import io
 import json
 import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Literal, Optional
 
+import openpyxl
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from groq import AsyncGroq, AuthenticationError as GroqAuthenticationError, RateLimitError as GroqRateLimitError, APIStatusError as GroqAPIStatusError
 from pydantic import BaseModel
+from reportlab.lib.pagesizes import LETTER
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 
-from server import db, get_current_user, now_utc, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, _send_one_push, _resolve_ai_key, _weeks_in_month
+from server import (
+    db, get_current_user, now_utc, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, _send_one_push,
+    _resolve_ai_key, _weeks_in_month, _fmt_date, _pnl_rows, _pnl_pdf_story, _pdf_ledgerly_header,
+)
 
 personal_router = APIRouter(prefix="/api/personal")
 
@@ -255,6 +266,85 @@ async def personal_dashboard_series(
         },
         "transactions_count": len(txs),
     }
+
+
+# ---- Reports (income & expenses only - personal_transactions has no
+# tax_amount field, so there's no personal equivalent of business's
+# separate /reports/tax + tax export) ----
+async def _personal_pnl(start: str, end: str, user: dict) -> dict:
+    txs = await db.personal_transactions.find(
+        {"user_id": user["user_id"], "date": {"$gte": start, "$lte": end}}, {"_id": 0}
+    ).to_list(20000)
+    income_by_cat, expense_by_cat = {}, {}
+    for t in txs:
+        bucket = income_by_cat if t["type"] == "income" else expense_by_cat
+        bucket[t["category"]] = bucket.get(t["category"], 0) + t["amount"]
+    total_income = sum(income_by_cat.values())
+    total_expense = sum(expense_by_cat.values())
+    return {
+        "start": start, "end": end,
+        "income": [{"category": k, "amount": round(v, 2)} for k, v in income_by_cat.items()],
+        "expenses": [{"category": k, "amount": round(v, 2)} for k, v in expense_by_cat.items()],
+        "total_income": round(total_income, 2),
+        "total_expense": round(total_expense, 2),
+        "net": round(total_income - total_expense, 2),
+    }
+
+@personal_router.get("/reports/pnl")
+async def personal_pnl_report(start: str = Query(...), end: str = Query(...), user=Depends(get_current_user)):
+    return await _personal_pnl(start, end, user)
+
+@personal_router.get("/export/pnl")
+async def export_personal_pnl(
+    format: str = Query("csv"), start: str = Query(...), end: str = Query(...), user=Depends(get_current_user),
+):
+    data = await _personal_pnl(start, end, user)
+    rows_iter = list(_pnl_rows(data))
+
+    if format == "csv":
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        for row in rows_iter:
+            writer.writerow(row)
+        content = buf.getvalue().encode("utf-8")
+        return StreamingResponse(
+            io.BytesIO(content), media_type="text/csv",
+            headers={"Content-Disposition": 'attachment; filename="income_expenses.csv"'},
+        )
+    elif format == "xlsx":
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Income & Expenses"
+        for row in rows_iter:
+            ws.append(row)
+        for cell in ws[1]:
+            cell.font = openpyxl.styles.Font(bold=True)
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return StreamingResponse(
+            buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": 'attachment; filename="income_expenses.xlsx"'},
+        )
+    elif format == "pdf":
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=LETTER, leftMargin=0.6 * inch, rightMargin=0.6 * inch, topMargin=0.5 * inch, bottomMargin=0.5 * inch)
+        styles = getSampleStyleSheet()
+        story = _pdf_ledgerly_header(styles)
+        label_style = ParagraphStyle('rlabel', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor("#64748b"))
+        range_style = ParagraphStyle('rtitle', parent=styles['Heading1'], fontSize=20, textColor=colors.HexColor("#0f172a"), spaceBefore=2)
+        story.append(Paragraph(f"<b>INCOME &amp; EXPENSES</b> &middot; {user.get('name')}", label_style))
+        story.append(Paragraph(f"{_fmt_date(start)} to {_fmt_date(end)}", range_style))
+        story.append(Spacer(1, 10))
+        story.extend(_pnl_pdf_story(data, user.get("currency", "USD")))
+        doc.build(story)
+        buf.seek(0)
+        return StreamingResponse(
+            buf, media_type="application/pdf",
+            headers={"Content-Disposition": 'attachment; filename="income_expenses.pdf"'},
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Unknown format")
 
 
 # ---- Budgets ----
