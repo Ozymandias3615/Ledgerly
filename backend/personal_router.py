@@ -22,11 +22,11 @@ from reportlab.lib.pagesizes import LETTER
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
 from server import (
     db, get_current_user, now_utc, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, _send_one_push,
-    _resolve_ai_key, _weeks_in_month, _fmt_date, _pnl_rows, _pnl_pdf_story, _pdf_ledgerly_header,
+    _resolve_ai_key, _weeks_in_month, _fmt, _fmt_date, _pnl_rows, _pnl_pdf_story, _pdf_ledgerly_header,
 )
 
 personal_router = APIRouter(prefix="/api/personal")
@@ -342,6 +342,145 @@ async def export_personal_pnl(
         return StreamingResponse(
             buf, media_type="application/pdf",
             headers={"Content-Disposition": 'attachment; filename="income_expenses.pdf"'},
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Unknown format")
+
+def _months_in_range(start: str, end: str) -> int:
+    """Same accounting as the frontend's monthsInRange - a budget's
+    monthly_limit is a single ongoing value, not versioned per month, so
+    comparing it against a multi-month range means scaling by how many
+    calendar months the range touches."""
+    s = datetime.fromisoformat(start)
+    e = datetime.fromisoformat(end)
+    if e < s:
+        return 0
+    return max((e.year - s.year) * 12 + (e.month - s.month) + 1, 0)
+
+def _category_export_rows(category: str, txs: list, budget_info: Optional[dict]):
+    if budget_info:
+        yield ["Metric", "Value"]
+        yield ["Category", category]
+        yield ["Monthly limit", budget_info["monthly_limit"]]
+        yield ["Months in period", budget_info["months"]]
+        yield ["Limit over period", budget_info["period_limit"]]
+        yield ["Total spent", budget_info["total"]]
+        over = budget_info["total"] > budget_info["period_limit"]
+        yield ["Over by" if over else "Under by", round(abs(budget_info["period_limit"] - budget_info["total"]), 2)]
+        yield []
+    yield ["Date", "Type", "Description", "Amount", "Currency"]
+    for t in txs:
+        yield [_fmt_date(t["date"]), t["type"], t.get("description", ""), t["amount"], t.get("currency", "USD")]
+
+@personal_router.get("/export/category")
+async def export_personal_category(
+    format: str = Query("csv"),
+    category: str = Query(...),
+    start: str = Query(...),
+    end: str = Query(...),
+    budget_id: Optional[str] = Query(None),
+    user=Depends(get_current_user),
+):
+    txs = await db.personal_transactions.find(
+        {"user_id": user["user_id"], "category": category, "date": {"$gte": start, "$lte": end}}, {"_id": 0}
+    ).sort("date", -1).to_list(20000)
+    total = round(sum(t["amount"] for t in txs), 2)
+
+    budget_info = None
+    if budget_id:
+        budget = await db.personal_budgets.find_one({"id": budget_id, "user_id": user["user_id"]}, {"_id": 0})
+        if budget:
+            months = _months_in_range(start, end)
+            budget_info = {
+                "monthly_limit": budget["monthly_limit"],
+                "months": months,
+                "period_limit": round(budget["monthly_limit"] * months, 2),
+                "total": total,
+            }
+
+    rows_iter = list(_category_export_rows(category, txs, budget_info))
+    safe_name = "".join(c if c.isalnum() else "_" for c in category.lower())
+
+    if format == "csv":
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        for row in rows_iter:
+            writer.writerow(row)
+        content = buf.getvalue().encode("utf-8")
+        return StreamingResponse(
+            io.BytesIO(content), media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}_report.csv"'},
+        )
+    elif format == "xlsx":
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = category[:31] or "Report"
+        for row in rows_iter:
+            ws.append(row)
+        header_row = 9 if budget_info else 1
+        for cell in ws[header_row]:
+            cell.font = openpyxl.styles.Font(bold=True)
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return StreamingResponse(
+            buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}_report.xlsx"'},
+        )
+    elif format == "pdf":
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=LETTER, leftMargin=0.6 * inch, rightMargin=0.6 * inch, topMargin=0.5 * inch, bottomMargin=0.5 * inch)
+        styles = getSampleStyleSheet()
+        story = _pdf_ledgerly_header(styles)
+        label_style = ParagraphStyle('rlabel', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor("#64748b"))
+        range_style = ParagraphStyle('rtitle', parent=styles['Heading1'], fontSize=20, textColor=colors.HexColor("#0f172a"), spaceBefore=2)
+        story.append(Paragraph(f"<b>{'BUDGET' if budget_info else 'CATEGORY'} REPORT</b> &middot; {user.get('name')}", label_style))
+        story.append(Paragraph(category, range_style))
+        story.append(Paragraph(f"{_fmt_date(start)} to {_fmt_date(end)}", label_style))
+        story.append(Spacer(1, 10))
+
+        if budget_info:
+            over = budget_info["total"] > budget_info["period_limit"]
+            metrics = [
+                ["Monthly limit", _fmt(budget_info["monthly_limit"], user.get("currency", "USD"))],
+                ["Limit over period", _fmt(budget_info["period_limit"], user.get("currency", "USD"))],
+                ["Total spent", _fmt(budget_info["total"], user.get("currency", "USD"))],
+                ["Over by" if over else "Under by", _fmt(abs(budget_info["period_limit"] - budget_info["total"]), user.get("currency", "USD"))],
+            ]
+            mtbl = Table(metrics, colWidths=[2.8 * inch, 2.8 * inch])
+            mtbl.setStyle(TableStyle([
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor("#0f172a")),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+            ]))
+            story.append(mtbl)
+            story.append(Spacer(1, 14))
+
+        tx_header = ["Date", "Type", "Description", "Amount", "Currency"]
+        tx_rows = [tx_header] + [
+            [_fmt_date(t["date"]), t["type"], t.get("description", ""), _fmt(t["amount"], t.get("currency", user.get("currency", "USD"))), t.get("currency", "USD")]
+            for t in txs
+        ]
+        ttbl = Table(tx_rows, repeatRows=1)
+        ttbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor("#e2e8f0")),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        story.append(ttbl)
+
+        doc.build(story)
+        buf.seek(0)
+        return StreamingResponse(
+            buf, media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}_report.pdf"'},
         )
     else:
         raise HTTPException(status_code=400, detail="Unknown format")
