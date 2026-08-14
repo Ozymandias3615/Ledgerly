@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { fmt, currencySymbol, CURRENCIES, loadPersisted, savePersisted } from "@/lib/utils_app";
+import { fmt, fmtDate, currencySymbol, CURRENCIES, loadPersisted, savePersisted } from "@/lib/utils_app";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, Cell, Legend, ReferenceLine,
@@ -132,6 +132,38 @@ function KPI({ label, value, delta, Icon, tone = "default", testId }) {
       </div>
       {delta && <div className="text-xs text-slate-500 mt-2">{delta}</div>}
     </Card>
+  );
+}
+
+// Date range for the top KPI row only (Revenue/Expenses/Net Profit - flows
+// that naturally belong to a period). Outstanding is left out on purpose:
+// it's a current balance (invoices unpaid right now), not a flow, so it
+// wouldn't mean the same thing scoped to a past range - see KPI row below.
+const DASHBOARD_RANGE_KEY = "ledgerly:dashboard:kpi-range";
+
+function KpiRangeFilter({ range, setRange }) {
+  const isAllTime = !range.start && !range.end;
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <Input
+        type="date" value={range.start} onChange={(e) => setRange({ ...range, start: e.target.value })}
+        className="h-7 w-[135px] text-xs md:text-xs px-2" data-testid="dashboard-kpi-range-start"
+      />
+      <span className="text-xs text-slate-400">to</span>
+      <Input
+        type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })}
+        className="h-7 w-[135px] text-xs md:text-xs px-2" data-testid="dashboard-kpi-range-end"
+      />
+      {!isAllTime && (
+        <button
+          type="button" onClick={() => setRange({ start: "", end: "" })}
+          className="text-xs text-slate-400 hover:text-slate-700 underline underline-offset-2"
+          data-testid="dashboard-kpi-range-clear"
+        >
+          All time
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -610,11 +642,16 @@ function LowStockBanner() {
 export default function DashboardPage() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
+  const [range, setRange] = useState(() => loadPersisted(DASHBOARD_RANGE_KEY, { start: "", end: "" }));
   const cur = user?.currency || "USD";
+  const isAllTime = !range.start && !range.end;
+
+  useEffect(() => { savePersisted(DASHBOARD_RANGE_KEY, range); }, [range]);
 
   useEffect(() => {
-    api.get("/reports/dashboard").then((r) => setData(r.data));
-  }, []);
+    api.get("/reports/dashboard", { params: { start: range.start || undefined, end: range.end || undefined } })
+      .then((r) => setData(r.data));
+  }, [range.start, range.end]);
 
   if (!data) return <div className="p-10 text-slate-500" data-testid="dashboard-loading">Loading dashboard...</div>;
 
@@ -625,16 +662,23 @@ export default function DashboardPage() {
       <div>
         <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Overview</div>
         <h1 className="text-4xl font-extrabold tracking-tight mt-1" style={{ fontFamily: "Manrope, sans-serif" }}>Welcome, {user?.name?.split(" ")[0]}</h1>
-        <div className="text-sm text-slate-500 mt-1">Financial pulse for {user?.business_name} — all-time totals</div>
+        <div className="text-sm text-slate-500 mt-1">
+          Financial pulse for {user?.business_name} — {isAllTime ? "all-time totals" : `${fmtDate(range.start)} → ${fmtDate(range.end)}`}
+        </div>
       </div>
 
       <LowStockBanner />
+
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Revenue · Expenses · Net Profit period</div>
+        <KpiRangeFilter range={range} setRange={setRange} />
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPI label="Revenue" value={fmt(t.income, cur)} Icon={TrendUp} tone="success" testId="kpi-income" />
         <KPI label="Expenses" value={fmt(t.expenses, cur)} Icon={TrendDown} tone="danger" testId="kpi-expenses" />
         <KPI label="Net Profit" value={fmt(t.net, cur)} Icon={ArrowsDownUp} tone={t.net >= 0 ? "success" : "danger"} testId="kpi-net" />
-        <KPI label="Outstanding" value={fmt(t.invoices_outstanding, cur)} Icon={FileText} testId="kpi-outstanding" />
+        <KPI label="Outstanding" value={fmt(t.invoices_outstanding, cur)} delta={!isAllTime ? "As of today, not the selected period" : undefined} Icon={FileText} testId="kpi-outstanding" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -1518,10 +1518,25 @@ async def exchange_rates(base: str = Query("USD")):
 
 # ---- Reports ----
 @api_router.get("/reports/dashboard")
-async def dashboard_report(user=Depends(get_current_user)):
+async def dashboard_report(
+    start: Optional[str] = Query(None, description="Scope Revenue/Expenses/Net Profit to this date (inclusive) onward"),
+    end: Optional[str] = Query(None, description="Scope Revenue/Expenses/Net Profit through this date (inclusive)"),
+    user=Depends(get_current_user),
+):
     txs = await db.transactions.find({"business_id": user["business_id"]}, {"_id": 0}).to_list(5000)
-    income = sum(t["amount"] for t in txs if t["type"] == "income")
-    expenses = sum(t["amount"] for t in txs if t["type"] == "expense")
+
+    # Revenue/Expenses/Net Profit are flows, so they're scoped to the
+    # optional date range. Outstanding is a current balance (invoices unpaid
+    # right now) rather than a flow, so it's computed from all invoices below
+    # regardless of this range - see dashboard_report's outstanding calc.
+    ranged_txs = txs
+    if start:
+        ranged_txs = [t for t in ranged_txs if t.get("date", "") >= start]
+    if end:
+        ranged_txs = [t for t in ranged_txs if t.get("date", "") <= end]
+
+    income = sum(t["amount"] for t in ranged_txs if t["type"] == "income")
+    expenses = sum(t["amount"] for t in ranged_txs if t["type"] == "expense")
     tax = sum(t.get("tax_amount", 0) or 0 for t in txs)
 
     # monthly series (last 12 months)
