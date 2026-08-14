@@ -36,8 +36,9 @@ services:
       - key: SENTRY_DSN
         sync: false
 
-  - type: static
+  - type: web
     name: ledgerly-mobile
+    runtime: static
     rootDir: mobile
     buildCommand: npm install && npm run build
     staticPublishPath: dist
@@ -61,8 +62,9 @@ services:
         source: /*
         destination: /index.html
 
-  - type: static
+  - type: web
     name: ledgerly-pulse
+    runtime: static
     rootDir: pulse
     buildCommand: npm install && npm run build
     staticPublishPath: dist
