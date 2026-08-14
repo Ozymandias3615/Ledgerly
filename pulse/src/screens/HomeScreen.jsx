@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Article, PiggyBank, Calendar, Target, CaretRight, SignOut } from "@phosphor-icons/react";
+import { Article, PiggyBank, Calendar, Target, CaretRight, SignOut, Bell, Gear } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { clearToken, getUser } from "../lib/auth";
 import { fmtAmount } from "../lib/format";
+import { useUnreadCount } from "../lib/notifications";
+import { unsubscribeFromPush } from "../lib/push";
 import Brand from "../components/Brand";
-import ThemeToggle from "../components/ThemeToggle";
 import AppShell from "../components/AppShell";
 
 function currentMonthKey() {
@@ -45,7 +46,12 @@ export default function HomeScreen() {
     };
   }, []);
 
-  const handleLogout = () => {
+  const unreadCount = useUnreadCount();
+
+  const handleLogout = async () => {
+    // Best-effort - the subscription record just goes stale (and gets
+    // pruned on its next 404/410) if this fails for any reason.
+    await unsubscribeFromPush().catch(() => {});
     clearToken();
     navigate("/login");
   };
@@ -55,7 +61,22 @@ export default function HomeScreen() {
       <div className="screen screen-narrow">
         <div className="top-row">
           <Brand />
-          <ThemeToggle />
+          <div className="top-row-left">
+            <button
+              type="button"
+              className="icon-btn"
+              style={{ position: "relative" }}
+              aria-label="Notifications"
+              title="Notifications"
+              onClick={() => navigate("/notifications")}
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+            </button>
+            <button type="button" className="icon-btn" aria-label="Settings" title="Settings" onClick={() => navigate("/settings")}>
+              <Gear size={18} />
+            </button>
+          </div>
         </div>
         <div className="eyebrow">Welcome</div>
         <h2 className="heading">{user?.name || "Hi there"}</h2>

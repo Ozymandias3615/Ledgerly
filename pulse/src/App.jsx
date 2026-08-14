@@ -9,6 +9,8 @@ import BudgetsScreen from "./screens/BudgetsScreen";
 import BillsScreen from "./screens/BillsScreen";
 import GoalsScreen from "./screens/GoalsScreen";
 import GoalDetailScreen from "./screens/GoalDetailScreen";
+import SettingsScreen from "./screens/SettingsScreen";
+import NotificationsScreen from "./screens/NotificationsScreen";
 import { isAuthenticated } from "./lib/auth";
 
 function RequireAuth({ children }) {
@@ -96,6 +98,22 @@ export default function App() {
         element={
           <RequireAuth>
             <GoalDetailScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <RequireAuth>
+            <SettingsScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/notifications"
+        element={
+          <RequireAuth>
+            <NotificationsScreen />
           </RequireAuth>
         }
       />

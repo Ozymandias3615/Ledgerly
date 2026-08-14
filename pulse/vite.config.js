@@ -6,9 +6,13 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // generateSW (not mobile/'s custom injectManifest) - Pulse has no push
-      // notifications yet, so there's no custom service worker to write, just
-      // app-shell precaching for installability.
+      // injectManifest (a custom src/sw.js, precompiled by vite-plugin-pwa)
+      // instead of generateSW - needed so the service worker can also handle
+      // push/notificationclick events, not just precaching. Mirrors
+      // mobile/vite.config.js exactly.
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.js",
       registerType: "autoUpdate",
       manifest: {
         name: "LedgerlyPulse",
@@ -23,6 +27,17 @@ export default defineConfig({
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
+      },
+      injectManifest: {
+        // App-shell caching only - every screen still needs the network for
+        // auth/data, so there's no offline data path to cache.
+        globPatterns: ["**/*.{js,css,html}"],
+      },
+      // Registers the service worker under `vite dev` too (off by default) -
+      // without this, navigator.serviceWorker.ready never resolves locally.
+      devOptions: {
+        enabled: true,
+        type: "module",
       },
     }),
   ],
