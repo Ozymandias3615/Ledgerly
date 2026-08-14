@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -10,6 +11,7 @@ import { toast } from "sonner";
 
 export default function BusinessSwitcher() {
   const { user, refresh } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [memberships, setMemberships] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -38,6 +40,7 @@ export default function BusinessSwitcher() {
       await refresh();
       toast.success("Switched business");
       setOpen(false);
+      navigate("/dashboard");
     } catch (err) {
       toast.error(formatApiError(err));
     }
@@ -50,6 +53,7 @@ export default function BusinessSwitcher() {
       await refresh();
       toast.success("Switched to Personal");
       setOpen(false);
+      navigate("/personal/dashboard");
     } catch (err) {
       toast.error(formatApiError(err));
     }

@@ -19,6 +19,11 @@ import ReportsPage from "@/pages/ReportsPage";
 import InsightsPage from "@/pages/InsightsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import HelpPage from "@/pages/HelpPage";
+import PersonalDashboardPage from "@/pages/PersonalDashboardPage";
+import PersonalTransactionsPage from "@/pages/PersonalTransactionsPage";
+import PersonalBudgetsPage from "@/pages/PersonalBudgetsPage";
+import PersonalBillsPage from "@/pages/PersonalBillsPage";
+import PersonalGoalsPage from "@/pages/PersonalGoalsPage";
 import AppLayout from "@/components/AppLayout";
 
 function Protected({ children }) {
@@ -56,6 +61,11 @@ function AppRouter() {
       <Route path="/insights" element={<Protected><InsightsPage /></Protected>} />
       <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
       <Route path="/help" element={<Protected><HelpPage /></Protected>} />
+      <Route path="/personal/dashboard" element={<Protected><PersonalDashboardPage /></Protected>} />
+      <Route path="/personal/transactions" element={<Protected><PersonalTransactionsPage /></Protected>} />
+      <Route path="/personal/budgets" element={<Protected><PersonalBudgetsPage /></Protected>} />
+      <Route path="/personal/bills" element={<Protected><PersonalBillsPage /></Protected>} />
+      <Route path="/personal/goals" element={<Protected><PersonalGoalsPage /></Protected>} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

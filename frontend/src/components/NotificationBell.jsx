@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Bell, FileText, Package, Users, X } from "@phosphor-icons/react";
+import { Bell, FileText, Package, Users, Calendar, X } from "@phosphor-icons/react";
 
 const TYPE_ICON = {
   invoice_created: FileText,
@@ -15,6 +16,7 @@ const TYPE_ICON = {
   employee_added: Users,
   employee_removed: Users,
   team_joined: Users,
+  bill_due_soon: Calendar,
 };
 
 function timeAgo(iso) {
@@ -29,6 +31,8 @@ function timeAgo(iso) {
 }
 
 export default function NotificationBell() {
+  const { user } = useAuth();
+  const base = user?.active_context === "personal" ? "/personal/notifications" : "/notifications";
   const [items, setItems] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
@@ -66,7 +70,7 @@ export default function NotificationBell() {
 
   const refresh = useCallback(async () => {
     try {
-      const { data } = await api.get("/notifications");
+      const { data } = await api.get(base);
       setItems(data.items);
       setUnreadCount(data.unread_count);
 
@@ -80,7 +84,7 @@ export default function NotificationBell() {
     } catch (e) {
       // Notifications are non-critical - fail silently.
     }
-  }, [notifyNatively]);
+  }, [notifyNatively, base]);
 
   useEffect(() => {
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
@@ -99,7 +103,7 @@ export default function NotificationBell() {
     await refresh();
     if (unreadCount > 0 || items.some((n) => !n.read)) {
       setUnreadCount(0);
-      api.post("/notifications/read-all").catch(() => {});
+      api.post(`${base}/read-all`).catch(() => {});
     }
   };
 
@@ -111,13 +115,13 @@ export default function NotificationBell() {
     e.stopPropagation();
     setItems([]);
     setUnreadCount(0);
-    await api.delete("/notifications").catch(() => {});
+    await api.delete(base).catch(() => {});
   };
 
   const dismiss = async (e, id) => {
     e.stopPropagation();
     setItems((prev) => prev.filter((n) => n.id !== id));
-    await api.delete(`/notifications/${id}`).catch(() => {});
+    await api.delete(`${base}/${id}`).catch(() => {});
   };
 
   return (

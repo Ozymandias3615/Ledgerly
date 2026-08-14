@@ -1,7 +1,7 @@
 import React from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { House, Receipt, FileText, AddressBook, Package, Users, ChartLine, Sparkle, Gear, SignOut, Wallet, Question } from "@phosphor-icons/react";
+import { House, Receipt, FileText, AddressBook, Package, Users, ChartLine, Sparkle, Gear, SignOut, Wallet, Question, Article, PiggyBank, Calendar, Target } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import BusinessSwitcher from "@/components/BusinessSwitcher";
@@ -17,6 +17,14 @@ const nav = [
   { to: "/payroll", label: "Payroll", Icon: Users, testId: "nav-payroll" },
   { to: "/reports", label: "Reports", Icon: ChartLine, testId: "nav-reports" },
   { to: "/insights", label: "AI Insights", Icon: Sparkle, testId: "nav-insights" },
+];
+
+const personalNav = [
+  { to: "/personal/dashboard", label: "Dashboard", Icon: House, testId: "nav-personal-dashboard" },
+  { to: "/personal/transactions", label: "Transactions", Icon: Article, testId: "nav-personal-transactions" },
+  { to: "/personal/budgets", label: "Budgets", Icon: PiggyBank, testId: "nav-personal-budgets" },
+  { to: "/personal/bills", label: "Bills", Icon: Calendar, testId: "nav-personal-bills" },
+  { to: "/personal/goals", label: "Goals", Icon: Target, testId: "nav-personal-goals" },
 ];
 
 // A NavLink whose active background is a single shared element (layoutId):
@@ -54,7 +62,8 @@ export default function AppLayout({ children }) {
   const { user, logout, refreshNonce } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const visibleNav = nav.filter((item) => item.to !== "/payroll" || user?.role !== "staff");
+  const activeNav = user?.active_context === "personal" ? personalNav : nav;
+  const visibleNav = activeNav.filter((item) => item.to !== "/payroll" || user?.role !== "staff");
   // Remounts the routed page whenever the active business changes (automatic
   // refresh) or the manual refresh button is clicked, so every page re-fetches
   // its data instead of showing stale content from the previous business.
