@@ -2334,12 +2334,22 @@ async def root():
 
 app.include_router(api_router)
 
+# Imported down here (not with the other imports at the top) because
+# personal_router.py itself does `from server import db, get_current_user,
+# now_utc` - by this point in module execution those names already exist on
+# this (partially-initialized) module, so the circular import resolves fine.
+from personal_router import personal_router
+app.include_router(personal_router)
+
 # CORS - allow specific origins (wildcard + credentials is rejected by browsers)
 _frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 _mobile_url = os.environ.get("MOBILE_URL")
-_cors_origins = [_frontend_url, "http://localhost:3000", "http://127.0.0.1:5050", "http://localhost:5173"]
+_pulse_url = os.environ.get("PULSE_URL")
+_cors_origins = [_frontend_url, "http://localhost:3000", "http://127.0.0.1:5050", "http://localhost:5173", "http://localhost:5174"]
 if _mobile_url:
     _cors_origins.append(_mobile_url)
+if _pulse_url:
+    _cors_origins.append(_pulse_url)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
