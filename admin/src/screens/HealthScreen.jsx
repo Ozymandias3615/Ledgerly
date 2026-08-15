@@ -22,12 +22,23 @@ const levelColor = {
 function SentryIssues() {
   const [issues, setIssues] = useState(null);
   const [error, setError] = useState("");
+  const [resolvingId, setResolvingId] = useState(null);
 
   useEffect(() => {
     api.get("/admin/sentry/issues")
       .then(({ data }) => setIssues(data))
       .catch((err) => setError(err.response?.data?.detail || "Failed to load Sentry issues"));
   }, []);
+
+  const resolveIssue = (e, issueId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResolvingId(issueId);
+    api.post(`/admin/sentry/issues/${issueId}/resolve`)
+      .then(() => setIssues((prev) => prev.filter((i) => i.id !== issueId)))
+      .catch((err) => setError(err.response?.data?.detail || "Failed to resolve issue"))
+      .finally(() => setResolvingId(null));
+  };
 
   return (
     <div className="card card-pad">
@@ -54,7 +65,18 @@ function SentryIssues() {
                   {issue.title}
                   <ArrowSquareOut size={12} className="muted" />
                 </span>
-                <span className="muted" style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>{issue.count}× · {formatRelative(issue.last_seen)}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: "0.6rem", whiteSpace: "nowrap" }}>
+                  <span className="muted" style={{ fontSize: "0.75rem" }}>{issue.count}× · {formatRelative(issue.last_seen)}</span>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    style={{ padding: "0.15rem 0.5rem", fontSize: "0.75rem" }}
+                    disabled={resolvingId === issue.id}
+                    onClick={(e) => resolveIssue(e, issue.id)}
+                  >
+                    {resolvingId === issue.id ? "Resolving…" : "Resolve"}
+                  </button>
+                </span>
               </div>
               {issue.culprit && <div className="muted" style={{ fontSize: "0.75rem", marginTop: "0.15rem" }}>{issue.culprit}</div>}
             </a>

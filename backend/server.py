@@ -2691,6 +2691,23 @@ async def admin_sentry_issues(admin=Depends(require_admin)):
     ]
 
 
+@api_router.post("/admin/sentry/issues/{issue_id}/resolve")
+async def admin_sentry_resolve_issue(issue_id: str, admin=Depends(require_admin)):
+    if not (SENTRY_AUTH_TOKEN and SENTRY_ORG_SLUG):
+        raise HTTPException(status_code=400, detail="Sentry API isn't configured (SENTRY_AUTH_TOKEN/SENTRY_ORG_SLUG)")
+
+    async with httpx.AsyncClient() as http_client:
+        resp = await http_client.put(
+            f"https://sentry.io/api/0/organizations/{SENTRY_ORG_SLUG}/issues/{issue_id}/",
+            headers={"Authorization": f"Bearer {SENTRY_AUTH_TOKEN}"},
+            json={"status": "resolved"},
+            timeout=10,
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Sentry API error ({resp.status_code})")
+    return {"resolved": True}
+
+
 @api_router.get("/admin/sentry-debug")
 async def admin_sentry_debug(admin=Depends(require_admin)):
     """Captures a synthetic error so Sentry capture can be verified end-to-end.
