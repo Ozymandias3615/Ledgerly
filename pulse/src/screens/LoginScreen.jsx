@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
+import { Eye, EyeSlash } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { isAuthenticated, setSession } from "../lib/auth";
 import { auth } from "../lib/firebase";
@@ -11,6 +12,7 @@ export default function LoginScreen() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const googleButtonRef = useRef(null);
@@ -116,13 +118,24 @@ export default function LoginScreen() {
         </label>
         <label>
           Password
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          <div className="password-field">
+            <input
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              tabIndex={-1}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() => setShowPassword((v) => !v)}
+            >
+              {showPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
         </label>
         {error && <p className="error-text">{error}</p>}
         <button type="submit" className="btn-primary" disabled={loading}>
