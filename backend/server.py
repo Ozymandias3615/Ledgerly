@@ -87,42 +87,48 @@ SENTRY_ENABLED = bool(SENTRY_DSN) and bool(os.environ.get("RENDER"))
 if SENTRY_ENABLED:
     sentry_sdk.init(dsn=SENTRY_DSN, send_default_pii=True)
 
-# Support-inbox email alerts - no-ops if RESEND_API_KEY isn't set, same
-# pattern as SENTRY_DSN/VAPID above. Raw SMTP (smtplib to Gmail) was tried
-# first but Render blocks outbound SMTP (ports 25/465/587) on standard
-# plans to prevent abuse - confirmed via Sentry capturing "OSError: [Errno
-# 101] Network is unreachable" on every send attempt, not a credentials
-# problem. Resend sends over HTTPS instead, which isn't blocked.
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
-RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Ledgerly Support <onboarding@resend.dev>")
+# Support-inbox email alerts - no-ops if SENDGRID_API_KEY isn't set, same
+# pattern as SENTRY_DSN/VAPID above. Two earlier attempts failed: raw SMTP
+# (smtplib to Gmail) is blocked at the network level by Render on standard
+# plans ("OSError: [Errno 101] Network is unreachable"), and Resend rejected
+# every send ("The domain is invalid") since it only sends from a fully
+# DNS-verified domain, which this project doesn't have. SendGrid's Single
+# Sender Verification (verify one address by clicking a confirmation email,
+# no DNS/domain ownership needed) is the fit here - SENDGRID_FROM_EMAIL must
+# be exactly whatever address was verified that way.
+SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
 SUPPORT_ALERT_EMAIL = "n.abbiw10@gmail.com"
+SENDGRID_FROM_EMAIL = os.environ.get("SENDGRID_FROM_EMAIL", SUPPORT_ALERT_EMAIL)
 
 async def _send_support_alert_email(user_name: str, user_email: str, preview: str) -> None:
     """Never let this fail the request that triggered it - always call from
     inside a try/except that logs rather than raises."""
-    if not RESEND_API_KEY:
+    if not SENDGRID_API_KEY:
         return
     async with httpx.AsyncClient() as http_client:
         resp = await http_client.post(
-            "https://api.resend.com/emails",
-            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {SENDGRID_API_KEY}"},
             json={
-                "from": RESEND_FROM_EMAIL,
-                "to": [SUPPORT_ALERT_EMAIL],
+                "personalizations": [{"to": [{"email": SUPPORT_ALERT_EMAIL}]}],
+                "from": {"email": SENDGRID_FROM_EMAIL, "name": "Ledgerly Support"},
                 "subject": f"New Ledgerly support message from {user_name}",
-                "text": (
-                    f"{user_name} ({user_email}) sent a new support message:\n\n{preview}\n\n"
-                    f"Reply from the admin panel: https://ledgerly-admin.onrender.com/support"
-                ),
+                "content": [{
+                    "type": "text/plain",
+                    "value": (
+                        f"{user_name} ({user_email}) sent a new support message:\n\n{preview}\n\n"
+                        f"Reply from the admin panel: https://ledgerly-admin.onrender.com/support"
+                    ),
+                }],
             },
             timeout=10,
         )
         if resp.status_code >= 400:
-            # httpx.HTTPStatusError's default message doesn't include the
-            # response body, and the body is exactly what explains a 422
-            # (Resend rejected something in the payload) - include it so the
-            # next failure is diagnosable from Sentry alone.
-            raise RuntimeError(f"Resend API error {resp.status_code}: {resp.text[:500]}")
+            # SendGrid's error body explains exactly what's wrong (unverified
+            # sender, bad API key scope, etc.) - include it so the next
+            # failure is diagnosable from Sentry alone, same lesson as the
+            # Resend attempt above.
+            raise RuntimeError(f"SendGrid API error {resp.status_code}: {resp.text[:500]}")
 
 
 # Separate from SENTRY_DSN (which only lets *this* process report errors) -
