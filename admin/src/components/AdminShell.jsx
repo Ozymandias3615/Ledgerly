@@ -1,0 +1,58 @@
+import { useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { Key, ShieldCheck, SignOut } from "@phosphor-icons/react";
+import { clearToken, getUser } from "../lib/auth";
+import Toaster from "./Toaster";
+import SetPasswordModal from "./SetPasswordModal";
+
+const tabs = [
+  { to: "/users", label: "Users" },
+  { to: "/businesses", label: "Businesses" },
+  { to: "/growth", label: "Growth" },
+  { to: "/health", label: "System health" },
+  { to: "/audit-log", label: "Audit log" },
+  { to: "/broadcast", label: "Broadcast" },
+];
+
+export default function AdminShell({ children }) {
+  const navigate = useNavigate();
+  const user = getUser();
+  const [showSetPassword, setShowSetPassword] = useState(false);
+
+  const signOut = () => {
+    clearToken();
+    navigate("/login");
+  };
+
+  return (
+    <div className="app-shell">
+      <div className="topbar">
+        <div className="brand">
+          <div className="brand-mark"><ShieldCheck size={16} weight="fill" /></div>
+          <div>
+            <div className="brand-name">Ledgerly Admin</div>
+            <div className="brand-tag">Internal</div>
+          </div>
+        </div>
+        <div className="topbar-right">
+          <div className="topbar-user">
+            <div>{user?.name}</div>
+            <div className="topbar-user-email">{user?.email}</div>
+          </div>
+          <button className="btn btn-outline" onClick={() => setShowSetPassword(true)}><Key size={14} /> Set password</button>
+          <button className="btn btn-outline" onClick={signOut}><SignOut size={14} /> Sign out</button>
+        </div>
+      </div>
+      <div className="tabs">
+        {tabs.map((t) => (
+          <NavLink key={t.to} to={t.to} className={({ isActive }) => `tab${isActive ? " active" : ""}`}>
+            {t.label}
+          </NavLink>
+        ))}
+      </div>
+      <div className="container">{children}</div>
+      <Toaster />
+      {showSetPassword && <SetPasswordModal onClose={() => setShowSetPassword(false)} />}
+    </div>
+  );
+}

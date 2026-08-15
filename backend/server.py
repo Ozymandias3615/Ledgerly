@@ -83,6 +83,17 @@ SENTRY_DSN = os.environ.get("SENTRY_DSN")
 if SENTRY_DSN:
     sentry_sdk.init(dsn=SENTRY_DSN, send_default_pii=True)
 
+# Separate from SENTRY_DSN (which only lets *this* process report errors) -
+# an auth token so the admin panel can read errors back out via Sentry's API.
+SENTRY_AUTH_TOKEN = os.environ.get("SENTRY_AUTH_TOKEN")
+SENTRY_ORG_SLUG = os.environ.get("SENTRY_ORG_SLUG")
+
+def _sentry_project_id() -> Optional[str]:
+    # DSN shape: https://<public_key>@o<org_id>.ingest.<region>.sentry.io/<project_id>
+    if not SENTRY_DSN:
+        return None
+    return SENTRY_DSN.rstrip("/").rsplit("/", 1)[-1]
+
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
@@ -266,6 +277,17 @@ def require_role(*roles):
             raise HTTPException(status_code=403, detail="Not authorized for this action")
         return user
     return checker
+
+
+# App-level admin access (not the per-business owner/admin role above) - a
+# fixed allowlist of the developer's own accounts, for the internal /admin
+# dashboard that lists every user across all businesses.
+ADMIN_EMAILS = {"nanabanyinabbiw12@gmail.com", "n.abbiw10@gmail.com"}
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("email") not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return user
 
 
 # ---- Auth models ----
@@ -522,11 +544,16 @@ async def google_session(payload: GoogleSessionIn, response: Response):
     email = data["email"].lower()
     existing = await db.users.find_one({"email": email})
     if existing:
-        if existing.get("password_hash"):
+        if existing.get("password_hash") and email not in ADMIN_EMAILS:
             # A password account isn't proof of email ownership, so a Google login
             # can't be silently merged into one — that would let anyone who
             # pre-registers a victim's email with a password of their own choosing
             # inherit whatever account the victim's real Google login lands on.
+            # ADMIN_EMAILS is exempt: those accounts can only ever gain a
+            # password_hash via the admin panel's own self-service "Set
+            # password" (server-side gated on already being signed in as that
+            # exact Google account), so there's no pre-registration risk to
+            # guard against for them specifically.
             raise HTTPException(status_code=409, detail="This email is already registered with a password. Sign in with your password instead.")
         user_id = existing["user_id"]
         await db.users.update_one({"user_id": user_id}, {"$set": {"name": data.get("name", existing.get("name")), "picture": data.get("picture", "")}})
@@ -569,10 +596,10 @@ async def firebase_session(payload: FirebaseSessionIn, response: Response):
     picture = decoded.get("picture", "")
     existing = await db.users.find_one({"email": email})
     if existing:
-        if existing.get("password_hash"):
-            # See the matching guard in google_session: a password account is not
-            # proof of email ownership, so a Firebase login can't be silently
-            # merged into one.
+        if existing.get("password_hash") and email not in ADMIN_EMAILS:
+            # See the matching guard (and its ADMIN_EMAILS exemption) in
+            # google_session: a password account is not proof of email
+            # ownership, so a Firebase login can't be silently merged into one.
             raise HTTPException(status_code=409, detail="This email is already registered with a password. Sign in with your password instead.")
         user_id = existing["user_id"]
         await db.users.update_one({"user_id": user_id}, {"$set": {"name": name, "picture": picture}})
@@ -1979,14 +2006,9 @@ async def export_account_data(user=Depends(get_current_user)):
                               headers={"Content-Disposition": 'attachment; filename="ledgerly-export.zip"'})
 
 
-@api_router.delete("/account")
-async def delete_account(payload: AccountDeleteIn, response: Response, user=Depends(get_current_user)):
-    user_id = user["user_id"]
-    full_user = await db.users.find_one({"user_id": user_id})
-    if full_user.get("password_hash"):
-        if not payload.password or not verify_password(payload.password, full_user["password_hash"]):
-            raise HTTPException(status_code=401, detail="Incorrect password")
-
+async def _delete_user_and_data(user_id: str):
+    """Wipe a user and everything scoped to them. Shared by the self-service
+    /account delete and the admin panel's force-delete."""
     memberships = await db.memberships.find({"user_id": user_id}, {"_id": 0}).to_list(200)
 
     # An owner can only be deleted (taking their business down with them) if
@@ -2002,8 +2024,8 @@ async def delete_account(payload: AccountDeleteIn, response: Response, user=Depe
     if blocking_names:
         raise HTTPException(
             status_code=409,
-            detail=f"You're the owner of {', '.join(blocking_names)}, which still has other members. "
-                   "Transfer ownership or remove all other members before deleting your account.",
+            detail=f"They're the owner of {', '.join(blocking_names)}, which still has other members. "
+                   "Transfer ownership or remove all other members before deleting this account.",
         )
 
     for m in memberships:
@@ -2027,7 +2049,28 @@ async def delete_account(payload: AccountDeleteIn, response: Response, user=Depe
 
     await db.ai_conversations.delete_many({"user_id": user_id})
     await db.user_sessions.delete_many({"user_id": user_id})
+    # Ledgerly Personal is user_id-scoped (not business-scoped), so it isn't
+    # covered by the per-business wipe above and has to be cleared separately.
+    await db.personal_transactions.delete_many({"user_id": user_id})
+    await db.personal_budgets.delete_many({"user_id": user_id})
+    await db.personal_bills.delete_many({"user_id": user_id})
+    await db.personal_savings_goals.delete_many({"user_id": user_id})
+    await db.personal_goal_contributions.delete_many({"user_id": user_id})
+    await db.personal_ai_conversations.delete_many({"user_id": user_id})
+    await db.personal_notifications.delete_many({"user_id": user_id})
+    await db.push_subscriptions.delete_many({"user_id": user_id})
     await db.users.delete_one({"user_id": user_id})
+
+
+@api_router.delete("/account")
+async def delete_account(payload: AccountDeleteIn, response: Response, user=Depends(get_current_user)):
+    user_id = user["user_id"]
+    full_user = await db.users.find_one({"user_id": user_id})
+    if full_user.get("password_hash"):
+        if not payload.password or not verify_password(payload.password, full_user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Incorrect password")
+
+    await _delete_user_and_data(user_id)
 
     response.delete_cookie("access_token", path="/", secure=True, httponly=True, samesite="none")
     response.delete_cookie("session_token", path="/", secure=True, httponly=True, samesite="none")
@@ -2301,6 +2344,409 @@ async def delete_conversation(conversation_id: str, user=Depends(get_current_use
     return {"success": True}
 
 
+# ---- Admin (internal, allowlisted developer accounts only) ----
+class AdminUserUpdateIn(BaseModel):
+    name: str = Field(min_length=1)
+    email: Optional[EmailStr] = None
+
+class AdminSetPasswordIn(BaseModel):
+    password: str = Field(min_length=8)
+
+class AdminTransferOwnershipIn(BaseModel):
+    new_owner_user_id: str
+
+
+async def _log_admin_action(admin: dict, action: str, target_type: str, target_id: str, target_label: Optional[str] = None, details: Optional[dict] = None):
+    """Every state-changing admin endpoint records itself here - the admin
+    panel has enough destructive power (delete accounts, reset passwords,
+    transfer business ownership) that a "who did what, when" trail matters.
+    Never log a plaintext credential in `details`."""
+    await db.admin_audit_log.insert_one({
+        "id": str(uuid.uuid4()),
+        "timestamp": now_utc().isoformat(),
+        "admin_email": admin["email"],
+        "admin_name": admin.get("name"),
+        "action": action,
+        "target_type": target_type,
+        "target_id": target_id,
+        "target_label": target_label,
+        "details": details or {},
+    })
+
+
+async def _last_active(user_id: str) -> Optional[str]:
+    """Most recent created_at across everything this user has authored -
+    business transactions/invoices plus Ledgerly Personal transactions - as a
+    quick signal of whether an account is actually being used."""
+    dates = []
+    for coll in (db.transactions, db.invoices, db.personal_transactions):
+        doc = await coll.find_one({"user_id": user_id}, {"_id": 0, "created_at": 1}, sort=[("created_at", -1)])
+        if doc and doc.get("created_at"):
+            dates.append(doc["created_at"])
+    return max(dates) if dates else None
+
+
+@api_router.post("/admin/set-password")
+async def admin_set_password(payload: AdminSetPasswordIn, admin=Depends(require_admin)):
+    """Lets an admin (already authenticated via Google, since that's the only
+    auth_provider ADMIN_EMAILS accounts have today) add a password to their
+    own account, so /auth/login becomes a second way into the admin app -
+    useful when Google sign-in isn't convenient (e.g. a shared machine)."""
+    await db.users.update_one({"user_id": admin["user_id"]}, {"$set": {"password_hash": hash_password(payload.password)}})
+    await _log_admin_action(admin, "set_own_password", "user", admin["user_id"], admin["email"])
+    return {"success": True}
+
+
+@api_router.get("/admin/users")
+async def admin_list_users(admin=Depends(require_admin)):
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(1000)
+    business_ids = [u["active_business_id"] for u in users if u.get("active_business_id")]
+    businesses = await db.businesses.find({"business_id": {"$in": business_ids}}, {"_id": 0}).to_list(1000)
+    biz_by_id = {b["business_id"]: b for b in businesses}
+    for u in users:
+        biz = biz_by_id.get(u.get("active_business_id"))
+        u["business_name"] = biz["name"] if biz else None
+        u["last_active"] = await _last_active(u["user_id"])
+    return {"total": len(users), "users": users}
+
+
+@api_router.get("/admin/users/{target_user_id}")
+async def admin_get_user(target_user_id: str, admin=Depends(require_admin)):
+    target = await db.users.find_one({"user_id": target_user_id}, {"_id": 0, "password_hash": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    memberships = await db.memberships.find({"user_id": target_user_id}, {"_id": 0}).to_list(200)
+    business_ids = [m["business_id"] for m in memberships]
+    businesses = await db.businesses.find({"business_id": {"$in": business_ids}}, {"_id": 0}).to_list(200)
+    biz_by_id = {b["business_id"]: b for b in businesses}
+    memberships_out = [{**m, "business_name": biz_by_id.get(m["business_id"], {}).get("name")} for m in memberships]
+
+    personal_counts = {
+        "transactions": await db.personal_transactions.count_documents({"user_id": target_user_id}),
+        "budgets": await db.personal_budgets.count_documents({"user_id": target_user_id}),
+        "bills": await db.personal_bills.count_documents({"user_id": target_user_id}),
+        "goals": await db.personal_savings_goals.count_documents({"user_id": target_user_id}),
+    }
+    active_sessions = await db.user_sessions.count_documents({"user_id": target_user_id})
+    return {
+        "user": target,
+        "memberships": memberships_out,
+        "personal_counts": personal_counts,
+        "active_sessions": active_sessions,
+        "last_active": await _last_active(target_user_id),
+    }
+
+
+@api_router.put("/admin/users/{target_user_id}")
+async def admin_update_user(target_user_id: str, payload: AdminUserUpdateIn, admin=Depends(require_admin)):
+    update = {"name": payload.name.strip()}
+    if payload.email:
+        email = payload.email.lower()
+        existing = await db.users.find_one({"email": email, "user_id": {"$ne": target_user_id}})
+        if existing:
+            raise HTTPException(status_code=409, detail="That email is already in use by another account")
+        update["email"] = email
+    res = await db.users.update_one({"user_id": target_user_id}, {"$set": update})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    target = await db.users.find_one({"user_id": target_user_id}, {"_id": 0, "email": 1})
+    await _log_admin_action(admin, "update_user", "user", target_user_id, target["email"], {"name": update["name"], "email": update.get("email")})
+    return {"success": True}
+
+
+@api_router.post("/admin/users/{target_user_id}/revoke-sessions")
+async def admin_revoke_sessions(target_user_id: str, admin=Depends(require_admin)):
+    res = await db.user_sessions.delete_many({"user_id": target_user_id})
+    target = await db.users.find_one({"user_id": target_user_id}, {"_id": 0, "email": 1})
+    await _log_admin_action(admin, "revoke_sessions", "user", target_user_id, target["email"] if target else None, {"revoked": res.deleted_count})
+    return {"revoked": res.deleted_count}
+
+
+@api_router.post("/admin/users/{target_user_id}/reset-password")
+async def admin_reset_password(target_user_id: str, admin=Depends(require_admin)):
+    """Support tool for a locked-out user: generates a one-time temporary
+    password and sets it on their account (works regardless of their normal
+    auth_provider - Google accounts gain a password the same way "Set
+    password" does for the admin's own account). Also revokes their existing
+    sessions, since a lockout report is sometimes actually a compromised
+    account. The plaintext password is returned once in this response and
+    is not stored or logged anywhere - relay it to the user out of band."""
+    target = await db.users.find_one({"user_id": target_user_id}, {"_id": 0, "email": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    temp_password = secrets.token_urlsafe(9)
+    await db.users.update_one({"user_id": target_user_id}, {"$set": {"password_hash": hash_password(temp_password)}})
+    await db.user_sessions.delete_many({"user_id": target_user_id})
+    await _log_admin_action(admin, "reset_password", "user", target_user_id, target["email"])
+    return {"temporary_password": temp_password}
+
+
+@api_router.delete("/admin/users/{target_user_id}")
+async def admin_delete_user(target_user_id: str, admin=Depends(require_admin)):
+    target = await db.users.find_one({"user_id": target_user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target["email"] in ADMIN_EMAILS:
+        raise HTTPException(status_code=400, detail="Refusing to delete an admin account from here")
+    await _delete_user_and_data(target_user_id)
+    await _log_admin_action(admin, "delete_user", "user", target_user_id, target["email"])
+    return {"success": True}
+
+
+@api_router.get("/admin/businesses")
+async def admin_list_businesses(admin=Depends(require_admin)):
+    businesses = await db.businesses.find({}, {"_id": 0, "ai_api_key": 0, "logo_data": 0}).sort("created_at", -1).to_list(1000)
+    for b in businesses:
+        bid = b["business_id"]
+        b["member_count"] = await db.memberships.count_documents({"business_id": bid})
+        b["transaction_count"] = await db.transactions.count_documents({"business_id": bid})
+        b["invoice_count"] = await db.invoices.count_documents({"business_id": bid})
+        owner_m = await db.memberships.find_one({"business_id": bid, "role": "owner"}, {"_id": 0})
+        b["owner"] = await db.users.find_one({"user_id": owner_m["user_id"]}, {"_id": 0, "name": 1, "email": 1}) if owner_m else None
+    return {"total": len(businesses), "businesses": businesses}
+
+
+@api_router.get("/admin/businesses/{business_id}")
+async def admin_get_business(business_id: str, admin=Depends(require_admin)):
+    biz = await db.businesses.find_one({"business_id": business_id}, {"_id": 0, "ai_api_key": 0, "logo_data": 0})
+    if not biz:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    memberships = await db.memberships.find({"business_id": business_id}, {"_id": 0}).to_list(200)
+    user_ids = [m["user_id"] for m in memberships]
+    users = await db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "name": 1, "email": 1}).to_list(200)
+    users_by_id = {u["user_id"]: u for u in users}
+    members = [
+        {**m, "name": users_by_id.get(m["user_id"], {}).get("name"), "email": users_by_id.get(m["user_id"], {}).get("email")}
+        for m in memberships
+    ]
+
+    # Full detail (every field) rather than the trimmed set used elsewhere -
+    # except the receipt image itself, which stays excluded (same reasoning
+    # as the list endpoint: it's a multi-KB base64 blob nobody's viewing
+    # here). has_receipt is derived from its presence instead.
+    transactions = await db.transactions.find({"business_id": business_id}, {"_id": 0}).sort("date", -1).to_list(50)
+    for t in transactions:
+        t["has_receipt"] = bool(t.pop("receipt_image", None))
+        t.pop("receipt_content_type", None)
+
+    return {
+        "business": biz,
+        "members": members,
+        "recent_transactions": transactions,
+        "recent_invoices": await db.invoices.find({"business_id": business_id}, {"_id": 0}).sort("issue_date", -1).to_list(50),
+        "inventory": await db.inventory.find({"business_id": business_id}, {"_id": 0}).to_list(200),
+        "employees": await db.employees.find({"business_id": business_id}, {"_id": 0}).to_list(200),
+        "invites": await db.invites.find({"business_id": business_id}, {"_id": 0}).sort("created_at", -1).to_list(200),
+        "counts": {
+            "transactions": await db.transactions.count_documents({"business_id": business_id}),
+            "invoices": await db.invoices.count_documents({"business_id": business_id}),
+        },
+    }
+
+
+@api_router.post("/admin/businesses/{business_id}/reset-ai-quota")
+async def admin_reset_ai_quota(business_id: str, admin=Depends(require_admin)):
+    biz = await db.businesses.find_one({"business_id": business_id}, {"_id": 0, "name": 1})
+    if not biz:
+        raise HTTPException(status_code=404, detail="Business not found")
+    await db.businesses.update_one({"business_id": business_id}, {"$unset": {"ai_shared_usage_count": "", "ai_shared_usage_date": ""}})
+    await _log_admin_action(admin, "reset_ai_quota", "business", business_id, biz["name"])
+    return {"success": True}
+
+
+@api_router.post("/admin/businesses/{business_id}/transfer-ownership")
+async def admin_transfer_ownership(business_id: str, payload: AdminTransferOwnershipIn, admin=Depends(require_admin)):
+    new_owner = await db.memberships.find_one({"business_id": business_id, "user_id": payload.new_owner_user_id})
+    if not new_owner:
+        raise HTTPException(status_code=404, detail="That user isn't a member of this business")
+    if new_owner["role"] == "owner":
+        return {"success": True}
+    current_owner = await db.memberships.find_one({"business_id": business_id, "role": "owner"})
+    if current_owner:
+        await db.memberships.update_one({"membership_id": current_owner["membership_id"]}, {"$set": {"role": "admin"}})
+    await db.memberships.update_one({"membership_id": new_owner["membership_id"]}, {"$set": {"role": "owner"}})
+    biz = await db.businesses.find_one({"business_id": business_id}, {"_id": 0, "name": 1})
+    new_owner_user = await db.users.find_one({"user_id": payload.new_owner_user_id}, {"_id": 0, "email": 1})
+    await _log_admin_action(
+        admin, "transfer_ownership", "business", business_id, biz["name"] if biz else None,
+        {"new_owner_user_id": payload.new_owner_user_id, "new_owner_email": new_owner_user["email"] if new_owner_user else None},
+    )
+    return {"success": True}
+
+
+@api_router.delete("/admin/invites/{code}")
+async def admin_revoke_invite(code: str, admin=Depends(require_admin)):
+    invite = await db.invites.find_one({"code": code.strip().upper()}, {"_id": 0})
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    await db.invites.delete_one({"code": code.strip().upper()})
+    await _log_admin_action(admin, "revoke_invite", "invite", invite["code"], invite["code"], {"business_id": invite["business_id"], "role": invite["role"]})
+    return {"success": True}
+
+
+@api_router.get("/admin/analytics")
+async def admin_analytics(admin=Depends(require_admin)):
+    """Daily signup and platform-activity counts for the last 30 days, zero-
+    filled so the frontend can render a bar chart without gap-handling."""
+    window_start = (now_utc() - timedelta(days=29)).date()
+    days = [(window_start + timedelta(days=i)).isoformat() for i in range(30)]
+
+    def _bucket(dates):
+        counts = {d: 0 for d in days}
+        for iso in dates:
+            day = iso[:10]
+            if day in counts:
+                counts[day] += 1
+        return [counts[d] for d in days]
+
+    users = await db.users.find({}, {"_id": 0, "created_at": 1}).to_list(10000)
+    transactions = await db.transactions.find({}, {"_id": 0, "created_at": 1}).to_list(10000)
+    invoices = await db.invoices.find({}, {"_id": 0, "created_at": 1}).to_list(10000)
+
+    return {
+        "days": days,
+        "signups": _bucket(u["created_at"] for u in users if u.get("created_at")),
+        "transactions": _bucket(t["created_at"] for t in transactions if t.get("created_at")),
+        "invoices": _bucket(i["created_at"] for i in invoices if i.get("created_at")),
+    }
+
+
+@api_router.get("/admin/health")
+async def admin_health(admin=Depends(require_admin)):
+    today = now_utc().date().isoformat()
+
+    sessions = await db.user_sessions.find({}, {"_id": 0, "expires_at": 1}).to_list(5000)
+    now = now_utc()
+
+    def _still_valid(expires_at) -> bool:
+        if isinstance(expires_at, str):
+            expires_at = datetime.fromisoformat(expires_at)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        return expires_at > now
+
+    active_sessions = sum(1 for s in sessions if _still_valid(s["expires_at"]))
+
+    businesses_today = await db.businesses.find(
+        {"ai_shared_usage_date": today}, {"_id": 0, "name": 1, "ai_shared_usage_count": 1}
+    ).to_list(1000)
+    ai_usage_today = sum(b.get("ai_shared_usage_count", 0) for b in businesses_today)
+    businesses_at_ai_cap = [b["name"] for b in businesses_today if b.get("ai_shared_usage_count", 0) >= SHARED_AI_DAILY_LIMIT]
+
+    return {
+        "total_users": await db.users.count_documents({}),
+        "total_businesses": await db.businesses.count_documents({}),
+        "active_sessions": active_sessions,
+        "total_sessions": len(sessions),
+        "ai_shared_daily_limit": SHARED_AI_DAILY_LIMIT,
+        "ai_shared_usage_today": ai_usage_today,
+        "businesses_at_ai_cap_today": businesses_at_ai_cap,
+        "push_subscriptions": await db.push_subscriptions.count_documents({}),
+        "push_subscribed_users": len(await db.push_subscriptions.distinct("user_id")),
+        "sentry_configured": bool(SENTRY_DSN),
+        "sentry_api_configured": bool(SENTRY_AUTH_TOKEN and SENTRY_ORG_SLUG),
+        "groq_shared_key_configured": bool(GROQ_API_KEY),
+        "vapid_configured": bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY),
+    }
+
+
+@api_router.get("/admin/sentry/issues")
+async def admin_sentry_issues(admin=Depends(require_admin)):
+    if not (SENTRY_AUTH_TOKEN and SENTRY_ORG_SLUG):
+        raise HTTPException(status_code=400, detail="Sentry API isn't configured (SENTRY_AUTH_TOKEN/SENTRY_ORG_SLUG)")
+    project_id = _sentry_project_id()
+    if not project_id:
+        raise HTTPException(status_code=400, detail="SENTRY_DSN isn't configured")
+
+    async with httpx.AsyncClient() as http_client:
+        resp = await http_client.get(
+            f"https://sentry.io/api/0/organizations/{SENTRY_ORG_SLUG}/issues/",
+            headers={"Authorization": f"Bearer {SENTRY_AUTH_TOKEN}"},
+            params={"project": project_id, "query": "is:unresolved", "statsPeriod": "14d", "sort": "freq", "limit": 25},
+            timeout=10,
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Sentry API error ({resp.status_code})")
+
+    return [
+        {
+            "id": issue["id"],
+            "title": issue.get("title"),
+            "culprit": issue.get("culprit"),
+            "level": issue.get("level"),
+            "count": issue.get("count"),
+            "user_count": issue.get("userCount"),
+            "first_seen": issue.get("firstSeen"),
+            "last_seen": issue.get("lastSeen"),
+            "permalink": issue.get("permalink"),
+        }
+        for issue in resp.json()
+    ]
+
+
+@api_router.get("/admin/audit-log")
+async def admin_audit_log(admin=Depends(require_admin)):
+    entries = await db.admin_audit_log.find({}, {"_id": 0}).sort("timestamp", -1).to_list(200)
+    return {"entries": entries}
+
+
+class AdminBroadcastIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    message: str = Field(default="", max_length=1000)
+    link: Optional[str] = None
+
+
+@api_router.post("/admin/broadcast")
+async def admin_broadcast(payload: AdminBroadcastIn, admin=Depends(require_admin)):
+    """Platform-wide announcement - lands in every business's and every
+    personal account's in-app notification bell (existing TYPE_ICON lookups
+    in both frontends already fall back to a generic bell icon for an
+    unrecognized type, so no frontend changes were needed), plus a best-
+    effort push to any subscribed device. Push reach depends entirely on how
+    many users have actually granted/subscribed - check System Health for
+    that count before relying on it alone."""
+    now = now_utc().isoformat()
+
+    business_ids = [b["business_id"] for b in await db.businesses.find({}, {"_id": 0, "business_id": 1}).to_list(1000)]
+    if business_ids:
+        await db.notifications.insert_many([
+            {"id": str(uuid.uuid4()), "business_id": bid, "type": "admin_broadcast",
+             "title": payload.title, "message": payload.message, "link": payload.link,
+             "read": False, "created_at": now}
+            for bid in business_ids
+        ])
+
+    user_ids = [u["user_id"] for u in await db.users.find({}, {"_id": 0, "user_id": 1}).to_list(10000)]
+    if user_ids:
+        await db.personal_notifications.insert_many([
+            {"id": str(uuid.uuid4()), "user_id": uid, "type": "admin_broadcast",
+             "title": payload.title, "message": payload.message, "link": payload.link,
+             "read": False, "created_at": now}
+            for uid in user_ids
+        ])
+
+    push_sent = 0
+    if VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY:
+        subs = await db.push_subscriptions.find({}, {"_id": 0}).to_list(5000)
+        if subs:
+            push_payload = {"title": payload.title, "message": payload.message, "link": payload.link}
+            results = await asyncio.gather(
+                *(asyncio.to_thread(_send_one_push, sub, push_payload) for sub in subs), return_exceptions=True
+            )
+            push_sent = sum(1 for r in results if r == "ok")
+            expired = [sub["endpoint"] for sub, r in zip(subs, results) if r == "expired"]
+            if expired:
+                await db.push_subscriptions.delete_many({"endpoint": {"$in": expired}})
+
+    await _log_admin_action(
+        admin, "broadcast", "platform", "all", payload.title,
+        {"businesses_notified": len(business_ids), "users_notified": len(user_ids), "push_sent": push_sent},
+    )
+    return {"businesses_notified": len(business_ids), "users_notified": len(user_ids), "push_sent": push_sent}
+
+
 # ---- Startup ----
 @app.on_event("startup")
 async def on_startup():
@@ -2315,6 +2761,7 @@ async def on_startup():
     await db.payroll_runs.create_index([("business_id", 1), ("period_end", -1)])
     await db.user_sessions.create_index("session_token")
     await db.ai_conversations.create_index([("user_id", 1), ("business_id", 1), ("updated_at", -1)])
+    await db.admin_audit_log.create_index([("timestamp", -1)])
 
     # Migrate any user without a membership row: convert their old flat
     # business_id/role (if present, from the earlier single-business model) into
@@ -2360,11 +2807,14 @@ app.include_router(personal_router)
 _frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 _mobile_url = os.environ.get("MOBILE_URL")
 _pulse_url = os.environ.get("PULSE_URL")
-_cors_origins = [_frontend_url, "http://localhost:3000", "http://127.0.0.1:5050", "http://localhost:5173", "http://localhost:5174"]
+_admin_url = os.environ.get("ADMIN_URL")
+_cors_origins = [_frontend_url, "http://localhost:3000", "http://127.0.0.1:5050", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175"]
 if _mobile_url:
     _cors_origins.append(_mobile_url)
 if _pulse_url:
     _cors_origins.append(_pulse_url)
+if _admin_url:
+    _cors_origins.append(_admin_url)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
