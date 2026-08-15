@@ -7,6 +7,7 @@ load_dotenv(ROOT_DIR / '.env')
 import os
 import io
 import csv
+import html
 import json
 import uuid
 import string
@@ -17,6 +18,7 @@ import logging
 import secrets
 import zipfile
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
@@ -120,12 +122,28 @@ async def _send_support_alert_email(user_name: str, user_email: str, preview: st
             raise RuntimeError(f"Gmail token refresh error {token_resp.status_code}: {token_resp.text[:500]}")
         access_token = token_resp.json()["access_token"]
 
-        msg = MIMEText(
+        admin_url = "https://ledgerly-admin.onrender.com/support"
+        text_body = (
             f"{user_name} ({user_email}) sent a new support message:\n\n{preview}\n\n"
-            f"Reply from the admin panel: https://ledgerly-admin.onrender.com/support"
+            f"Reply from the admin panel: {admin_url}"
         )
+        # html.escape on every user-controlled value (name, email, message
+        # text) - this is HTML now, not a plain-text body, so an unescaped
+        # value could break the layout or inject markup.
+        html_body = f"""\
+<div style="font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #0f172a;">
+  <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b;">Ledgerly Support</div>
+  <div style="font-family: Manrope, -apple-system, sans-serif; font-size: 20px; font-weight: 800; margin-top: 4px;">New message from {html.escape(user_name)}</div>
+  <div style="font-size: 13px; color: #64748b; margin-top: 2px;">{html.escape(user_email)}</div>
+  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap;">{html.escape(preview)}</div>
+  <a href="{admin_url}" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-size: 14px; font-weight: 600;">Reply in admin panel</a>
+</div>"""
+
+        msg = MIMEMultipart("alternative")
         msg["To"] = SUPPORT_ALERT_EMAIL
         msg["Subject"] = f"New Ledgerly support message from {user_name}"
+        msg.attach(MIMEText(text_body, "plain"))
+        msg.attach(MIMEText(html_body, "html"))
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
 
         send_resp = await http_client.post(
