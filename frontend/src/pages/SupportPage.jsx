@@ -4,13 +4,40 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatApiError } from "@/lib/utils_app";
-import { PaperPlaneTilt, Plus } from "@phosphor-icons/react";
+import { PaperPlaneTilt, Plus, Paperclip, File as FileIcon, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
+
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const ALLOWED_ATTACHMENT_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf"];
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleString(undefined, {
     month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
   });
+}
+
+function Attachment({ message }) {
+  if (!message.attachment_data) return null;
+  const src = `data:${message.attachment_content_type};base64,${message.attachment_data}`;
+  const isImage = message.attachment_content_type?.startsWith("image/");
+  return (
+    <div className={message.body ? "mt-2" : ""}>
+      {isImage ? (
+        <a href={src} target="_blank" rel="noreferrer">
+          <img src={src} alt={message.attachment_filename} className="max-w-full max-h-48 rounded-md border border-slate-200" />
+        </a>
+      ) : (
+        <a
+          href={src}
+          download={message.attachment_filename}
+          className="flex items-center gap-2 rounded-md border border-slate-200 bg-white/80 px-2.5 py-1.5 text-xs no-underline text-inherit hover:bg-white"
+        >
+          <FileIcon size={16} className="shrink-0" />
+          <span className="truncate">{message.attachment_filename}</span>
+        </a>
+      )}
+    </div>
+  );
 }
 
 function ThreadRow({ thread, active, onClick }) {
@@ -43,7 +70,10 @@ export default function SupportPage() {
   const [detailError, setDetailError] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState(null); // { attachment_data, attachment_content_type, attachment_filename }
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const bottomRef = useRef(null);
+  const fileInputRef = useRef(null);
   // Guards the initial auto-select-on-load below against a race with the
   // user clicking "New conversation" before the list finishes loading -
   // without this, the async .then() below runs with a stale closure over
@@ -89,25 +119,55 @@ export default function SupportPage() {
     setDetail(null);
     setDetailError("");
     setBody("");
+    setPendingAttachment(null);
+  };
+
+  const pickFile = () => fileInputRef.current?.click();
+
+  const onFileSelected = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
+      toast.error("Attachments must be a PNG, JPEG, WEBP, GIF, or PDF file");
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      toast.error("Attachment must be smaller than 5MB");
+      return;
+    }
+    setUploadingAttachment(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data } = await api.post("/support/attachments", formData);
+      setPendingAttachment(data);
+    } catch (err) {
+      toast.error(formatApiError(err) || "Failed to upload attachment");
+    } finally {
+      setUploadingAttachment(false);
+    }
   };
 
   const send = async (e) => {
     e.preventDefault();
     const text = body.trim();
-    if (!text) return;
+    if (!text && !pendingAttachment) return;
     setSending(true);
     try {
+      const payload = { body: text, ...(pendingAttachment || {}) };
       if (selectedId === "new") {
-        const { data } = await api.post("/support/threads", { body: text });
+        const { data } = await api.post("/support/threads", payload);
         setSelectedId(data.thread.thread_id);
         setDetail(data);
         setThreads((prev) => [data.thread, ...(prev || [])]);
       } else {
-        const { data } = await api.post(`/support/threads/${selectedId}/messages`, { body: text });
+        const { data } = await api.post(`/support/threads/${selectedId}/messages`, payload);
         setDetail((prev) => ({ ...prev, messages: [...prev.messages, data] }));
         loadThreads();
       }
       setBody("");
+      setPendingAttachment(null);
     } catch (err) {
       toast.error(formatApiError(err) || "Failed to send message");
     } finally {
@@ -161,7 +221,8 @@ export default function SupportPage() {
                 <div key={m.message_id} className={`flex ${m.sender === "user" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[70%] rounded-lg px-4 py-2 ${m.sender === "user" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-900"}`}>
                     <div className="text-xs opacity-70 mb-1">{m.sender === "user" ? "You" : m.sender_name} · {timeLabel(m.created_at)}</div>
-                    <div className="text-sm whitespace-pre-wrap">{m.body}</div>
+                    {m.body && <div className="text-sm whitespace-pre-wrap">{m.body}</div>}
+                    <Attachment message={m} />
                   </div>
                 </div>
               ))
@@ -177,22 +238,37 @@ export default function SupportPage() {
               </Button>
             </div>
           ) : (
-            <form onSubmit={send} className="shrink-0 border-t border-slate-200 p-4 flex gap-2 items-end">
-              <Textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e); }
-                }}
-                placeholder={composing ? "Type your message..." : "Type a message..."}
-                rows={2}
-                maxLength={4000}
-                className="resize-none"
-                data-testid="support-message-input"
-              />
-              <Button type="submit" disabled={sending || !body.trim()} data-testid="support-send-button">
-                <PaperPlaneTilt size={16} className="mr-2" /> Send
-              </Button>
+            <form onSubmit={send} className="shrink-0 border-t border-slate-200 p-4">
+              {pendingAttachment && (
+                <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
+                  <FileIcon size={14} />
+                  <span className="truncate max-w-[12rem]">{pendingAttachment.attachment_filename}</span>
+                  <button type="button" onClick={() => setPendingAttachment(null)} data-testid="support-remove-attachment-button">
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-2 items-end">
+                <input ref={fileInputRef} type="file" accept={ALLOWED_ATTACHMENT_TYPES.join(",")} className="hidden" onChange={onFileSelected} data-testid="support-attachment-input" />
+                <Button type="button" variant="outline" size="icon" onClick={pickFile} disabled={uploadingAttachment} data-testid="support-attach-button">
+                  <Paperclip size={16} />
+                </Button>
+                <Textarea
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e); }
+                  }}
+                  placeholder={composing ? "Type your message..." : "Type a message..."}
+                  rows={2}
+                  maxLength={4000}
+                  className="resize-none"
+                  data-testid="support-message-input"
+                />
+                <Button type="submit" disabled={sending || uploadingAttachment || (!body.trim() && !pendingAttachment)} data-testid="support-send-button">
+                  <PaperPlaneTilt size={16} className="mr-2" /> Send
+                </Button>
+              </div>
             </form>
           )}
         </div>

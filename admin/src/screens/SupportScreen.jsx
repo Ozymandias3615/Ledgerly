@@ -1,12 +1,39 @@
-import { useEffect, useState } from "react";
-import { CheckCircle, PaperPlaneTilt } from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
+import { CheckCircle, PaperPlaneTilt, Paperclip, File as FileIcon, X } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { toast } from "../lib/toast";
+
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const ALLOWED_ATTACHMENT_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf"];
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleString(undefined, {
     month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
   });
+}
+
+function Attachment({ message }) {
+  if (!message.attachment_data) return null;
+  const src = `data:${message.attachment_content_type};base64,${message.attachment_data}`;
+  const isImage = message.attachment_content_type?.startsWith("image/");
+  return (
+    <div style={{ marginTop: message.body ? "0.5rem" : 0 }}>
+      {isImage ? (
+        <a href={src} target="_blank" rel="noreferrer">
+          <img src={src} alt={message.attachment_filename} style={{ maxWidth: "100%", maxHeight: "12rem", borderRadius: "0.4rem", border: "1px solid hsl(var(--border))" }} />
+        </a>
+      ) : (
+        <a
+          href={src}
+          download={message.attachment_filename}
+          style={{ display: "flex", alignItems: "center", gap: "0.4rem", borderRadius: "0.4rem", border: "1px solid hsl(var(--border))", background: "hsl(var(--background))", padding: "0.4rem 0.6rem", fontSize: "0.75rem", textDecoration: "none", color: "inherit" }}
+        >
+          <FileIcon size={16} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{message.attachment_filename}</span>
+        </a>
+      )}
+    </div>
+  );
 }
 
 function ThreadRow({ thread, active, onClick }) {
@@ -29,7 +56,7 @@ function ThreadRow({ thread, active, onClick }) {
       <div className="muted" style={{ fontSize: "0.75rem" }}>{thread.user_name || thread.user_email} · {thread.user_email}</div>
       {last && (
         <div className="muted" style={{ fontSize: "0.8rem", marginTop: "0.25rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {last.sender === "admin" ? "You: " : ""}{last.body}
+          {last.sender === "admin" ? "You: " : ""}{last.body || `📎 ${last.attachment_filename}`}
         </div>
       )}
       <div className="row-between" style={{ marginTop: "0.25rem" }}>
@@ -55,6 +82,9 @@ export default function SupportScreen() {
   const [detailError, setDetailError] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const fileInputRef = useRef(null);
 
   const loadThreads = (status = statusFilter) => {
     setThreadsError("");
@@ -75,6 +105,7 @@ export default function SupportScreen() {
     setSelectedId(threadId);
     setDetail(null);
     setDetailError("");
+    setPendingAttachment(null);
     api.get(`/admin/support/threads/${threadId}/messages`).then(({ data }) => {
       setDetail(data);
       // Clear this thread's unread dot in the list without a full reload.
@@ -82,15 +113,44 @@ export default function SupportScreen() {
     }).catch((err) => setDetailError(err.response?.data?.detail || "Failed to load conversation"));
   };
 
+  const pickFile = () => fileInputRef.current?.click();
+
+  const onFileSelected = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
+      toast.error("Attachments must be a PNG, JPEG, WEBP, GIF, or PDF file");
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      toast.error("Attachment must be smaller than 5MB");
+      return;
+    }
+    setUploadingAttachment(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data } = await api.post("/admin/support/attachments", formData);
+      setPendingAttachment(data);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to upload attachment");
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
   const send = async (e) => {
     e.preventDefault();
     const text = body.trim();
-    if (!text || !selectedId) return;
+    if ((!text && !pendingAttachment) || !selectedId) return;
     setSending(true);
     try {
-      const { data } = await api.post(`/admin/support/threads/${selectedId}/messages`, { body: text });
+      const payload = { body: text, ...(pendingAttachment || {}) };
+      const { data } = await api.post(`/admin/support/threads/${selectedId}/messages`, payload);
       setDetail((prev) => ({ ...prev, messages: [...prev.messages, data] }));
       setBody("");
+      setPendingAttachment(null);
       loadThreads();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to send reply");
@@ -188,27 +248,43 @@ export default function SupportScreen() {
                         color: m.sender === "admin" ? "hsl(var(--primary-foreground))" : "hsl(var(--secondary-foreground))",
                       }}>
                         <div style={{ fontSize: "0.7rem", opacity: 0.7, marginBottom: "0.15rem" }}>{m.sender_name} · {timeLabel(m.created_at)}</div>
-                        <div style={{ fontSize: "0.875rem", whiteSpace: "pre-wrap" }}>{m.body}</div>
+                        {m.body && <div style={{ fontSize: "0.875rem", whiteSpace: "pre-wrap" }}>{m.body}</div>}
+                        <Attachment message={m} />
                       </div>
                     </div>
                   ))
                 )}
               </div>
 
-              <form onSubmit={send} style={{ borderTop: "1px solid hsl(var(--border))", padding: "0.75rem 1rem", display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
-                <textarea
-                  className="input"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e); } }}
-                  placeholder="Reply..."
-                  rows={2}
-                  maxLength={4000}
-                  style={{ resize: "none" }}
-                />
-                <button type="submit" className="btn btn-primary" disabled={sending || !body.trim()}>
-                  <PaperPlaneTilt size={14} /> Send
-                </button>
+              <form onSubmit={send} style={{ borderTop: "1px solid hsl(var(--border))", padding: "0.75rem 1rem" }}>
+                {pendingAttachment && (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", borderRadius: "0.4rem", border: "1px solid hsl(var(--border))", background: "hsl(var(--secondary))", padding: "0.35rem 0.6rem", fontSize: "0.75rem", marginBottom: "0.5rem" }}>
+                    <FileIcon size={14} />
+                    <span style={{ maxWidth: "12rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pendingAttachment.attachment_filename}</span>
+                    <button type="button" onClick={() => setPendingAttachment(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
+                  <input ref={fileInputRef} type="file" accept={ALLOWED_ATTACHMENT_TYPES.join(",")} style={{ display: "none" }} onChange={onFileSelected} />
+                  <button type="button" className="btn btn-outline" onClick={pickFile} disabled={uploadingAttachment} style={{ padding: "0.5rem" }}>
+                    <Paperclip size={16} />
+                  </button>
+                  <textarea
+                    className="input"
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e); } }}
+                    placeholder="Reply..."
+                    rows={2}
+                    maxLength={4000}
+                    style={{ resize: "none" }}
+                  />
+                  <button type="submit" className="btn btn-primary" disabled={sending || uploadingAttachment || (!body.trim() && !pendingAttachment)}>
+                    <PaperPlaneTilt size={14} /> Send
+                  </button>
+                </div>
               </form>
             </>
           )}

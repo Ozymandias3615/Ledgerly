@@ -2868,11 +2868,38 @@ async def admin_broadcast(payload: AdminBroadcastIn, admin=Depends(require_admin
 # thread doc, so a long conversation doesn't require rewriting the whole
 # message history on every reply.
 class SupportMessageIn(BaseModel):
-    body: str = Field(min_length=1, max_length=4000)
+    body: str = Field(default="", max_length=4000)
+    attachment_data: Optional[str] = None  # base64, from POST /support/attachments
+    attachment_content_type: Optional[str] = None
+    attachment_filename: Optional[str] = None
 
 
-def _thread_subject(first_message_body: str) -> str:
+def _require_body_or_attachment(payload: SupportMessageIn) -> None:
+    if not payload.body.strip() and not payload.attachment_data:
+        raise HTTPException(status_code=400, detail="Message can't be empty")
+
+
+MAX_SUPPORT_ATTACHMENT_BYTES = 5 * 1024 * 1024
+ALLOWED_SUPPORT_ATTACHMENT_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf"}
+
+
+async def _read_support_attachment(file: UploadFile) -> dict:
+    if file.content_type not in ALLOWED_SUPPORT_ATTACHMENT_TYPES:
+        raise HTTPException(status_code=400, detail="Attachments must be a PNG, JPEG, WEBP, GIF, or PDF file")
+    raw = await file.read()
+    if len(raw) > MAX_SUPPORT_ATTACHMENT_BYTES:
+        raise HTTPException(status_code=400, detail="Attachment must be smaller than 5MB")
+    return {
+        "attachment_data": base64.b64encode(raw).decode(),
+        "attachment_content_type": file.content_type,
+        "attachment_filename": file.filename or "attachment",
+    }
+
+
+def _thread_subject(first_message_body: str, has_attachment: bool = False) -> str:
     body = first_message_body.strip()
+    if not body:
+        return "📎 Attachment" if has_attachment else "Conversation"
     return (body[:60] + "…") if len(body) > 60 else body
 
 
@@ -2883,6 +2910,25 @@ async def _support_thread_owned_by(thread_id: str, user_id: str) -> dict:
     return thread
 
 
+def _support_message_doc(thread_id: str, sender: str, sender_name: str, payload: SupportMessageIn, now: str) -> dict:
+    return {
+        "message_id": str(uuid.uuid4()),
+        "thread_id": thread_id,
+        "sender": sender,
+        "sender_name": sender_name,
+        "body": payload.body,
+        "attachment_data": payload.attachment_data,
+        "attachment_content_type": payload.attachment_content_type,
+        "attachment_filename": payload.attachment_filename,
+        "created_at": now,
+    }
+
+
+@api_router.post("/support/attachments")
+async def upload_support_attachment(file: UploadFile = File(...), user=Depends(get_current_user)):
+    return await _read_support_attachment(file)
+
+
 @api_router.get("/support/threads")
 async def list_my_support_threads(user=Depends(get_current_user)):
     return await db.support_threads.find({"user_id": user["user_id"]}, {"_id": 0}).sort("updated_at", -1).to_list(200)
@@ -2890,13 +2936,14 @@ async def list_my_support_threads(user=Depends(get_current_user)):
 
 @api_router.post("/support/threads")
 async def create_support_thread(payload: SupportMessageIn, user=Depends(get_current_user)):
+    _require_body_or_attachment(payload)
     now = now_utc().isoformat()
     thread = {
         "thread_id": str(uuid.uuid4()),
         "user_id": user["user_id"],
         "user_email": user["email"],
         "user_name": user.get("name") or user["email"],
-        "subject": _thread_subject(payload.body),
+        "subject": _thread_subject(payload.body, bool(payload.attachment_data)),
         "status": "open",
         "unread_by_admin": True,
         "unread_by_user": False,
@@ -2905,14 +2952,7 @@ async def create_support_thread(payload: SupportMessageIn, user=Depends(get_curr
     }
     await db.support_threads.insert_one(thread)
     thread.pop("_id", None)
-    msg = {
-        "message_id": str(uuid.uuid4()),
-        "thread_id": thread["thread_id"],
-        "sender": "user",
-        "sender_name": thread["user_name"],
-        "body": payload.body,
-        "created_at": now,
-    }
+    msg = _support_message_doc(thread["thread_id"], "user", thread["user_name"], payload, now)
     await db.support_messages.insert_one(msg)
     msg.pop("_id", None)
     return {"thread": thread, "messages": [msg]}
@@ -2928,6 +2968,7 @@ async def get_support_thread_messages(thread_id: str, user=Depends(get_current_u
 
 @api_router.post("/support/threads/{thread_id}/messages")
 async def post_support_thread_message(thread_id: str, payload: SupportMessageIn, user=Depends(get_current_user)):
+    _require_body_or_attachment(payload)
     thread = await _support_thread_owned_by(thread_id, user["user_id"])
     # A resolved conversation is over from the user's side - now that they
     # can start a new thread instead, there's no reason to let a stray
@@ -2935,14 +2976,7 @@ async def post_support_thread_message(thread_id: str, payload: SupportMessageIn,
     if thread["status"] == "resolved":
         raise HTTPException(status_code=400, detail="This conversation has been resolved. Start a new conversation if you need more help.")
     now = now_utc().isoformat()
-    msg = {
-        "message_id": str(uuid.uuid4()),
-        "thread_id": thread_id,
-        "sender": "user",
-        "sender_name": thread["user_name"],
-        "body": payload.body,
-        "created_at": now,
-    }
+    msg = _support_message_doc(thread_id, "user", thread["user_name"], payload, now)
     await db.support_messages.insert_one(msg)
     msg.pop("_id", None)
     await db.support_threads.update_one(
@@ -2957,7 +2991,7 @@ async def admin_list_support_threads(status: Optional[str] = Query(None), admin=
     threads = await db.support_threads.find(query, {"_id": 0}).sort("updated_at", -1).to_list(500)
     for t in threads:
         last = await db.support_messages.find_one(
-            {"thread_id": t["thread_id"]}, {"_id": 0, "body": 1, "sender": 1}, sort=[("created_at", -1)]
+            {"thread_id": t["thread_id"]}, {"_id": 0, "body": 1, "sender": 1, "attachment_filename": 1}, sort=[("created_at", -1)]
         )
         t["last_message"] = last
     return threads
@@ -2973,23 +3007,22 @@ async def admin_get_support_thread(thread_id: str, admin=Depends(require_admin))
     return {"thread": thread, "messages": messages}
 
 
+@api_router.post("/admin/support/attachments")
+async def upload_admin_support_attachment(file: UploadFile = File(...), admin=Depends(require_admin)):
+    return await _read_support_attachment(file)
+
+
 @api_router.post("/admin/support/threads/{thread_id}/messages")
 async def admin_reply_support_thread(thread_id: str, payload: SupportMessageIn, admin=Depends(require_admin)):
+    _require_body_or_attachment(payload)
     thread = await db.support_threads.find_one({"thread_id": thread_id}, {"_id": 0})
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
     now = now_utc().isoformat()
-    msg = {
-        "message_id": str(uuid.uuid4()),
-        "thread_id": thread_id,
-        "sender": "admin",
-        # Not the individual admin's name/email - the user sees "Ledgerly
-        # Support" as a single voice, same as Broadcast doesn't identify
-        # which admin sent it.
-        "sender_name": "Ledgerly Support",
-        "body": payload.body,
-        "created_at": now,
-    }
+    # Not the individual admin's name/email - the user sees "Ledgerly
+    # Support" as a single voice, same as Broadcast doesn't identify which
+    # admin sent it.
+    msg = _support_message_doc(thread_id, "admin", "Ledgerly Support", payload, now)
     await db.support_messages.insert_one(msg)
     msg.pop("_id", None)
     await db.support_threads.update_one(
@@ -3003,7 +3036,10 @@ async def admin_reply_support_thread(thread_id: str, payload: SupportMessageIn, 
     # so it isn't importable until then, but this function only runs at
     # request time, long after that import has completed.
     from personal_router import _notify_personal
-    preview = payload.body if len(payload.body) <= 120 else payload.body[:120] + "…"
+    if payload.body.strip():
+        preview = payload.body if len(payload.body) <= 120 else payload.body[:120] + "…"
+    else:
+        preview = f"Sent an attachment: {payload.attachment_filename}"
     await _notify_personal(thread["user_id"], "support_reply", "Ledgerly Support replied", preview, "/support")
     return msg
 
