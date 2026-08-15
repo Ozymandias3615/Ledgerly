@@ -19,6 +19,7 @@ import ReportsPage from "@/pages/ReportsPage";
 import InsightsPage from "@/pages/InsightsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import HelpPage from "@/pages/HelpPage";
+import SupportPage from "@/pages/SupportPage";
 import PersonalDashboardPage from "@/pages/PersonalDashboardPage";
 import PersonalTransactionsPage from "@/pages/PersonalTransactionsPage";
 import PersonalBudgetsPage from "@/pages/PersonalBudgetsPage";
@@ -63,6 +64,7 @@ function AppRouter() {
       <Route path="/insights" element={<Protected><InsightsPage /></Protected>} />
       <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
       <Route path="/help" element={<Protected><HelpPage /></Protected>} />
+      <Route path="/support" element={<Protected><SupportPage /></Protected>} />
       <Route path="/personal/dashboard" element={<Protected><PersonalDashboardPage /></Protected>} />
       <Route path="/personal/transactions" element={<Protected><PersonalTransactionsPage /></Protected>} />
       <Route path="/personal/budgets" element={<Protected><PersonalBudgetsPage /></Protected>} />

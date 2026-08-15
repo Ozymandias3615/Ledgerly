@@ -159,6 +159,11 @@ async def _enrich_user(user: dict) -> dict:
         user["has_ai_key"] = bool(biz.get("ai_api_key"))
         user["onboarding_complete"] = biz.get("onboarding_complete", True)
         user["invoice_reminder_days"] = biz.get("invoice_reminder_days", DEFAULT_INVOICE_REMINDER_DAYS)
+    # Support inbox is account-level (user_id-scoped), independent of
+    # business/personal context, so its unread flag is surfaced here rather
+    # than through either context-specific notification bell.
+    thread = await db.support_threads.find_one({"user_id": user["user_id"]}, {"_id": 0, "unread_by_user": 1})
+    user["support_unread"] = bool(thread and thread.get("unread_by_user"))
     return user
 
 async def _create_membership(user_id: str, business_id: str, role: str) -> dict:
@@ -2854,6 +2859,123 @@ async def admin_broadcast(payload: AdminBroadcastIn, admin=Depends(require_admin
     return {"businesses_notified": len(business_ids), "users_notified": len(user_ids), "push_sent": push_sent}
 
 
+# ---- Support inbox ----
+# One thread per user_id (not per business) - a support conversation belongs
+# to the account, not whichever business happens to be active. Two
+# collections rather than embedding messages on the thread doc, so a long
+# conversation doesn't require rewriting the whole message history on every
+# reply.
+class SupportMessageIn(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+
+async def _get_or_create_support_thread(user_id: str, email: str, name: str) -> dict:
+    thread = await db.support_threads.find_one({"user_id": user_id}, {"_id": 0})
+    if thread:
+        return thread
+    thread = {
+        "thread_id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "user_email": email,
+        "user_name": name,
+        "status": "open",
+        "unread_by_admin": False,
+        "unread_by_user": False,
+        "created_at": now_utc().isoformat(),
+        "updated_at": now_utc().isoformat(),
+    }
+    await db.support_threads.insert_one(thread)
+    thread.pop("_id", None)
+    return thread
+
+
+@api_router.get("/support/messages")
+async def get_support_messages(user=Depends(get_current_user)):
+    thread = await db.support_threads.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not thread:
+        return {"thread": None, "messages": []}
+    await db.support_threads.update_one({"thread_id": thread["thread_id"]}, {"$set": {"unread_by_user": False}})
+    messages = await db.support_messages.find({"thread_id": thread["thread_id"]}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+    return {"thread": thread, "messages": messages}
+
+
+@api_router.post("/support/messages")
+async def post_support_message(payload: SupportMessageIn, user=Depends(get_current_user)):
+    thread = await _get_or_create_support_thread(user["user_id"], user["email"], user.get("name") or user["email"])
+    now = now_utc().isoformat()
+    msg = {
+        "message_id": str(uuid.uuid4()),
+        "thread_id": thread["thread_id"],
+        "sender": "user",
+        "sender_name": user.get("name") or user["email"],
+        "body": payload.body,
+        "created_at": now,
+    }
+    await db.support_messages.insert_one(msg)
+    msg.pop("_id", None)
+    # Reopens automatically if the user replies to an already-resolved thread.
+    await db.support_threads.update_one(
+        {"thread_id": thread["thread_id"]},
+        {"$set": {"status": "open", "unread_by_admin": True, "updated_at": now}},
+    )
+    return msg
+
+
+@api_router.get("/admin/support/threads")
+async def admin_list_support_threads(admin=Depends(require_admin)):
+    threads = await db.support_threads.find({}, {"_id": 0}).sort("updated_at", -1).to_list(500)
+    for t in threads:
+        last = await db.support_messages.find_one(
+            {"thread_id": t["thread_id"]}, {"_id": 0, "body": 1, "sender": 1}, sort=[("created_at", -1)]
+        )
+        t["last_message"] = last
+    return threads
+
+
+@api_router.get("/admin/support/threads/{thread_id}/messages")
+async def admin_get_support_thread(thread_id: str, admin=Depends(require_admin)):
+    thread = await db.support_threads.find_one({"thread_id": thread_id}, {"_id": 0})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    await db.support_threads.update_one({"thread_id": thread_id}, {"$set": {"unread_by_admin": False}})
+    messages = await db.support_messages.find({"thread_id": thread_id}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+    return {"thread": thread, "messages": messages}
+
+
+@api_router.post("/admin/support/threads/{thread_id}/messages")
+async def admin_reply_support_thread(thread_id: str, payload: SupportMessageIn, admin=Depends(require_admin)):
+    thread = await db.support_threads.find_one({"thread_id": thread_id}, {"_id": 0})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    now = now_utc().isoformat()
+    msg = {
+        "message_id": str(uuid.uuid4()),
+        "thread_id": thread_id,
+        "sender": "admin",
+        # Not the individual admin's name/email - the user sees "Ledgerly
+        # Support" as a single voice, same as Broadcast doesn't identify
+        # which admin sent it.
+        "sender_name": "Ledgerly Support",
+        "body": payload.body,
+        "created_at": now,
+    }
+    await db.support_messages.insert_one(msg)
+    msg.pop("_id", None)
+    await db.support_threads.update_one(
+        {"thread_id": thread_id}, {"$set": {"unread_by_user": True, "updated_at": now}}
+    )
+    return msg
+
+
+@api_router.post("/admin/support/threads/{thread_id}/resolve")
+async def admin_resolve_support_thread(thread_id: str, admin=Depends(require_admin)):
+    res = await db.support_threads.update_one({"thread_id": thread_id}, {"$set": {"status": "resolved"}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    await _log_admin_action(admin, "resolve_support_thread", "support_thread", thread_id, thread_id)
+    return {"success": True}
+
+
 # ---- Startup ----
 @app.on_event("startup")
 async def on_startup():
@@ -2869,6 +2991,9 @@ async def on_startup():
     await db.user_sessions.create_index("session_token")
     await db.ai_conversations.create_index([("user_id", 1), ("business_id", 1), ("updated_at", -1)])
     await db.admin_audit_log.create_index([("timestamp", -1)])
+    await db.support_threads.create_index("user_id", unique=True)
+    await db.support_threads.create_index([("updated_at", -1)])
+    await db.support_messages.create_index([("thread_id", 1), ("created_at", 1)])
 
     # Migrate any user without a membership row: convert their old flat
     # business_id/role (if present, from the earlier single-business model) into

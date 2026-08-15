@@ -6,6 +6,7 @@ import GrowthScreen from "./screens/GrowthScreen";
 import HealthScreen from "./screens/HealthScreen";
 import AuditLogScreen from "./screens/AuditLogScreen";
 import BroadcastScreen from "./screens/BroadcastScreen";
+import SupportScreen from "./screens/SupportScreen";
 import AdminShell from "./components/AdminShell";
 import { isAuthenticated } from "./lib/auth";
 
@@ -23,6 +24,7 @@ export default function App() {
       <Route path="/health" element={<RequireAuth><HealthScreen /></RequireAuth>} />
       <Route path="/audit-log" element={<RequireAuth><AuditLogScreen /></RequireAuth>} />
       <Route path="/broadcast" element={<RequireAuth><BroadcastScreen /></RequireAuth>} />
+      <Route path="/support" element={<RequireAuth><SupportScreen /></RequireAuth>} />
       <Route path="*" element={<Navigate to={isAuthenticated() ? "/users" : "/login"} replace />} />
     </Routes>
   );

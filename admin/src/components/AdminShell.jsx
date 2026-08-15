@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Key, ShieldCheck, SignOut } from "@phosphor-icons/react";
 import { clearToken, getUser } from "../lib/auth";
+import api from "../lib/api";
 import Toaster from "./Toaster";
 import SetPasswordModal from "./SetPasswordModal";
 
@@ -12,12 +13,27 @@ const tabs = [
   { to: "/health", label: "System health" },
   { to: "/audit-log", label: "Audit log" },
   { to: "/broadcast", label: "Broadcast" },
+  { to: "/support", label: "Support" },
 ];
+
+const SUPPORT_POLL_MS = 30000;
 
 export default function AdminShell({ children }) {
   const navigate = useNavigate();
   const user = getUser();
   const [showSetPassword, setShowSetPassword] = useState(false);
+  const [unreadSupport, setUnreadSupport] = useState(0);
+
+  useEffect(() => {
+    const checkUnread = () => {
+      api.get("/admin/support/threads")
+        .then(({ data }) => setUnreadSupport(data.filter((t) => t.unread_by_admin).length))
+        .catch(() => {});
+    };
+    checkUnread();
+    const id = setInterval(checkUnread, SUPPORT_POLL_MS);
+    return () => clearInterval(id);
+  }, []);
 
   const signOut = () => {
     clearToken();
@@ -47,6 +63,9 @@ export default function AdminShell({ children }) {
         {tabs.map((t) => (
           <NavLink key={t.to} to={t.to} className={({ isActive }) => `tab${isActive ? " active" : ""}`}>
             {t.label}
+            {t.to === "/support" && unreadSupport > 0 && (
+              <span style={{ marginLeft: "0.4rem", display: "inline-block", width: "0.5rem", height: "0.5rem", borderRadius: "50%", background: "hsl(var(--destructive))" }} />
+            )}
           </NavLink>
         ))}
       </div>

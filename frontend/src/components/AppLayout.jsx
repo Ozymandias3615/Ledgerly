@@ -1,7 +1,7 @@
 import React from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { House, Receipt, FileText, AddressBook, Package, Users, ChartLine, Sparkle, Gear, SignOut, Wallet, Question, Article, PiggyBank, Calendar, Target } from "@phosphor-icons/react";
+import { House, Receipt, FileText, AddressBook, Package, Users, ChartLine, Sparkle, Gear, SignOut, Wallet, Question, Article, PiggyBank, Calendar, Target, ChatCircleText } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import BusinessSwitcher from "@/components/BusinessSwitcher";
@@ -32,7 +32,7 @@ const personalNav = [
 // A NavLink whose active background is a single shared element (layoutId):
 // when the active tab changes, framer-motion animates that pill sliding from
 // its old position to the new one instead of the highlight just snapping.
-function NavItem({ to, label, Icon, testId, className = "" }) {
+function NavItem({ to, label, Icon, testId, className = "", showDot = false }) {
   return (
     <NavLink
       to={to}
@@ -54,6 +54,7 @@ function NavItem({ to, label, Icon, testId, className = "" }) {
           )}
           <Icon size={18} weight="duotone" className="relative shrink-0" />
           <span className="relative">{label}</span>
+          {showDot && <span className="relative ml-auto h-2 w-2 rounded-full bg-red-500" data-testid={`${testId}-unread-dot`} />}
         </>
       )}
     </NavLink>
@@ -98,6 +99,7 @@ export default function AppLayout({ children }) {
             <div className="text-sm font-semibold truncate" data-testid="user-name">{user?.name}</div>
             <div className="text-xs text-slate-500 truncate">{user?.email}</div>
           </div>
+          <NavItem to="/support" label="Support" Icon={ChatCircleText} testId="nav-support" className="mb-1" showDot={!!user?.support_unread} />
           <NavItem to="/help" label="Help" Icon={Question} testId="nav-help" className="mb-1" />
           <NavItem to="/settings" label="Settings" Icon={Gear} testId="nav-settings" className="mb-1" />
           <Button variant="outline" size="sm" className="w-full" onClick={handleLogout} data-testid="logout-button">
