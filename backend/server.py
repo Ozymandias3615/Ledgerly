@@ -15,9 +15,7 @@ import asyncio
 import calendar
 import logging
 import secrets
-import smtplib
 import zipfile
-from email.mime.text import MIMEText
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
@@ -89,32 +87,37 @@ SENTRY_ENABLED = bool(SENTRY_DSN) and bool(os.environ.get("RENDER"))
 if SENTRY_ENABLED:
     sentry_sdk.init(dsn=SENTRY_DSN, send_default_pii=True)
 
-# Support-inbox email alerts - no-ops if SMTP_USER/SMTP_PASSWORD aren't set,
-# same pattern as SENTRY_DSN/VAPID above. SMTP_PASSWORD is a Gmail App
-# Password, not the account's real password.
-SMTP_USER = os.environ.get("SMTP_USER")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
-SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+# Support-inbox email alerts - no-ops if RESEND_API_KEY isn't set, same
+# pattern as SENTRY_DSN/VAPID above. Raw SMTP (smtplib to Gmail) was tried
+# first but Render blocks outbound SMTP (ports 25/465/587) on standard
+# plans to prevent abuse - confirmed via Sentry capturing "OSError: [Errno
+# 101] Network is unreachable" on every send attempt, not a credentials
+# problem. Resend sends over HTTPS instead, which isn't blocked.
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Ledgerly Support <onboarding@resend.dev>")
 SUPPORT_ALERT_EMAIL = "n.abbiw10@gmail.com"
 
-def _send_support_alert_email(user_name: str, user_email: str, preview: str) -> None:
-    """Blocking (smtplib has no async API) - always call via
-    asyncio.to_thread from a request handler, and never let it fail the
-    request that triggered it."""
-    if not (SMTP_USER and SMTP_PASSWORD):
+async def _send_support_alert_email(user_name: str, user_email: str, preview: str) -> None:
+    """Never let this fail the request that triggered it - always call from
+    inside a try/except that logs rather than raises."""
+    if not RESEND_API_KEY:
         return
-    msg = MIMEText(
-        f"{user_name} ({user_email}) sent a new support message:\n\n{preview}\n\n"
-        f"Reply from the admin panel: https://ledgerly-admin.onrender.com/support"
-    )
-    msg["Subject"] = f"New Ledgerly support message from {user_name}"
-    msg["From"] = SMTP_USER
-    msg["To"] = SUPPORT_ALERT_EMAIL
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.send_message(msg)
+    async with httpx.AsyncClient() as http_client:
+        resp = await http_client.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+            json={
+                "from": RESEND_FROM_EMAIL,
+                "to": [SUPPORT_ALERT_EMAIL],
+                "subject": f"New Ledgerly support message from {user_name}",
+                "text": (
+                    f"{user_name} ({user_email}) sent a new support message:\n\n{preview}\n\n"
+                    f"Reply from the admin panel: https://ledgerly-admin.onrender.com/support"
+                ),
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
 
 
 # Separate from SENTRY_DSN (which only lets *this* process report errors) -
@@ -2995,9 +2998,9 @@ async def create_support_thread(payload: SupportMessageIn, user=Depends(get_curr
     await db.support_messages.insert_one(msg)
     msg.pop("_id", None)
     try:
-        await asyncio.to_thread(_send_support_alert_email, thread["user_name"], thread["user_email"], _message_preview(payload))
+        await _send_support_alert_email(thread["user_name"], thread["user_email"], _message_preview(payload))
     except Exception:
-        # Never let an SMTP failure fail the request that triggered it, but
+        # Never let an email failure fail the request that triggered it, but
         # a silently-swallowed exception here means an email that looks
         # "sent" from the caller's perspective is undiagnosable if it never
         # arrives - log it so Sentry actually captures the real reason.
@@ -3030,9 +3033,9 @@ async def post_support_thread_message(thread_id: str, payload: SupportMessageIn,
         {"thread_id": thread_id}, {"$set": {"unread_by_admin": True, "updated_at": now}}
     )
     try:
-        await asyncio.to_thread(_send_support_alert_email, thread["user_name"], thread["user_email"], _message_preview(payload))
+        await _send_support_alert_email(thread["user_name"], thread["user_email"], _message_preview(payload))
     except Exception:
-        # Never let an SMTP failure fail the request that triggered it, but
+        # Never let an email failure fail the request that triggered it, but
         # a silently-swallowed exception here means an email that looks
         # "sent" from the caller's perspective is undiagnosable if it never
         # arrives - log it so Sentry actually captures the real reason.
