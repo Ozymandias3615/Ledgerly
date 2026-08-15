@@ -2054,7 +2054,18 @@ async def export_account_data(user=Depends(get_current_user)):
 
     buf.seek(0)
     return StreamingResponse(buf, media_type="application/zip",
-                              headers={"Content-Disposition": 'attachment; filename="ledgerly-export.zip"'})
+                              headers={
+                                  "Content-Disposition": 'attachment; filename="ledgerly-export.zip"',
+                                  # This is a per-user data dump built fresh on every request and
+                                  # served over a Cloudflare-fronted domain (see render.yaml) - without
+                                  # an explicit no-store, the same URL/Authorization pairing looks
+                                  # cacheable to any intermediary (edge, corporate proxy, browser) and
+                                  # a stale response can get replayed to a later request for a
+                                  # different (or the same, now-changed) account's private data.
+                                  "Cache-Control": "no-store, no-cache, must-revalidate, private",
+                                  "Pragma": "no-cache",
+                                  "Vary": "Authorization, Cookie",
+                              })
 
 
 async def _delete_user_and_data(user_id: str):
