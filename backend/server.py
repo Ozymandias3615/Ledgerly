@@ -106,7 +106,7 @@ if SENTRY_ENABLED:
 GMAIL_CLIENT_ID = os.environ.get("GMAIL_CLIENT_ID")
 GMAIL_CLIENT_SECRET = os.environ.get("GMAIL_CLIENT_SECRET")
 GMAIL_REFRESH_TOKEN = os.environ.get("GMAIL_REFRESH_TOKEN")
-SUPPORT_ALERT_EMAIL = "support.ledgerly@gmail.com"
+SUPPORT_ALERT_EMAIL = "n.abbiw10@gmail.com"
 
 async def _send_support_alert_email(user_name: str, user_email: str, preview: str) -> None:
     """Never let this fail the request that triggered it - always call from
