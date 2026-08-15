@@ -23,6 +23,7 @@ function SentryIssues() {
   const [issues, setIssues] = useState(null);
   const [error, setError] = useState("");
   const [resolvingId, setResolvingId] = useState(null);
+  const [resolveError, setResolveError] = useState("");
 
   useEffect(() => {
     api.get("/admin/sentry/issues")
@@ -34,15 +35,17 @@ function SentryIssues() {
     e.preventDefault();
     e.stopPropagation();
     setResolvingId(issueId);
+    setResolveError("");
     api.post(`/admin/sentry/issues/${issueId}/resolve`)
       .then(() => setIssues((prev) => prev.filter((i) => i.id !== issueId)))
-      .catch((err) => setError(err.response?.data?.detail || "Failed to resolve issue"))
+      .catch((err) => setResolveError(err.response?.data?.detail || "Failed to resolve issue"))
       .finally(() => setResolvingId(null));
   };
 
   return (
     <div className="card card-pad">
       <div style={{ fontWeight: 700, marginBottom: "0.5rem" }}>Recent errors (backend, unresolved, last 14 days)</div>
+      {resolveError && <p className="warn-text" style={{ marginBottom: "0.5rem" }}>{resolveError}</p>}
       {error ? (
         <p className="muted">{error}</p>
       ) : !issues ? (
