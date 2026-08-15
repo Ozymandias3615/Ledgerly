@@ -2704,7 +2704,7 @@ async def admin_sentry_resolve_issue(issue_id: str, admin=Depends(require_admin)
             timeout=10,
         )
     if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail=f"Sentry API error ({resp.status_code})")
+        raise HTTPException(status_code=502, detail=f"Sentry API error ({resp.status_code}): {resp.text[:300]}")
     return {"resolved": True}
 
 
