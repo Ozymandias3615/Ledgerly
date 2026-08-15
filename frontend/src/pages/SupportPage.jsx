@@ -44,14 +44,23 @@ export default function SupportPage() {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
+  // Guards the initial auto-select-on-load below against a race with the
+  // user clicking "New conversation" before the list finishes loading -
+  // without this, the async .then() below runs with a stale closure over
+  // selectedId (captured as null at mount) and silently overrides whatever
+  // the user already picked.
+  const autoSelectedRef = useRef(false);
 
   const loadThreads = () => {
     setThreadsError("");
     api.get("/support/threads")
       .then(({ data }) => {
         setThreads(data);
-        if (selectedId === null && data.length > 0) openThread(data[0].thread_id);
-        else if (selectedId === null) setSelectedId("new");
+        if (!autoSelectedRef.current) {
+          autoSelectedRef.current = true;
+          if (data.length > 0) openThread(data[0].thread_id);
+          else setSelectedId("new");
+        }
       })
       .catch((err) => setThreadsError(formatApiError(err) || "Failed to load conversations"));
   };
