@@ -99,14 +99,8 @@ export default function HealthScreen() {
   const sendTestError = () => {
     setDebugStatus("Sending...");
     api.get("/admin/sentry-debug")
-      .then(() => setDebugStatus("Unexpected: no error was raised."))
-      .catch((err) => {
-        setDebugStatus(
-          err.response?.status === 500
-            ? "Sent — should show up in Sentry within a minute."
-            : err.response?.data?.detail || "Failed to reach the debug endpoint."
-        );
-      });
+      .then(() => setDebugStatus("Sent — should show up in Sentry within a minute."))
+      .catch((err) => setDebugStatus(err.response?.data?.detail || "Failed to reach the debug endpoint."));
   };
 
   return (

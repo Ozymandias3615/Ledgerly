@@ -2688,8 +2688,19 @@ async def admin_sentry_issues(admin=Depends(require_admin)):
 
 @api_router.get("/admin/sentry-debug")
 async def admin_sentry_debug(admin=Depends(require_admin)):
-    """Intentionally raises so Sentry capture can be verified end-to-end."""
-    1 / 0
+    """Captures a synthetic error so Sentry capture can be verified end-to-end.
+
+    Reports the error explicitly and returns 200 rather than letting it
+    propagate as an unhandled exception - Starlette's default error handler
+    sends 500s from outside the CORS middleware, which the admin frontend
+    (a different origin) can't read, so the button would always report
+    failure even when Sentry received the event fine.
+    """
+    try:
+        1 / 0
+    except ZeroDivisionError:
+        sentry_sdk.capture_exception()
+    return {"sent": True}
 
 
 @api_router.get("/admin/audit-log")
