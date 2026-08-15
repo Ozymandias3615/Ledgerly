@@ -158,10 +158,17 @@ function UserDetailModal({ userId, onClose, onChanged }) {
   );
 }
 
+const PRODUCT_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "business", label: "Business" },
+  { key: "personal", label: "Personal" },
+];
+
 export default function UsersScreen() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [productFilter, setProductFilter] = useState("all");
   const [selected, setSelected] = useState(null);
 
   const load = () => {
@@ -174,6 +181,8 @@ export default function UsersScreen() {
   useEffect(load, []);
 
   const filtered = users.filter((u) => {
+    if (productFilter === "business" && !u.has_business) return false;
+    if (productFilter === "personal" && !u.has_personal) return false;
     const q = query.trim().toLowerCase();
     if (!q) return true;
     return u.email?.toLowerCase().includes(q) || u.name?.toLowerCase().includes(q) || u.business_name?.toLowerCase().includes(q);
@@ -189,9 +198,23 @@ export default function UsersScreen() {
 
       <div className="toolbar">
         <span className="muted">{loading ? "Loading..." : `${filtered.length} of ${users.length} account(s)`}</span>
-        <div className="search-wrap">
-          <MagnifyingGlass size={16} className="search-icon" />
-          <input className="input" placeholder="Search by name, email, business" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <div className="filter-tabs">
+            {PRODUCT_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                className={`filter-tab${productFilter === f.key ? " active" : ""}`}
+                onClick={() => setProductFilter(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="search-wrap">
+            <MagnifyingGlass size={16} className="search-icon" />
+            <input className="input" placeholder="Search by name, email, business" value={query} onChange={(e) => setQuery(e.target.value)} />
+          </div>
         </div>
       </div>
 
@@ -199,19 +222,20 @@ export default function UsersScreen() {
         <table>
           <thead>
             <tr>
-              <th>Name</th><th>Email</th><th>Business</th><th>Sign-in method</th><th>Joined</th><th>Last active</th>
+              <th>Name</th><th>Email</th><th>Business</th><th>Personal</th><th>Sign-in method</th><th>Joined</th><th>Last active</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="empty-row">Loading...</td></tr>
+              <tr><td colSpan={7} className="empty-row">Loading...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="empty-row">No users found.</td></tr>
+              <tr><td colSpan={7} className="empty-row">No users found.</td></tr>
             ) : filtered.map((u) => (
               <tr key={u.user_id} className="clickable" onClick={() => setSelected(u.user_id)}>
                 <td>{u.name || "—"}</td>
                 <td className="muted">{u.email}</td>
-                <td className="muted">{u.business_name || "—"}</td>
+                <td className="muted">{u.has_business ? (u.business_name || "Business") : "—"}</td>
+                <td className="muted">{u.has_personal ? "✓ Personal" : "—"}</td>
                 <td><span className="badge">{u.auth_provider || "unknown"}</span></td>
                 <td className="muted">{formatDate(u.created_at)}</td>
                 <td className="muted">{formatRelative(u.last_active)}</td>

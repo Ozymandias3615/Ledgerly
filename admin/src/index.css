@@ -125,6 +125,13 @@ tbody tr.clickable:hover { background: hsl(var(--secondary)); }
 .search-wrap .input { padding-left: 2.25rem; }
 .search-icon { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: hsl(var(--muted-foreground)); }
 
+.filter-tabs { display: flex; gap: 0.25rem; padding: 0.2rem; border-radius: 0.5rem; background: hsl(var(--secondary)); }
+.filter-tab {
+  font: inherit; font-weight: 600; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 0.4rem;
+  border: none; background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer;
+}
+.filter-tab.active { background: hsl(var(--background)); color: hsl(var(--foreground)); }
+
 .btn {
   font: inherit; font-weight: 600; font-size: 0.8rem; padding: 0.5rem 0.9rem; border-radius: 0.5rem;
   border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;

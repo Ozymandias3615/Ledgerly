@@ -2412,9 +2412,20 @@ async def admin_list_users(admin=Depends(require_admin)):
     business_ids = [u["active_business_id"] for u in users if u.get("active_business_id")]
     businesses = await db.businesses.find({"business_id": {"$in": business_ids}}, {"_id": 0}).to_list(1000)
     biz_by_id = {b["business_id"]: b for b in businesses}
+
+    # A user "has" business/personal if they have any data there, not just an
+    # active_business_id - membership without an active selection, or personal
+    # data with no business at all, should still count.
+    business_user_ids = set(await db.memberships.distinct("user_id"))
+    personal_user_ids = set()
+    for coll in (db.personal_transactions, db.personal_budgets, db.personal_bills, db.personal_savings_goals):
+        personal_user_ids.update(await coll.distinct("user_id"))
+
     for u in users:
         biz = biz_by_id.get(u.get("active_business_id"))
         u["business_name"] = biz["name"] if biz else None
+        u["has_business"] = u["user_id"] in business_user_ids
+        u["has_personal"] = u["user_id"] in personal_user_ids
         u["last_active"] = await _last_active(u["user_id"])
     return {"total": len(users), "users": users}
 
