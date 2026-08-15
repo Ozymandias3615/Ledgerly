@@ -97,14 +97,16 @@ if SENTRY_ENABLED:
 # rejected every send ("The domain is invalid") since it only sends from a
 # fully DNS-verified domain, and SendGrid's own account provisioning wasn't
 # usable ("Maximum credits exceeded" on a brand-new account). Sending via
-# the Gmail API directly - as the real n.abbiw10@gmail.com account, over
-# HTTPS - sidesteps all three: no SMTP port, no domain to verify, no
+# the Gmail API directly - as the real support.ledgerly@gmail.com account,
+# over HTTPS - sidesteps all three: no SMTP port, no domain to verify, no
 # third-party vendor account at all. GMAIL_REFRESH_TOKEN is obtained once
-# via scripts/get_gmail_refresh_token.py (run locally, not on Render).
+# via scripts/get_gmail_refresh_token.py (run locally, not on Render) -
+# whichever Google account grants consent there is who the email sends
+# *from*; this constant only controls who it sends *to*.
 GMAIL_CLIENT_ID = os.environ.get("GMAIL_CLIENT_ID")
 GMAIL_CLIENT_SECRET = os.environ.get("GMAIL_CLIENT_SECRET")
 GMAIL_REFRESH_TOKEN = os.environ.get("GMAIL_REFRESH_TOKEN")
-SUPPORT_ALERT_EMAIL = "n.abbiw10@gmail.com"
+SUPPORT_ALERT_EMAIL = "support.ledgerly@gmail.com"
 
 async def _send_support_alert_email(user_name: str, user_email: str, preview: str) -> None:
     """Never let this fail the request that triggered it - always call from
