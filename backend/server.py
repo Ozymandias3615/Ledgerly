@@ -161,9 +161,10 @@ async def _enrich_user(user: dict) -> dict:
         user["invoice_reminder_days"] = biz.get("invoice_reminder_days", DEFAULT_INVOICE_REMINDER_DAYS)
     # Support inbox is account-level (user_id-scoped), independent of
     # business/personal context, so its unread flag is surfaced here rather
-    # than through either context-specific notification bell.
-    thread = await db.support_threads.find_one({"user_id": user["user_id"]}, {"_id": 0, "unread_by_user": 1})
-    user["support_unread"] = bool(thread and thread.get("unread_by_user"))
+    # than through either context-specific notification bell. A user can have
+    # multiple threads, so this is true if ANY of them has an unread reply.
+    thread = await db.support_threads.find_one({"user_id": user["user_id"], "unread_by_user": True}, {"_id": 0, "thread_id": 1})
+    user["support_unread"] = bool(thread)
     return user
 
 async def _create_membership(user_id: str, business_id: str, role: str) -> dict:
@@ -2860,54 +2861,80 @@ async def admin_broadcast(payload: AdminBroadcastIn, admin=Depends(require_admin
 
 
 # ---- Support inbox ----
-# One thread per user_id (not per business) - a support conversation belongs
-# to the account, not whichever business happens to be active. Two
-# collections rather than embedding messages on the thread doc, so a long
-# conversation doesn't require rewriting the whole message history on every
-# reply.
+# Many threads per user_id (not per business) - a support conversation
+# belongs to the account, not whichever business happens to be active, and a
+# user can have multiple concurrent/past conversations rather than one
+# perpetual thread. Two collections rather than embedding messages on the
+# thread doc, so a long conversation doesn't require rewriting the whole
+# message history on every reply.
 class SupportMessageIn(BaseModel):
     body: str = Field(min_length=1, max_length=4000)
 
 
-async def _get_or_create_support_thread(user_id: str, email: str, name: str) -> dict:
-    thread = await db.support_threads.find_one({"user_id": user_id}, {"_id": 0})
-    if thread:
-        return thread
-    thread = {
-        "thread_id": str(uuid.uuid4()),
-        "user_id": user_id,
-        "user_email": email,
-        "user_name": name,
-        "status": "open",
-        "unread_by_admin": False,
-        "unread_by_user": False,
-        "created_at": now_utc().isoformat(),
-        "updated_at": now_utc().isoformat(),
-    }
-    await db.support_threads.insert_one(thread)
-    thread.pop("_id", None)
+def _thread_subject(first_message_body: str) -> str:
+    body = first_message_body.strip()
+    return (body[:60] + "…") if len(body) > 60 else body
+
+
+async def _support_thread_owned_by(thread_id: str, user_id: str) -> dict:
+    thread = await db.support_threads.find_one({"thread_id": thread_id, "user_id": user_id}, {"_id": 0})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Conversation not found")
     return thread
 
 
-@api_router.get("/support/messages")
-async def get_support_messages(user=Depends(get_current_user)):
-    thread = await db.support_threads.find_one({"user_id": user["user_id"]}, {"_id": 0})
-    if not thread:
-        return {"thread": None, "messages": []}
-    await db.support_threads.update_one({"thread_id": thread["thread_id"]}, {"$set": {"unread_by_user": False}})
-    messages = await db.support_messages.find({"thread_id": thread["thread_id"]}, {"_id": 0}).sort("created_at", 1).to_list(1000)
-    return {"thread": thread, "messages": messages}
+@api_router.get("/support/threads")
+async def list_my_support_threads(user=Depends(get_current_user)):
+    return await db.support_threads.find({"user_id": user["user_id"]}, {"_id": 0}).sort("updated_at", -1).to_list(200)
 
 
-@api_router.post("/support/messages")
-async def post_support_message(payload: SupportMessageIn, user=Depends(get_current_user)):
-    thread = await _get_or_create_support_thread(user["user_id"], user["email"], user.get("name") or user["email"])
+@api_router.post("/support/threads")
+async def create_support_thread(payload: SupportMessageIn, user=Depends(get_current_user)):
     now = now_utc().isoformat()
+    thread = {
+        "thread_id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        "user_email": user["email"],
+        "user_name": user.get("name") or user["email"],
+        "subject": _thread_subject(payload.body),
+        "status": "open",
+        "unread_by_admin": True,
+        "unread_by_user": False,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.support_threads.insert_one(thread)
+    thread.pop("_id", None)
     msg = {
         "message_id": str(uuid.uuid4()),
         "thread_id": thread["thread_id"],
         "sender": "user",
-        "sender_name": user.get("name") or user["email"],
+        "sender_name": thread["user_name"],
+        "body": payload.body,
+        "created_at": now,
+    }
+    await db.support_messages.insert_one(msg)
+    msg.pop("_id", None)
+    return {"thread": thread, "messages": [msg]}
+
+
+@api_router.get("/support/threads/{thread_id}/messages")
+async def get_support_thread_messages(thread_id: str, user=Depends(get_current_user)):
+    thread = await _support_thread_owned_by(thread_id, user["user_id"])
+    await db.support_threads.update_one({"thread_id": thread_id}, {"$set": {"unread_by_user": False}})
+    messages = await db.support_messages.find({"thread_id": thread_id}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+    return {"thread": thread, "messages": messages}
+
+
+@api_router.post("/support/threads/{thread_id}/messages")
+async def post_support_thread_message(thread_id: str, payload: SupportMessageIn, user=Depends(get_current_user)):
+    thread = await _support_thread_owned_by(thread_id, user["user_id"])
+    now = now_utc().isoformat()
+    msg = {
+        "message_id": str(uuid.uuid4()),
+        "thread_id": thread_id,
+        "sender": "user",
+        "sender_name": thread["user_name"],
         "body": payload.body,
         "created_at": now,
     }
@@ -2915,15 +2942,16 @@ async def post_support_message(payload: SupportMessageIn, user=Depends(get_curre
     msg.pop("_id", None)
     # Reopens automatically if the user replies to an already-resolved thread.
     await db.support_threads.update_one(
-        {"thread_id": thread["thread_id"]},
+        {"thread_id": thread_id},
         {"$set": {"status": "open", "unread_by_admin": True, "updated_at": now}},
     )
     return msg
 
 
 @api_router.get("/admin/support/threads")
-async def admin_list_support_threads(admin=Depends(require_admin)):
-    threads = await db.support_threads.find({}, {"_id": 0}).sort("updated_at", -1).to_list(500)
+async def admin_list_support_threads(status: Optional[str] = Query(None), admin=Depends(require_admin)):
+    query = {"status": status} if status in ("open", "resolved") else {}
+    threads = await db.support_threads.find(query, {"_id": 0}).sort("updated_at", -1).to_list(500)
     for t in threads:
         last = await db.support_messages.find_one(
             {"thread_id": t["thread_id"]}, {"_id": 0, "body": 1, "sender": 1}, sort=[("created_at", -1)]
@@ -2991,8 +3019,16 @@ async def on_startup():
     await db.user_sessions.create_index("session_token")
     await db.ai_conversations.create_index([("user_id", 1), ("business_id", 1), ("updated_at", -1)])
     await db.admin_audit_log.create_index([("timestamp", -1)])
-    await db.support_threads.create_index("user_id", unique=True)
-    await db.support_threads.create_index([("updated_at", -1)])
+    # Support threads used to be one-per-user (unique index on user_id alone)
+    # before multiple concurrent threads per user were supported - drop that
+    # old constraint if it's still there from an earlier deploy, otherwise a
+    # user's second thread fails to insert with a duplicate-key error.
+    try:
+        await db.support_threads.drop_index("user_id_1")
+    except Exception:
+        pass
+    await db.support_threads.create_index([("user_id", 1), ("updated_at", -1)])
+    await db.support_threads.create_index([("status", 1), ("updated_at", -1)])
     await db.support_messages.create_index([("thread_id", 1), ("created_at", 1)])
 
     # Migrate any user without a membership row: convert their old flat
