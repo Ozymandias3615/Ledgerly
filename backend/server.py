@@ -16,6 +16,7 @@ import calendar
 import logging
 import secrets
 import zipfile
+from email.mime.text import MIMEText
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
@@ -87,48 +88,56 @@ SENTRY_ENABLED = bool(SENTRY_DSN) and bool(os.environ.get("RENDER"))
 if SENTRY_ENABLED:
     sentry_sdk.init(dsn=SENTRY_DSN, send_default_pii=True)
 
-# Support-inbox email alerts - no-ops if SENDGRID_API_KEY isn't set, same
-# pattern as SENTRY_DSN/VAPID above. Two earlier attempts failed: raw SMTP
-# (smtplib to Gmail) is blocked at the network level by Render on standard
-# plans ("OSError: [Errno 101] Network is unreachable"), and Resend rejected
-# every send ("The domain is invalid") since it only sends from a fully
-# DNS-verified domain, which this project doesn't have. SendGrid's Single
-# Sender Verification (verify one address by clicking a confirmation email,
-# no DNS/domain ownership needed) is the fit here - SENDGRID_FROM_EMAIL must
-# be exactly whatever address was verified that way.
-SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
+# Support-inbox email alerts - no-ops if the three GMAIL_* vars aren't set,
+# same pattern as SENTRY_DSN/VAPID above. Two earlier vendors failed: raw
+# SMTP (smtplib to Gmail) is blocked at the network level by Render on
+# standard plans ("OSError: [Errno 101] Network is unreachable"), Resend
+# rejected every send ("The domain is invalid") since it only sends from a
+# fully DNS-verified domain, and SendGrid's own account provisioning wasn't
+# usable ("Maximum credits exceeded" on a brand-new account). Sending via
+# the Gmail API directly - as the real n.abbiw10@gmail.com account, over
+# HTTPS - sidesteps all three: no SMTP port, no domain to verify, no
+# third-party vendor account at all. GMAIL_REFRESH_TOKEN is obtained once
+# via scripts/get_gmail_refresh_token.py (run locally, not on Render).
+GMAIL_CLIENT_ID = os.environ.get("GMAIL_CLIENT_ID")
+GMAIL_CLIENT_SECRET = os.environ.get("GMAIL_CLIENT_SECRET")
+GMAIL_REFRESH_TOKEN = os.environ.get("GMAIL_REFRESH_TOKEN")
 SUPPORT_ALERT_EMAIL = "n.abbiw10@gmail.com"
-SENDGRID_FROM_EMAIL = os.environ.get("SENDGRID_FROM_EMAIL", SUPPORT_ALERT_EMAIL)
 
 async def _send_support_alert_email(user_name: str, user_email: str, preview: str) -> None:
     """Never let this fail the request that triggered it - always call from
     inside a try/except that logs rather than raises."""
-    if not SENDGRID_API_KEY:
+    if not (GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET and GMAIL_REFRESH_TOKEN):
         return
     async with httpx.AsyncClient() as http_client:
-        resp = await http_client.post(
-            "https://api.sendgrid.com/v3/mail/send",
-            headers={"Authorization": f"Bearer {SENDGRID_API_KEY}"},
-            json={
-                "personalizations": [{"to": [{"email": SUPPORT_ALERT_EMAIL}]}],
-                "from": {"email": SENDGRID_FROM_EMAIL, "name": "Ledgerly Support"},
-                "subject": f"New Ledgerly support message from {user_name}",
-                "content": [{
-                    "type": "text/plain",
-                    "value": (
-                        f"{user_name} ({user_email}) sent a new support message:\n\n{preview}\n\n"
-                        f"Reply from the admin panel: https://ledgerly-admin.onrender.com/support"
-                    ),
-                }],
-            },
+        token_resp = await http_client.post("https://oauth2.googleapis.com/token", data={
+            "client_id": GMAIL_CLIENT_ID,
+            "client_secret": GMAIL_CLIENT_SECRET,
+            "refresh_token": GMAIL_REFRESH_TOKEN,
+            "grant_type": "refresh_token",
+        }, timeout=10)
+        if token_resp.status_code >= 400:
+            raise RuntimeError(f"Gmail token refresh error {token_resp.status_code}: {token_resp.text[:500]}")
+        access_token = token_resp.json()["access_token"]
+
+        msg = MIMEText(
+            f"{user_name} ({user_email}) sent a new support message:\n\n{preview}\n\n"
+            f"Reply from the admin panel: https://ledgerly-admin.onrender.com/support"
+        )
+        msg["To"] = SUPPORT_ALERT_EMAIL
+        msg["Subject"] = f"New Ledgerly support message from {user_name}"
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+
+        send_resp = await http_client.post(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"raw": raw},
             timeout=10,
         )
-        if resp.status_code >= 400:
-            # SendGrid's error body explains exactly what's wrong (unverified
-            # sender, bad API key scope, etc.) - include it so the next
-            # failure is diagnosable from Sentry alone, same lesson as the
-            # Resend attempt above.
-            raise RuntimeError(f"SendGrid API error {resp.status_code}: {resp.text[:500]}")
+        if send_resp.status_code >= 400:
+            # Same lesson as the Resend/SendGrid attempts above - always
+            # capture the response body, not just the status code.
+            raise RuntimeError(f"Gmail API error {send_resp.status_code}: {send_resp.text[:500]}")
 
 
 # Separate from SENTRY_DSN (which only lets *this* process report errors) -
