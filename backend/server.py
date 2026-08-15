@@ -2929,6 +2929,11 @@ async def get_support_thread_messages(thread_id: str, user=Depends(get_current_u
 @api_router.post("/support/threads/{thread_id}/messages")
 async def post_support_thread_message(thread_id: str, payload: SupportMessageIn, user=Depends(get_current_user)):
     thread = await _support_thread_owned_by(thread_id, user["user_id"])
+    # A resolved conversation is over from the user's side - now that they
+    # can start a new thread instead, there's no reason to let a stray
+    # message silently reopen an old one.
+    if thread["status"] == "resolved":
+        raise HTTPException(status_code=400, detail="This conversation has been resolved. Start a new conversation if you need more help.")
     now = now_utc().isoformat()
     msg = {
         "message_id": str(uuid.uuid4()),
@@ -2940,10 +2945,8 @@ async def post_support_thread_message(thread_id: str, payload: SupportMessageIn,
     }
     await db.support_messages.insert_one(msg)
     msg.pop("_id", None)
-    # Reopens automatically if the user replies to an already-resolved thread.
     await db.support_threads.update_one(
-        {"thread_id": thread_id},
-        {"$set": {"status": "open", "unread_by_admin": True, "updated_at": now}},
+        {"thread_id": thread_id}, {"$set": {"unread_by_admin": True, "updated_at": now}}
     )
     return msg
 
@@ -2992,6 +2995,16 @@ async def admin_reply_support_thread(thread_id: str, payload: SupportMessageIn, 
     await db.support_threads.update_one(
         {"thread_id": thread_id}, {"$set": {"unread_by_user": True, "updated_at": now}}
     )
+    # Personal notifications (not the business bell, which is shared across
+    # a whole team) are the only correctly-scoped place for this - a support
+    # reply is private to the account that asked, not something teammates on
+    # a shared business should see. Deferred import: personal_router is only
+    # attached to `app` at the bottom of this module (see the comment there),
+    # so it isn't importable until then, but this function only runs at
+    # request time, long after that import has completed.
+    from personal_router import _notify_personal
+    preview = payload.body if len(payload.body) <= 120 else payload.body[:120] + "…"
+    await _notify_personal(thread["user_id"], "support_reply", "Ledgerly Support replied", preview, "/support")
     return msg
 
 

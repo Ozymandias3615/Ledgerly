@@ -116,6 +116,7 @@ export default function SupportPage() {
   };
 
   const composing = selectedId === "new";
+  const resolved = !composing && detail?.thread?.status === "resolved";
 
   return (
     <div className="p-8 h-full flex flex-col" data-testid="support-page">
@@ -168,23 +169,32 @@ export default function SupportPage() {
             <div ref={bottomRef} />
           </div>
 
-          <form onSubmit={send} className="shrink-0 border-t border-slate-200 p-4 flex gap-2 items-end">
-            <Textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e); }
-              }}
-              placeholder={composing ? "Type your message..." : "Type a message..."}
-              rows={2}
-              maxLength={4000}
-              className="resize-none"
-              data-testid="support-message-input"
-            />
-            <Button type="submit" disabled={sending || !body.trim()} data-testid="support-send-button">
-              <PaperPlaneTilt size={16} className="mr-2" /> Send
-            </Button>
-          </form>
+          {resolved ? (
+            <div className="shrink-0 border-t border-slate-200 p-4 flex items-center justify-between gap-3 bg-slate-50">
+              <span className="text-sm text-slate-500">This conversation was resolved.</span>
+              <Button type="button" variant="outline" size="sm" onClick={startNew} data-testid="support-resolved-new-thread-button">
+                <Plus size={14} className="mr-2" /> New conversation
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={send} className="shrink-0 border-t border-slate-200 p-4 flex gap-2 items-end">
+              <Textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e); }
+                }}
+                placeholder={composing ? "Type your message..." : "Type a message..."}
+                rows={2}
+                maxLength={4000}
+                className="resize-none"
+                data-testid="support-message-input"
+              />
+              <Button type="submit" disabled={sending || !body.trim()} data-testid="support-send-button">
+                <PaperPlaneTilt size={16} className="mr-2" /> Send
+              </Button>
+            </form>
+          )}
         </div>
       </div>
     </div>
