@@ -132,13 +132,14 @@ async def _send_support_alert_email(user_name: str, user_email: str, preview: st
         # value could break the layout or inject markup.
         # Logo image must be a real hosted URL, not a data: URI - most email
         # clients (Outlook especially) don't render inline/base64 images
-        # reliably, but do fetch a normal https:// <img> src. This is
-        # mobile's PWA icon (same brand mark as every app's Brand.jsx),
-        # already publicly hosted, so no new asset to deploy.
+        # reliably, but do fetch a normal https:// <img> src. This is the
+        # desktop app's wallet icon (frontend/public/app-icon.png) - copied
+        # into admin/public since the desktop app itself is Electron-only,
+        # never web-hosted, so it had no public URL of its own.
         html_body = f"""\
 <div style="font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #0f172a;">
   <div style="margin-bottom: 16px;">
-    <img src="https://ledgerly-mobile.onrender.com/icons/icon-192.png" width="24" height="24" alt="Ledgerly" style="vertical-align: middle; border-radius: 5px; display: inline-block;">
+    <img src="https://ledgerly-admin.onrender.com/app-icon.png" width="24" height="24" alt="Ledgerly" style="vertical-align: middle; border-radius: 5px; display: inline-block;">
     <span style="vertical-align: middle; margin-left: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b;">Ledgerly Support</span>
   </div>
   <div style="font-family: Manrope, -apple-system, sans-serif; font-size: 20px; font-weight: 800; margin-top: 4px;">New message from {html.escape(user_name)}</div>
