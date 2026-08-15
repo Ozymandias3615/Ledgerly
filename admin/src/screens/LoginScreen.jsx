@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
-import { ShieldCheck } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { isAuthenticated, setSession, clearToken } from "../lib/auth";
 import { auth } from "../lib/firebase";
@@ -116,9 +115,7 @@ export default function LoginScreen() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <div className="brand-mark" style={{ margin: "0 auto" }}>
-          <ShieldCheck size={18} weight="fill" />
-        </div>
+        <img src="/app-icon.png" alt="Ledgerly" className="brand-mark" style={{ margin: "0 auto" }} />
         <div className="login-heading">Ledgerly Admin</div>
         <p className="login-sub">Sign in with an authorized account.</p>
         <div ref={googleButtonRef} className="google-btn-container" />

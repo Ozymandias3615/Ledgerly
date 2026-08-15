@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Key, ShieldCheck, SignOut } from "@phosphor-icons/react";
+import { Key, SignOut } from "@phosphor-icons/react";
 import { clearToken, getUser } from "../lib/auth";
 import api from "../lib/api";
 import Toaster from "./Toaster";
@@ -44,7 +44,7 @@ export default function AdminShell({ children }) {
     <div className="app-shell">
       <div className="topbar">
         <div className="brand">
-          <div className="brand-mark"><ShieldCheck size={16} weight="fill" /></div>
+          <img src="/app-icon.png" alt="Ledgerly" className="brand-mark" />
           <div>
             <div className="brand-name">Ledgerly Admin</div>
             <div className="brand-tag">Internal</div>
