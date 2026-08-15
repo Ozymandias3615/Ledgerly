@@ -3055,6 +3055,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def _no_store_cache_headers(request: Request, call_next):
+    """This API is fronted by Cloudflare (see render.yaml) and every response
+    is per-user dynamic data - without an explicit no-store, the same
+    URL/Authorization pairing can look cacheable to an intermediary (edge,
+    corporate proxy, browser) and a stale response gets replayed to a later
+    request. Found via /account/export returning a stale, smaller snapshot of
+    an account's data on a repeat request (see git history), then again via
+    /auth/me serving a stale support_unread flag - applied globally here
+    rather than endpoint-by-endpoint so it can't be missed on a new route."""
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
