@@ -586,8 +586,13 @@ async def firebase_session(payload: FirebaseSessionIn, response: Response):
     if not FIREBASE_PROJECT_ID:
         raise HTTPException(status_code=500, detail="Firebase is not configured on the server")
     try:
+        # google-auth's clock_skew_in_seconds defaults to 0, so any drift
+        # between the client's clock and this server's rejects a freshly
+        # issued token as "used too early" - 10s matches Firebase Admin SDK's
+        # own tolerance for the same check.
         decoded = google_id_token.verify_firebase_token(
-            payload.id_token, google_auth_requests.Request(), audience=FIREBASE_PROJECT_ID
+            payload.id_token, google_auth_requests.Request(), audience=FIREBASE_PROJECT_ID,
+            clock_skew_in_seconds=10,
         )
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid Firebase token")
