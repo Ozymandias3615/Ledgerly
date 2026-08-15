@@ -501,8 +501,13 @@ function DataAccountSection() {
       <div className="mb-6">
         <div className="text-xs uppercase tracking-[0.15em] text-slate-500 mb-2">Export your data</div>
         <div className="text-xs text-slate-500 mb-3">
-          Download everything in {user?.business_name || "your business"} — transactions, invoices, clients,
-          inventory, employees, and payroll — as a ZIP of CSV files.
+          {user?.business_name ? (
+            <>Download everything in {user.business_name} — transactions, invoices, clients, inventory, employees,
+            and payroll — plus your Ledgerly Personal transactions, budgets, bills, and savings goals — as a ZIP of
+            CSV files.</>
+          ) : (
+            <>Download your Ledgerly Personal transactions, budgets, bills, and savings goals as a ZIP of CSV files.</>
+          )}
         </div>
         <Button type="button" variant="outline" size="sm" onClick={exportData} disabled={exporting} data-testid="export-account-data-button">
           {exporting ? "Preparing export..." : "Export my data"}

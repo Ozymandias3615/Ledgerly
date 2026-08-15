@@ -1839,6 +1839,30 @@ def _employees_rows(emps):
     for e in emps:
         yield [e.get("name"), e.get("email", ""), e.get("position", ""), e.get("salary"), e.get("pay_frequency"), e.get("tax_rate", 0), e.get("currency", "USD")]
 
+# ---- Ledgerly Personal row-builders, for /account/export only. Personal's
+# own endpoints (personal_router.py) intentionally never import server.py's
+# business-side helpers the other direction - this is just server.py reading
+# the same user_id-scoped collections personal_router.py writes to. ----
+def _personal_txs_rows(txs):
+    yield ["Date", "Type", "Category", "Description", "Amount", "Currency"]
+    for t in txs:
+        yield [_fmt_date(t.get("date")), t.get("type"), t.get("category"), t.get("description", ""), t.get("amount"), t.get("currency", "USD")]
+
+def _personal_budgets_rows(budgets):
+    yield ["Category", "Monthly Limit", "Currency"]
+    for b in budgets:
+        yield [b.get("category"), b.get("monthly_limit"), b.get("currency", "USD")]
+
+def _personal_bills_rows(bills):
+    yield ["Name", "Category", "Amount", "Due Date", "Recurring", "Currency"]
+    for b in bills:
+        yield [b.get("name"), b.get("category"), b.get("amount"), _fmt_date(b.get("due_date")), "Yes" if b.get("recurring") else "No", b.get("currency", "USD")]
+
+def _personal_goals_rows(goals):
+    yield ["Name", "Target Amount", "Current Amount", "Target Date", "Currency"]
+    for g in goals:
+        yield [g.get("name"), g.get("target_amount"), g.get("current_amount", 0), _fmt_date(g.get("target_date")) if g.get("target_date") else "", g.get("currency", "USD")]
+
 def _pnl_rows(pnl):
     yield ["Section", "Category", "Amount"]
     for r in pnl["income"]:
@@ -1976,10 +2000,12 @@ async def export_data(
 # ---- Account export & deletion ----
 @api_router.get("/account/export")
 async def export_account_data(user=Depends(get_current_user)):
-    """Bundles every record type for the caller's active business into one ZIP
-    of CSVs - the same row-builders /export/{kind} uses, so the two stay in
-    sync automatically as fields are added."""
-    business_id = user["business_id"]
+    """Bundles every record type for the caller's active business (if any)
+    plus their Ledgerly Personal data (user_id-scoped, independent of any
+    business) into one ZIP of CSVs - the same row-builders /export/{kind}
+    uses, so the two stay in sync automatically as fields are added."""
+    business_id = user.get("business_id")
+    user_id = user["user_id"]
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         def add_csv(name, rows_iter):
@@ -1989,26 +2015,42 @@ async def export_account_data(user=Depends(get_current_user)):
                 writer.writerow(row)
             zf.writestr(name, csv_buf.getvalue())
 
-        txs = await db.transactions.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
-        vendors = await db.clients.find({"business_id": business_id, "type": "vendor"}, {"_id": 0, "id": 1, "name": 1}).to_list(5000)
-        vendor_names = {v["id"]: v["name"] for v in vendors}
-        add_csv("transactions.csv", _txs_rows(txs, vendor_names))
+        if business_id:
+            txs = await db.transactions.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+            vendors = await db.clients.find({"business_id": business_id, "type": "vendor"}, {"_id": 0, "id": 1, "name": 1}).to_list(5000)
+            vendor_names = {v["id"]: v["name"] for v in vendors}
+            add_csv("transactions.csv", _txs_rows(txs, vendor_names))
 
-        invs = await db.invoices.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
-        add_csv("invoices.csv", _invoices_rows(invs))
+            invs = await db.invoices.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+            add_csv("invoices.csv", _invoices_rows(invs))
 
-        clients = await db.clients.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
-        add_csv("clients.csv", _clients_rows(clients))
+            clients = await db.clients.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+            add_csv("clients.csv", _clients_rows(clients))
 
-        inv_items = await db.inventory.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
-        add_csv("inventory.csv", _inventory_rows(inv_items))
+            inv_items = await db.inventory.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+            add_csv("inventory.csv", _inventory_rows(inv_items))
 
-        emps = await db.employees.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
-        add_csv("employees.csv", _employees_rows(emps))
+            emps = await db.employees.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+            add_csv("employees.csv", _employees_rows(emps))
 
-        if user.get("role") in ("owner", "admin"):
-            runs = await db.payroll_runs.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
-            add_csv("payroll.csv", _payroll_rows(runs))
+            if user.get("role") in ("owner", "admin"):
+                runs = await db.payroll_runs.find({"business_id": business_id}, {"_id": 0}).to_list(10000)
+                add_csv("payroll.csv", _payroll_rows(runs))
+
+        personal_txs = await db.personal_transactions.find({"user_id": user_id}, {"_id": 0}).to_list(10000)
+        add_csv("personal_transactions.csv", _personal_txs_rows(personal_txs))
+
+        personal_budgets = await db.personal_budgets.find({"user_id": user_id}, {"_id": 0}).to_list(500)
+        add_csv("personal_budgets.csv", _personal_budgets_rows(personal_budgets))
+
+        personal_bills = await db.personal_bills.find({"user_id": user_id}, {"_id": 0}).to_list(500)
+        add_csv("personal_bills.csv", _personal_bills_rows(personal_bills))
+
+        personal_goals = await db.personal_savings_goals.find({"user_id": user_id}, {"_id": 0}).to_list(200)
+        for g in personal_goals:
+            contributions = await db.personal_goal_contributions.find({"goal_id": g["id"], "user_id": user_id}, {"_id": 0, "amount": 1}).to_list(2000)
+            g["current_amount"] = sum(c["amount"] for c in contributions)
+        add_csv("personal_goals.csv", _personal_goals_rows(personal_goals))
 
     buf.seek(0)
     return StreamingResponse(buf, media_type="application/zip",
