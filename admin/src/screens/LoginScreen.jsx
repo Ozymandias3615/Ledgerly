@@ -115,7 +115,7 @@ export default function LoginScreen() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <img src="/app-icon.png" alt="Ledgerly" className="brand-mark" style={{ margin: "0 auto" }} />
+        <img src="/icon-192.png" alt="Ledgerly" className="brand-mark" style={{ margin: "0 auto" }} />
         <div className="login-heading">Ledgerly Admin</div>
         <p className="login-sub">Sign in with an authorized account.</p>
         <div ref={googleButtonRef} className="google-btn-container" />

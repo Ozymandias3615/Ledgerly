@@ -44,7 +44,7 @@ export default function AdminShell({ children }) {
     <div className="app-shell">
       <div className="topbar">
         <div className="brand">
-          <img src="/app-icon.png" alt="Ledgerly" className="brand-mark" />
+          <img src="/icon-192.png" alt="Ledgerly" className="brand-mark" />
           <div>
             <div className="brand-name">Ledgerly Admin</div>
             <div className="brand-tag">Internal</div>
