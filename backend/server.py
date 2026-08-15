@@ -130,9 +130,17 @@ async def _send_support_alert_email(user_name: str, user_email: str, preview: st
         # html.escape on every user-controlled value (name, email, message
         # text) - this is HTML now, not a plain-text body, so an unescaped
         # value could break the layout or inject markup.
+        # Logo image must be a real hosted URL, not a data: URI - most email
+        # clients (Outlook especially) don't render inline/base64 images
+        # reliably, but do fetch a normal https:// <img> src. This is
+        # mobile's PWA icon (same brand mark as every app's Brand.jsx),
+        # already publicly hosted, so no new asset to deploy.
         html_body = f"""\
 <div style="font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #0f172a;">
-  <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b;">Ledgerly Support</div>
+  <div style="margin-bottom: 16px;">
+    <img src="https://ledgerly-mobile.onrender.com/icons/icon-192.png" width="24" height="24" alt="Ledgerly" style="vertical-align: middle; border-radius: 5px; display: inline-block;">
+    <span style="vertical-align: middle; margin-left: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b;">Ledgerly Support</span>
+  </div>
   <div style="font-family: Manrope, -apple-system, sans-serif; font-size: 20px; font-weight: 800; margin-top: 4px;">New message from {html.escape(user_name)}</div>
   <div style="font-size: 13px; color: #64748b; margin-top: 2px;">{html.escape(user_email)}</div>
   <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap;">{html.escape(preview)}</div>
