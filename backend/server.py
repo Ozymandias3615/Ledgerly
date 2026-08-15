@@ -117,7 +117,12 @@ async def _send_support_alert_email(user_name: str, user_email: str, preview: st
             },
             timeout=10,
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            # httpx.HTTPStatusError's default message doesn't include the
+            # response body, and the body is exactly what explains a 422
+            # (Resend rejected something in the payload) - include it so the
+            # next failure is diagnosable from Sentry alone.
+            raise RuntimeError(f"Resend API error {resp.status_code}: {resp.text[:500]}")
 
 
 # Separate from SENTRY_DSN (which only lets *this* process report errors) -
