@@ -78,9 +78,13 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 # Error monitoring - no-ops locally if SENTRY_DSN isn't set, same as the
-# VAPID keys above.
+# VAPID keys above. Also gated on RENDER (which Render sets to "true" on
+# every service automatically) so a local dev server - which reads the same
+# SENTRY_DSN from backend/.env as production - doesn't report its own
+# restarts/port conflicts into the production Sentry project.
 SENTRY_DSN = os.environ.get("SENTRY_DSN")
-if SENTRY_DSN:
+SENTRY_ENABLED = bool(SENTRY_DSN) and bool(os.environ.get("RENDER"))
+if SENTRY_ENABLED:
     sentry_sdk.init(dsn=SENTRY_DSN, send_default_pii=True)
 
 # Separate from SENTRY_DSN (which only lets *this* process report errors) -
@@ -2650,7 +2654,7 @@ async def admin_health(admin=Depends(require_admin)):
         "businesses_at_ai_cap_today": businesses_at_ai_cap,
         "push_subscriptions": await db.push_subscriptions.count_documents({}),
         "push_subscribed_users": len(await db.push_subscriptions.distinct("user_id")),
-        "sentry_configured": bool(SENTRY_DSN),
+        "sentry_configured": SENTRY_ENABLED,
         "sentry_api_configured": bool(SENTRY_AUTH_TOKEN and SENTRY_ORG_SLUG),
         "groq_shared_key_configured": bool(GROQ_API_KEY),
         "vapid_configured": bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY),
