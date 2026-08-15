@@ -2997,7 +2997,11 @@ async def create_support_thread(payload: SupportMessageIn, user=Depends(get_curr
     try:
         await asyncio.to_thread(_send_support_alert_email, thread["user_name"], thread["user_email"], _message_preview(payload))
     except Exception:
-        pass
+        # Never let an SMTP failure fail the request that triggered it, but
+        # a silently-swallowed exception here means an email that looks
+        # "sent" from the caller's perspective is undiagnosable if it never
+        # arrives - log it so Sentry actually captures the real reason.
+        logger.exception("Failed to send support alert email")
     return {"thread": thread, "messages": [msg]}
 
 
@@ -3028,7 +3032,11 @@ async def post_support_thread_message(thread_id: str, payload: SupportMessageIn,
     try:
         await asyncio.to_thread(_send_support_alert_email, thread["user_name"], thread["user_email"], _message_preview(payload))
     except Exception:
-        pass
+        # Never let an SMTP failure fail the request that triggered it, but
+        # a silently-swallowed exception here means an email that looks
+        # "sent" from the caller's perspective is undiagnosable if it never
+        # arrives - log it so Sentry actually captures the real reason.
+        logger.exception("Failed to send support alert email")
     return msg
 
 
