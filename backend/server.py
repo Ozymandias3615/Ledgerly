@@ -2686,6 +2686,12 @@ async def admin_sentry_issues(admin=Depends(require_admin)):
     ]
 
 
+@api_router.get("/admin/sentry-debug")
+async def admin_sentry_debug(admin=Depends(require_admin)):
+    """Intentionally raises so Sentry capture can be verified end-to-end."""
+    1 / 0
+
+
 @api_router.get("/admin/audit-log")
 async def admin_audit_log(admin=Depends(require_admin)):
     entries = await db.admin_audit_log.find({}, {"_id": 0}).sort("timestamp", -1).to_list(200)

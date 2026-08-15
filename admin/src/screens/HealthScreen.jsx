@@ -90,10 +90,24 @@ function ConfigRow({ label, ok }) {
 
 export default function HealthScreen() {
   const [health, setHealth] = useState(null);
+  const [debugStatus, setDebugStatus] = useState("");
 
   useEffect(() => {
     api.get("/admin/health").then(({ data }) => setHealth(data));
   }, []);
+
+  const sendTestError = () => {
+    setDebugStatus("Sending...");
+    api.get("/admin/sentry-debug")
+      .then(() => setDebugStatus("Unexpected: no error was raised."))
+      .catch((err) => {
+        setDebugStatus(
+          err.response?.status === 500
+            ? "Sent — should show up in Sentry within a minute."
+            : err.response?.data?.detail || "Failed to reach the debug endpoint."
+        );
+      });
+  };
 
   return (
     <div>
@@ -131,6 +145,14 @@ export default function HealthScreen() {
             <ConfigRow label="Sentry API (error feed below)" ok={health.sentry_api_configured} />
             <ConfigRow label="Shared Groq AI key" ok={health.groq_shared_key_configured} />
             <ConfigRow label="Web Push (VAPID keys)" ok={health.vapid_configured} />
+            {health.sentry_configured && (
+              <div className="row-between" style={{ marginTop: "0.75rem" }}>
+                <button type="button" className="btn btn-outline" onClick={sendTestError}>
+                  Send test error
+                </button>
+                {debugStatus && <span className="muted" style={{ fontSize: "0.8rem" }}>{debugStatus}</span>}
+              </div>
+            )}
           </div>
 
           {health.sentry_api_configured && <SentryIssues />}
