@@ -108,9 +108,19 @@ GMAIL_CLIENT_SECRET = os.environ.get("GMAIL_CLIENT_SECRET")
 GMAIL_REFRESH_TOKEN = os.environ.get("GMAIL_REFRESH_TOKEN")
 SUPPORT_ALERT_EMAIL = "n.abbiw10@gmail.com"
 
-async def _send_support_alert_email(user_name: str, user_email: str, preview: str) -> None:
+# Logo image must be a real hosted URL, not a data: URI - most email clients
+# (Outlook especially) don't render inline/base64 images reliably, but do
+# fetch a normal https:// <img> src. This is the desktop app's wallet icon
+# (frontend/public/app-icon.png) - copied into admin/public since the
+# desktop app itself is Electron-only, never web-hosted, so it had no
+# public URL of its own.
+EMAIL_LOGO_URL = "https://ledgerly-admin.onrender.com/app-icon.png"
+
+
+async def _send_gmail(to_email: str, subject: str, text_body: str, html_body: str) -> None:
     """Never let this fail the request that triggered it - always call from
-    inside a try/except that logs rather than raises."""
+    inside a try/except that logs rather than raises. No-ops if the three
+    GMAIL_* env vars aren't set."""
     if not (GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET and GMAIL_REFRESH_TOKEN):
         return
     async with httpx.AsyncClient() as http_client:
@@ -124,35 +134,9 @@ async def _send_support_alert_email(user_name: str, user_email: str, preview: st
             raise RuntimeError(f"Gmail token refresh error {token_resp.status_code}: {token_resp.text[:500]}")
         access_token = token_resp.json()["access_token"]
 
-        admin_url = "https://ledgerly-admin.onrender.com/support"
-        text_body = (
-            f"{user_name} ({user_email}) sent a new support message:\n\n{preview}\n\n"
-            f"Reply from the admin panel: {admin_url}"
-        )
-        # html.escape on every user-controlled value (name, email, message
-        # text) - this is HTML now, not a plain-text body, so an unescaped
-        # value could break the layout or inject markup.
-        # Logo image must be a real hosted URL, not a data: URI - most email
-        # clients (Outlook especially) don't render inline/base64 images
-        # reliably, but do fetch a normal https:// <img> src. This is the
-        # desktop app's wallet icon (frontend/public/app-icon.png) - copied
-        # into admin/public since the desktop app itself is Electron-only,
-        # never web-hosted, so it had no public URL of its own.
-        html_body = f"""\
-<div style="font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #0f172a;">
-  <div style="margin-bottom: 16px;">
-    <img src="https://ledgerly-admin.onrender.com/app-icon.png" width="24" height="24" alt="Ledgerly" style="vertical-align: middle; border-radius: 5px; display: inline-block;">
-    <span style="vertical-align: middle; margin-left: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b;">Ledgerly Support</span>
-  </div>
-  <div style="font-family: Manrope, -apple-system, sans-serif; font-size: 20px; font-weight: 800; margin-top: 4px;">New message from {html.escape(user_name)}</div>
-  <div style="font-size: 13px; color: #64748b; margin-top: 2px;">{html.escape(user_email)}</div>
-  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap;">{html.escape(preview)}</div>
-  <a href="{admin_url}" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-size: 14px; font-weight: 600;">Reply in admin panel</a>
-</div>"""
-
         msg = MIMEMultipart("alternative")
-        msg["To"] = SUPPORT_ALERT_EMAIL
-        msg["Subject"] = f"New Ledgerly support message from {user_name}"
+        msg["To"] = to_email
+        msg["Subject"] = subject
         msg.attach(MIMEText(text_body, "plain"))
         msg.attach(MIMEText(html_body, "html"))
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
@@ -167,6 +151,91 @@ async def _send_support_alert_email(user_name: str, user_email: str, preview: st
             # Same lesson as the Resend/SendGrid attempts above - always
             # capture the response body, not just the status code.
             raise RuntimeError(f"Gmail API error {send_resp.status_code}: {send_resp.text[:500]}")
+
+
+async def _send_email_safe(coro, context: str) -> None:
+    """Never let an email failure fail whatever triggered it, but a
+    silently-swallowed exception means an email that looks "sent" from the
+    caller's perspective is undiagnosable if it never arrives - log it so
+    Sentry actually captures the real reason."""
+    try:
+        await coro
+    except Exception:
+        logger.exception(f"Failed to send {context} email")
+
+
+async def _send_support_alert_email(user_name: str, user_email: str, preview: str) -> None:
+    admin_url = "https://ledgerly-admin.onrender.com/support"
+    text_body = (
+        f"{user_name} ({user_email}) sent a new support message:\n\n{preview}\n\n"
+        f"Reply from the admin panel: {admin_url}"
+    )
+    # html.escape on every user-controlled value (name, email, message text)
+    # - this is HTML now, not a plain-text body, so an unescaped value could
+    # break the layout or inject markup.
+    html_body = f"""\
+<div style="font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #0f172a;">
+  <div style="margin-bottom: 16px;">
+    <img src="{EMAIL_LOGO_URL}" width="24" height="24" alt="Ledgerly" style="vertical-align: middle; border-radius: 5px; display: inline-block;">
+    <span style="vertical-align: middle; margin-left: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b;">Ledgerly Support</span>
+  </div>
+  <div style="font-family: Manrope, -apple-system, sans-serif; font-size: 20px; font-weight: 800; margin-top: 4px;">New message from {html.escape(user_name)}</div>
+  <div style="font-size: 13px; color: #64748b; margin-top: 2px;">{html.escape(user_email)}</div>
+  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap;">{html.escape(preview)}</div>
+  <a href="{admin_url}" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-size: 14px; font-weight: 600;">Reply in admin panel</a>
+</div>"""
+    await _send_gmail(SUPPORT_ALERT_EMAIL, f"New Ledgerly support message from {user_name}", text_body, html_body)
+
+
+async def _send_welcome_email(user_name: str, user_email: str) -> None:
+    text_body = (
+        f"Welcome aboard, {user_name}!\n\n"
+        "We're really glad you're here. You've just made your bookkeeping a whole lot less "
+        "painful - track your cash flow, send invoices, and finally see where your business "
+        "actually stands, no spreadsheets (or dread) required.\n\n"
+        "A few fun places to start:\n"
+        "- Bookkeeping - log income and expenses as they happen, no shoebox of receipts needed\n"
+        "- Invoices - send one in a minute, then relax while we track when it's paid\n"
+        "- AI Insights - just ask, in plain English, and get real answers about your numbers\n\n"
+        "Oh, and Ledgerly isn't just for the business side. Switch over to Ledgerly Personal "
+        "any time (top-left, next to your business name) to budget, track bills, and chip away "
+        "at savings goals - totally separate from your business books, same account.\n\n"
+        "Got a question, or just stuck on something? Reach out any time from the Support tab "
+        "in the app - we actually read every message, and we're happy to help.\n\n"
+        "Welcome to the team - let's build something great, together.\n\n"
+        "Nana\nFounder, Ledgerly"
+    )
+    html_body = f"""\
+<div style="font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #0f172a;">
+  <div style="margin-bottom: 16px;">
+    <img src="{EMAIL_LOGO_URL}" width="32" height="32" alt="Ledgerly" style="vertical-align: middle; border-radius: 7px; display: inline-block;">
+    <span style="vertical-align: middle; margin-left: 10px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b;">Ledgerly</span>
+  </div>
+  <div style="font-family: Manrope, -apple-system, sans-serif; font-size: 24px; font-weight: 800; margin-top: 4px;">Welcome aboard, {html.escape(user_name)}!</div>
+  <div style="font-size: 14px; line-height: 1.6; margin-top: 12px; color: #334155;">
+    We're really glad you're here. You've just made your bookkeeping a whole lot less painful &mdash; track your cash flow, send invoices, and finally see where your business actually stands, no spreadsheets (or dread) required.
+  </div>
+  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0; font-size: 14px; line-height: 1.7;">
+    <div style="font-weight: 700; margin-bottom: 4px;">A few fun places to start</div>
+    <div><strong>Bookkeeping</strong> &mdash; log income and expenses as they happen, no shoebox of receipts needed</div>
+    <div><strong>Invoices</strong> &mdash; send one in a minute, then relax while we track when it's paid</div>
+    <div><strong>AI Insights</strong> &mdash; just ask, in plain English, and get real answers about your numbers</div>
+  </div>
+  <div style="font-size: 14px; line-height: 1.6; color: #334155;">
+    Oh, and Ledgerly isn't just for the business side. Switch over to <strong>Ledgerly Personal</strong> any time (top-left, next to your business name) to budget, track bills, and chip away at savings goals &mdash; totally separate from your business books, same account.
+  </div>
+  <div style="font-size: 14px; line-height: 1.6; margin-top: 16px; color: #334155;">
+    Got a question, or just stuck on something? Reach out any time from the Support tab in the app &mdash; we actually read every message, and we're happy to help.
+  </div>
+  <div style="font-size: 14px; line-height: 1.6; margin-top: 16px; color: #334155;">
+    Welcome to the team &mdash; let's build something great, together.
+  </div>
+  <div style="font-size: 14px; line-height: 1.6; margin-top: 20px; color: #0f172a;">
+    Nana<br>
+    <span style="color: #64748b;">Founder, Ledgerly</span>
+  </div>
+</div>"""
+    await _send_gmail(user_email, f"Welcome to Ledgerly, {user_name}!", text_body, html_body)
 
 
 # Separate from SENTRY_DSN (which only lets *this* process report errors) -
@@ -572,6 +641,7 @@ async def register(request: Request, payload: RegisterIn, response: Response):
         "created_at": now_utc().isoformat(),
     }
     await db.users.insert_one(doc)
+    await _send_email_safe(_send_welcome_email(payload.name, email), "welcome")
 
     if invite:
         await _create_membership(user_id, invite["business_id"], invite["role"])
@@ -660,6 +730,7 @@ async def google_session(payload: GoogleSessionIn, response: Response):
             "auth_provider": "google",
             "created_at": now_utc().isoformat(),
         })
+        await _send_email_safe(_send_welcome_email(name, email), "welcome")
         business = await _create_business(f"{name}'s Business", "USD", user_id, onboarding_complete=False)
         await _create_membership(user_id, business["business_id"], "owner")
     expires_at = now_utc() + timedelta(days=7)
@@ -710,6 +781,7 @@ async def firebase_session(payload: FirebaseSessionIn, response: Response):
             "auth_provider": "google",
             "created_at": now_utc().isoformat(),
         })
+        await _send_email_safe(_send_welcome_email(name, email), "welcome")
         business = await _create_business(f"{name}'s Business", "USD", user_id, onboarding_complete=False)
         await _create_membership(user_id, business["business_id"], "owner")
     token = create_access_token(user_id, email)
@@ -3046,14 +3118,10 @@ async def create_support_thread(payload: SupportMessageIn, user=Depends(get_curr
     msg = _support_message_doc(thread["thread_id"], "user", thread["user_name"], payload, now)
     await db.support_messages.insert_one(msg)
     msg.pop("_id", None)
-    try:
-        await _send_support_alert_email(thread["user_name"], thread["user_email"], _message_preview(payload))
-    except Exception:
-        # Never let an email failure fail the request that triggered it, but
-        # a silently-swallowed exception here means an email that looks
-        # "sent" from the caller's perspective is undiagnosable if it never
-        # arrives - log it so Sentry actually captures the real reason.
-        logger.exception("Failed to send support alert email")
+    await _send_email_safe(
+        _send_support_alert_email(thread["user_name"], thread["user_email"], _message_preview(payload)),
+        "support alert",
+    )
     return {"thread": thread, "messages": [msg]}
 
 
@@ -3081,14 +3149,10 @@ async def post_support_thread_message(thread_id: str, payload: SupportMessageIn,
     await db.support_threads.update_one(
         {"thread_id": thread_id}, {"$set": {"unread_by_admin": True, "updated_at": now}}
     )
-    try:
-        await _send_support_alert_email(thread["user_name"], thread["user_email"], _message_preview(payload))
-    except Exception:
-        # Never let an email failure fail the request that triggered it, but
-        # a silently-swallowed exception here means an email that looks
-        # "sent" from the caller's perspective is undiagnosable if it never
-        # arrives - log it so Sentry actually captures the real reason.
-        logger.exception("Failed to send support alert email")
+    await _send_email_safe(
+        _send_support_alert_email(thread["user_name"], thread["user_email"], _message_preview(payload)),
+        "support alert",
+    )
     return msg
 
 
