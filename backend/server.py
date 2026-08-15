@@ -15,7 +15,9 @@ import asyncio
 import calendar
 import logging
 import secrets
+import smtplib
 import zipfile
+from email.mime.text import MIMEText
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
@@ -86,6 +88,34 @@ SENTRY_DSN = os.environ.get("SENTRY_DSN")
 SENTRY_ENABLED = bool(SENTRY_DSN) and bool(os.environ.get("RENDER"))
 if SENTRY_ENABLED:
     sentry_sdk.init(dsn=SENTRY_DSN, send_default_pii=True)
+
+# Support-inbox email alerts - no-ops if SMTP_USER/SMTP_PASSWORD aren't set,
+# same pattern as SENTRY_DSN/VAPID above. SMTP_PASSWORD is a Gmail App
+# Password, not the account's real password.
+SMTP_USER = os.environ.get("SMTP_USER")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SUPPORT_ALERT_EMAIL = "n.abbiw10@gmail.com"
+
+def _send_support_alert_email(user_name: str, user_email: str, preview: str) -> None:
+    """Blocking (smtplib has no async API) - always call via
+    asyncio.to_thread from a request handler, and never let it fail the
+    request that triggered it."""
+    if not (SMTP_USER and SMTP_PASSWORD):
+        return
+    msg = MIMEText(
+        f"{user_name} ({user_email}) sent a new support message:\n\n{preview}\n\n"
+        f"Reply from the admin panel: https://ledgerly-admin.onrender.com/support"
+    )
+    msg["Subject"] = f"New Ledgerly support message from {user_name}"
+    msg["From"] = SMTP_USER
+    msg["To"] = SUPPORT_ALERT_EMAIL
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.send_message(msg)
+
 
 # Separate from SENTRY_DSN (which only lets *this* process report errors) -
 # an auth token so the admin panel can read errors back out via Sentry's API.
@@ -2879,16 +2909,19 @@ def _require_body_or_attachment(payload: SupportMessageIn) -> None:
         raise HTTPException(status_code=400, detail="Message can't be empty")
 
 
-MAX_SUPPORT_ATTACHMENT_BYTES = 5 * 1024 * 1024
-ALLOWED_SUPPORT_ATTACHMENT_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf"}
+MAX_SUPPORT_ATTACHMENT_BYTES = 10 * 1024 * 1024
+ALLOWED_SUPPORT_ATTACHMENT_TYPES = {
+    "image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf",
+    "video/mp4", "video/webm", "video/quicktime",
+}
 
 
 async def _read_support_attachment(file: UploadFile) -> dict:
     if file.content_type not in ALLOWED_SUPPORT_ATTACHMENT_TYPES:
-        raise HTTPException(status_code=400, detail="Attachments must be a PNG, JPEG, WEBP, GIF, or PDF file")
+        raise HTTPException(status_code=400, detail="Attachments must be a PNG, JPEG, WEBP, GIF, PDF, MP4, WEBM, or MOV file")
     raw = await file.read()
     if len(raw) > MAX_SUPPORT_ATTACHMENT_BYTES:
-        raise HTTPException(status_code=400, detail="Attachment must be smaller than 5MB")
+        raise HTTPException(status_code=400, detail="Attachment must be smaller than 10MB")
     return {
         "attachment_data": base64.b64encode(raw).decode(),
         "attachment_content_type": file.content_type,
@@ -2901,6 +2934,12 @@ def _thread_subject(first_message_body: str, has_attachment: bool = False) -> st
     if not body:
         return "📎 Attachment" if has_attachment else "Conversation"
     return (body[:60] + "…") if len(body) > 60 else body
+
+
+def _message_preview(payload: SupportMessageIn) -> str:
+    if payload.body.strip():
+        return payload.body if len(payload.body) <= 120 else payload.body[:120] + "…"
+    return f"Sent an attachment: {payload.attachment_filename}"
 
 
 async def _support_thread_owned_by(thread_id: str, user_id: str) -> dict:
@@ -2955,6 +2994,10 @@ async def create_support_thread(payload: SupportMessageIn, user=Depends(get_curr
     msg = _support_message_doc(thread["thread_id"], "user", thread["user_name"], payload, now)
     await db.support_messages.insert_one(msg)
     msg.pop("_id", None)
+    try:
+        await asyncio.to_thread(_send_support_alert_email, thread["user_name"], thread["user_email"], _message_preview(payload))
+    except Exception:
+        pass
     return {"thread": thread, "messages": [msg]}
 
 
@@ -2982,6 +3025,10 @@ async def post_support_thread_message(thread_id: str, payload: SupportMessageIn,
     await db.support_threads.update_one(
         {"thread_id": thread_id}, {"$set": {"unread_by_admin": True, "updated_at": now}}
     )
+    try:
+        await asyncio.to_thread(_send_support_alert_email, thread["user_name"], thread["user_email"], _message_preview(payload))
+    except Exception:
+        pass
     return msg
 
 
@@ -3036,10 +3083,7 @@ async def admin_reply_support_thread(thread_id: str, payload: SupportMessageIn, 
     # so it isn't importable until then, but this function only runs at
     # request time, long after that import has completed.
     from personal_router import _notify_personal
-    if payload.body.strip():
-        preview = payload.body if len(payload.body) <= 120 else payload.body[:120] + "…"
-    else:
-        preview = f"Sent an attachment: {payload.attachment_filename}"
+    preview = _message_preview(payload)
     await _notify_personal(thread["user_id"], "support_reply", "Ledgerly Support replied", preview, "/support")
     return msg
 

@@ -3,8 +3,11 @@ import { CheckCircle, PaperPlaneTilt, Paperclip, File as FileIcon, X } from "@ph
 import api from "../lib/api";
 import { toast } from "../lib/toast";
 
-const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
-const ALLOWED_ATTACHMENT_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf"];
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const ALLOWED_ATTACHMENT_TYPES = [
+  "image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf",
+  "video/mp4", "video/webm", "video/quicktime",
+];
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleString(undefined, {
@@ -12,16 +15,29 @@ function timeLabel(iso) {
   });
 }
 
-function Attachment({ message }) {
+function Attachment({ message, onPreview }) {
   if (!message.attachment_data) return null;
   const src = `data:${message.attachment_content_type};base64,${message.attachment_data}`;
   const isImage = message.attachment_content_type?.startsWith("image/");
+  const isVideo = message.attachment_content_type?.startsWith("video/");
   return (
     <div style={{ marginTop: message.body ? "0.5rem" : 0 }}>
       {isImage ? (
-        <a href={src} target="_blank" rel="noreferrer">
+        <button
+          type="button"
+          onClick={() => onPreview({ src, type: "image", filename: message.attachment_filename })}
+          style={{ padding: 0, border: "none", background: "none", cursor: "zoom-in", display: "block" }}
+        >
           <img src={src} alt={message.attachment_filename} style={{ maxWidth: "100%", maxHeight: "12rem", borderRadius: "0.4rem", border: "1px solid hsl(var(--border))" }} />
-        </a>
+        </button>
+      ) : isVideo ? (
+        <button
+          type="button"
+          onClick={() => onPreview({ src, type: "video", filename: message.attachment_filename })}
+          style={{ padding: 0, border: "none", background: "none", cursor: "zoom-in", display: "block" }}
+        >
+          <video src={src} muted style={{ maxWidth: "100%", maxHeight: "12rem", borderRadius: "0.4rem", border: "1px solid hsl(var(--border))" }} />
+        </button>
       ) : (
         <a
           href={src}
@@ -31,6 +47,25 @@ function Attachment({ message }) {
           <FileIcon size={16} />
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{message.attachment_filename}</span>
         </a>
+      )}
+    </div>
+  );
+}
+
+function PreviewLightbox({ preview, onClose }) {
+  if (!preview) return null;
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem" }}
+    >
+      <button type="button" onClick={onClose} style={{ position: "absolute", top: "1rem", right: "1rem", background: "none", border: "none", color: "rgba(255,255,255,0.8)", cursor: "pointer" }}>
+        <X size={28} />
+      </button>
+      {preview.type === "image" ? (
+        <img src={preview.src} alt={preview.filename} style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: "0.4rem" }} onClick={(e) => e.stopPropagation()} />
+      ) : (
+        <video src={preview.src} controls autoPlay style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: "0.4rem" }} onClick={(e) => e.stopPropagation()} />
       )}
     </div>
   );
@@ -50,10 +85,10 @@ function ThreadRow({ thread, active, onClick }) {
       }}
     >
       <div className="row-between">
-        <span style={{ fontWeight: 600, fontSize: "0.875rem" }}>{thread.subject || thread.user_name || thread.user_email}</span>
+        <span style={{ fontWeight: 600, fontSize: "0.875rem" }}>{thread.user_name || thread.user_email}</span>
         {thread.unread_by_admin && <span style={{ width: "0.5rem", height: "0.5rem", borderRadius: "50%", background: "hsl(var(--destructive))" }} />}
       </div>
-      <div className="muted" style={{ fontSize: "0.75rem" }}>{thread.user_name || thread.user_email} · {thread.user_email}</div>
+      <div className="muted" style={{ fontSize: "0.75rem" }}>{thread.user_email}</div>
       {last && (
         <div className="muted" style={{ fontSize: "0.8rem", marginTop: "0.25rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {last.sender === "admin" ? "You: " : ""}{last.body || `📎 ${last.attachment_filename}`}
@@ -84,6 +119,7 @@ export default function SupportScreen() {
   const [sending, setSending] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [preview, setPreview] = useState(null);
   const fileInputRef = useRef(null);
 
   const loadThreads = (status = statusFilter) => {
@@ -120,11 +156,11 @@ export default function SupportScreen() {
     e.target.value = "";
     if (!file) return;
     if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
-      toast.error("Attachments must be a PNG, JPEG, WEBP, GIF, or PDF file");
+      toast.error("Attachments must be a PNG, JPEG, WEBP, GIF, PDF, MP4, WEBM, or MOV file");
       return;
     }
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      toast.error("Attachment must be smaller than 5MB");
+      toast.error("Attachment must be smaller than 10MB");
       return;
     }
     setUploadingAttachment(true);
@@ -226,8 +262,8 @@ export default function SupportScreen() {
             <>
               <div className="row-between" style={{ padding: "0.75rem 1rem", borderBottom: "1px solid hsl(var(--border))" }}>
                 <div>
-                  <div style={{ fontWeight: 700 }}>{detail.thread.subject || detail.thread.user_name || detail.thread.user_email}</div>
-                  <div className="muted" style={{ fontSize: "0.75rem" }}>{detail.thread.user_name || detail.thread.user_email} · {detail.thread.user_email}</div>
+                  <div style={{ fontWeight: 700 }}>{detail.thread.user_name || detail.thread.user_email}</div>
+                  <div className="muted" style={{ fontSize: "0.75rem" }}>{detail.thread.user_email}{detail.thread.subject ? ` · ${detail.thread.subject}` : ""}</div>
                 </div>
                 {detail.thread.status === "resolved" ? (
                   <span className="badge">resolved</span>
@@ -247,9 +283,9 @@ export default function SupportScreen() {
                         background: m.sender === "admin" ? "hsl(var(--primary))" : "hsl(var(--secondary))",
                         color: m.sender === "admin" ? "hsl(var(--primary-foreground))" : "hsl(var(--secondary-foreground))",
                       }}>
-                        <div style={{ fontSize: "0.7rem", opacity: 0.7, marginBottom: "0.15rem" }}>{m.sender_name} · {timeLabel(m.created_at)}</div>
+                        <div style={{ fontSize: "0.7rem", opacity: 0.7, marginBottom: "0.15rem" }}>{m.sender === "user" ? detail.thread.user_name || detail.thread.user_email : m.sender_name} · {timeLabel(m.created_at)}</div>
                         {m.body && <div style={{ fontSize: "0.875rem", whiteSpace: "pre-wrap" }}>{m.body}</div>}
-                        <Attachment message={m} />
+                        <Attachment message={m} onPreview={setPreview} />
                       </div>
                     </div>
                   ))
@@ -266,9 +302,9 @@ export default function SupportScreen() {
                     </button>
                   </div>
                 )}
-                <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                   <input ref={fileInputRef} type="file" accept={ALLOWED_ATTACHMENT_TYPES.join(",")} style={{ display: "none" }} onChange={onFileSelected} />
-                  <button type="button" className="btn btn-outline" onClick={pickFile} disabled={uploadingAttachment} style={{ padding: "0.5rem" }}>
+                  <button type="button" className="btn btn-outline" onClick={pickFile} disabled={uploadingAttachment} style={{ height: "2.75rem", width: "2.75rem", padding: 0, display: "grid", placeItems: "center", flexShrink: 0 }}>
                     <Paperclip size={16} />
                   </button>
                   <textarea
@@ -277,11 +313,11 @@ export default function SupportScreen() {
                     onChange={(e) => setBody(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e); } }}
                     placeholder="Reply..."
-                    rows={2}
+                    rows={1}
                     maxLength={4000}
-                    style={{ resize: "none" }}
+                    style={{ resize: "none", height: "2.75rem" }}
                   />
-                  <button type="submit" className="btn btn-primary" disabled={sending || uploadingAttachment || (!body.trim() && !pendingAttachment)}>
+                  <button type="submit" className="btn btn-primary" style={{ height: "2.75rem", flexShrink: 0 }} disabled={sending || uploadingAttachment || (!body.trim() && !pendingAttachment)}>
                     <PaperPlaneTilt size={14} /> Send
                   </button>
                 </div>
@@ -290,6 +326,7 @@ export default function SupportScreen() {
           )}
         </div>
       </div>
+      <PreviewLightbox preview={preview} onClose={() => setPreview(null)} />
     </div>
   );
 }

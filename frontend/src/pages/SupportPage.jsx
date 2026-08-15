@@ -7,8 +7,11 @@ import { formatApiError } from "@/lib/utils_app";
 import { PaperPlaneTilt, Plus, Paperclip, File as FileIcon, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
-const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
-const ALLOWED_ATTACHMENT_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf"];
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const ALLOWED_ATTACHMENT_TYPES = [
+  "image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf",
+  "video/mp4", "video/webm", "video/quicktime",
+];
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleString(undefined, {
@@ -16,16 +19,21 @@ function timeLabel(iso) {
   });
 }
 
-function Attachment({ message }) {
+function Attachment({ message, onPreview }) {
   if (!message.attachment_data) return null;
   const src = `data:${message.attachment_content_type};base64,${message.attachment_data}`;
   const isImage = message.attachment_content_type?.startsWith("image/");
+  const isVideo = message.attachment_content_type?.startsWith("video/");
   return (
     <div className={message.body ? "mt-2" : ""}>
       {isImage ? (
-        <a href={src} target="_blank" rel="noreferrer">
+        <button type="button" onClick={() => onPreview({ src, type: "image", filename: message.attachment_filename })} className="block p-0 border-0 bg-transparent cursor-zoom-in">
           <img src={src} alt={message.attachment_filename} className="max-w-full max-h-48 rounded-md border border-slate-200" />
-        </a>
+        </button>
+      ) : isVideo ? (
+        <button type="button" onClick={() => onPreview({ src, type: "video", filename: message.attachment_filename })} className="block p-0 border-0 bg-transparent cursor-zoom-in">
+          <video src={src} className="max-w-full max-h-48 rounded-md border border-slate-200" muted />
+        </button>
       ) : (
         <a
           href={src}
@@ -35,6 +43,26 @@ function Attachment({ message }) {
           <FileIcon size={16} className="shrink-0" />
           <span className="truncate">{message.attachment_filename}</span>
         </a>
+      )}
+    </div>
+  );
+}
+
+function PreviewLightbox({ preview, onClose }) {
+  if (!preview) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8"
+      onClick={onClose}
+      data-testid="support-attachment-lightbox"
+    >
+      <button type="button" onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white">
+        <X size={28} />
+      </button>
+      {preview.type === "image" ? (
+        <img src={preview.src} alt={preview.filename} className="max-w-full max-h-full rounded-md" onClick={(e) => e.stopPropagation()} />
+      ) : (
+        <video src={preview.src} className="max-w-full max-h-full rounded-md" controls autoPlay onClick={(e) => e.stopPropagation()} />
       )}
     </div>
   );
@@ -72,6 +100,7 @@ export default function SupportPage() {
   const [sending, setSending] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState(null); // { attachment_data, attachment_content_type, attachment_filename }
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [preview, setPreview] = useState(null);
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
   // Guards the initial auto-select-on-load below against a race with the
@@ -129,11 +158,11 @@ export default function SupportPage() {
     e.target.value = "";
     if (!file) return;
     if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
-      toast.error("Attachments must be a PNG, JPEG, WEBP, GIF, or PDF file");
+      toast.error("Attachments must be a PNG, JPEG, WEBP, GIF, PDF, MP4, WEBM, or MOV file");
       return;
     }
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      toast.error("Attachment must be smaller than 5MB");
+      toast.error("Attachment must be smaller than 10MB");
       return;
     }
     setUploadingAttachment(true);
@@ -222,7 +251,7 @@ export default function SupportPage() {
                   <div className={`max-w-[70%] rounded-lg px-4 py-2 ${m.sender === "user" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-900"}`}>
                     <div className="text-xs opacity-70 mb-1">{m.sender === "user" ? "You" : m.sender_name} · {timeLabel(m.created_at)}</div>
                     {m.body && <div className="text-sm whitespace-pre-wrap">{m.body}</div>}
-                    <Attachment message={m} />
+                    <Attachment message={m} onPreview={setPreview} />
                   </div>
                 </div>
               ))
@@ -248,9 +277,9 @@ export default function SupportPage() {
                   </button>
                 </div>
               )}
-              <div className="flex gap-2 items-end">
+              <div className="flex gap-2 items-center">
                 <input ref={fileInputRef} type="file" accept={ALLOWED_ATTACHMENT_TYPES.join(",")} className="hidden" onChange={onFileSelected} data-testid="support-attachment-input" />
-                <Button type="button" variant="outline" size="icon" onClick={pickFile} disabled={uploadingAttachment} data-testid="support-attach-button">
+                <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={pickFile} disabled={uploadingAttachment} data-testid="support-attach-button">
                   <Paperclip size={16} />
                 </Button>
                 <Textarea
@@ -260,12 +289,12 @@ export default function SupportPage() {
                     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e); }
                   }}
                   placeholder={composing ? "Type your message..." : "Type a message..."}
-                  rows={2}
+                  rows={1}
                   maxLength={4000}
-                  className="resize-none"
+                  className="h-9 min-h-9 resize-none py-2"
                   data-testid="support-message-input"
                 />
-                <Button type="submit" disabled={sending || uploadingAttachment || (!body.trim() && !pendingAttachment)} data-testid="support-send-button">
+                <Button type="submit" className="h-9 shrink-0" disabled={sending || uploadingAttachment || (!body.trim() && !pendingAttachment)} data-testid="support-send-button">
                   <PaperPlaneTilt size={16} className="mr-2" /> Send
                 </Button>
               </div>
@@ -273,6 +302,7 @@ export default function SupportPage() {
           )}
         </div>
       </div>
+      <PreviewLightbox preview={preview} onClose={() => setPreview(null)} />
     </div>
   );
 }
