@@ -189,3 +189,11 @@ tbody tr.clickable:hover { background: hsl(var(--secondary)); }
   font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: hsl(var(--muted-foreground));
 }
 .or-divider::before, .or-divider::after { content: ""; flex: 1; height: 1px; background: hsl(var(--border)); }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin { animation: spin 0.7s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+}

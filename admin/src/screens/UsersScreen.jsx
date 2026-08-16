@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Key, MagnifyingGlass, PencilSimple, SignOut, Trash } from "@phosphor-icons/react";
+import { ArrowsClockwise, Key, MagnifyingGlass, PencilSimple, SignOut, Trash } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { toast } from "../lib/toast";
 import Modal from "../components/Modal";
@@ -215,6 +215,16 @@ export default function UsersScreen() {
             <MagnifyingGlass size={16} className="search-icon" />
             <input className="input" placeholder="Search by name, email, business" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={load}
+            disabled={loading}
+            title="Refresh"
+            data-testid="users-refresh-button"
+          >
+            <ArrowsClockwise size={14} className={loading ? "spin" : undefined} />
+          </button>
         </div>
       </div>
 
