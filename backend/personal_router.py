@@ -874,7 +874,7 @@ async def delete_personal_conversation(conversation_id: str, user=Depends(get_cu
 async def _push_to_personal_user(user_id: str, title: str, message: str, link: Optional[str]):
     if not (VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY):
         return
-    subs = await db.push_subscriptions.find({"user_id": user_id}, {"_id": 0}).to_list(50)
+    subs = await db.push_subscriptions.find({"user_id": user_id, "app": {"$ne": "go"}}, {"_id": 0}).to_list(50)
     if not subs:
         return
     payload = {"title": title, "message": message, "link": link}

@@ -3,7 +3,7 @@ import { ArrowsClockwise, Bell, Check, Monitor, Moon, Sun } from "@phosphor-icon
 import api from "../lib/api";
 import { getUser, updateStoredUser } from "../lib/auth";
 import { getStoredTheme, setTheme } from "../lib/theme";
-import { getPushSubscriptionState, isIosNotInstalled, subscribeToPush, unsubscribeFromPush } from "../lib/push";
+import { checkNeedsRetag, getPushSubscriptionState, isIosNotInstalled, subscribeToPush, unsubscribeFromPush } from "../lib/push";
 import Brand from "../components/Brand";
 import BackButton from "../components/BackButton";
 import RefreshButton from "../components/RefreshButton";
@@ -60,13 +60,20 @@ function ProfileSection({ user, onSaved }) {
 function NotificationsSection() {
   const [pushState, setPushState] = useState("checking");
   const [pushBusy, setPushBusy] = useState(false);
+  const [needsRetag, setNeedsRetag] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     getPushSubscriptionState()
       .then((state) => {
-        if (!cancelled) setPushState(state);
+        if (cancelled) return;
+        setPushState(state);
+        if (state === "subscribed") {
+          checkNeedsRetag().then((needs) => {
+            if (!cancelled) setNeedsRetag(needs);
+          });
+        }
       })
       .catch(() => {
         if (!cancelled) setPushState("unsupported");
@@ -83,13 +90,28 @@ function NotificationsSection() {
       if (pushState === "subscribed") {
         await unsubscribeFromPush();
         setPushState("unsubscribed");
+        setNeedsRetag(false);
       } else {
         await subscribeToPush();
         setPushState("subscribed");
+        setNeedsRetag(false);
       }
     } catch (err) {
       setError(err.message === "Permission not granted" ? "Notifications were blocked. You can allow them in your browser settings." : "Couldn't update notification settings.");
       setPushState(await getPushSubscriptionState());
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const refreshPush = async () => {
+    setPushBusy(true);
+    setError("");
+    try {
+      await subscribeToPush();
+      setNeedsRetag(false);
+    } catch {
+      setError("Couldn't refresh notification settings.");
     } finally {
       setPushBusy(false);
     }
@@ -108,6 +130,14 @@ function NotificationsSection() {
       )}
       {pushState === "denied" && (
         <div className="banner banner-warning">Notifications are blocked for this app. Enable them in your browser/phone settings to turn them back on.</div>
+      )}
+      {pushState === "subscribed" && needsRetag && (
+        <div className="banner banner-warning">
+          Notifications here need a quick refresh so alerts go to the right app.
+          <button type="button" className="btn-primary" style={{ marginTop: "0.5rem" }} onClick={refreshPush} disabled={pushBusy}>
+            {pushBusy ? "Refreshing…" : "Refresh notifications"}
+          </button>
+        </div>
       )}
       {error && <p className="error-text">{error}</p>}
 

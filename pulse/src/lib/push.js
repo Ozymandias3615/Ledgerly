@@ -46,8 +46,24 @@ export async function subscribeToPush() {
   });
 
   const json = subscription.toJSON();
-  await api.post("/push/subscribe", { endpoint: json.endpoint, keys: json.keys });
+  await api.post("/push/subscribe", { endpoint: json.endpoint, keys: json.keys, app: "pulse" });
   return subscription;
+}
+
+// True if this device has an active subscription that predates the "app"
+// tag (added to stop notifications for the wrong app reaching a device),
+// so the UI can prompt for a one-tap refresh.
+export async function checkNeedsRetag() {
+  if (!isPushSupported()) return false;
+  const registration = await navigator.serviceWorker.ready;
+  const existing = await registration.pushManager.getSubscription();
+  if (!existing) return false;
+  try {
+    const { data } = await api.post("/push/subscribe/status", { endpoint: existing.endpoint });
+    return !!data.needs_retag;
+  } catch {
+    return false;
+  }
 }
 
 export async function unsubscribeFromPush() {

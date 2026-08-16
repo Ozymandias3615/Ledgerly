@@ -364,7 +364,7 @@ async def _push_to_business(business_id: str, title: str, message: str, link: Op
     if not member_ids:
         return
     subs = await db.push_subscriptions.find(
-        {"user_id": {"$in": [m["user_id"] for m in member_ids]}}, {"_id": 0}
+        {"user_id": {"$in": [m["user_id"] for m in member_ids]}, "app": {"$ne": "pulse"}}, {"_id": 0}
     ).to_list(1000)
     if not subs:
         return
@@ -562,6 +562,7 @@ class PushSubscriptionKeys(BaseModel):
 class PushSubscriptionIn(BaseModel):
     endpoint: str
     keys: PushSubscriptionKeys
+    app: Optional[str] = None  # which frontend registered this - "go" or "pulse" - used to route business vs. personal pushes to the right device
 
 class PushUnsubscribeIn(BaseModel):
     endpoint: str
@@ -1674,6 +1675,7 @@ async def push_subscribe(payload: PushSubscriptionIn, user=Depends(get_current_u
             "id": str(uuid.uuid4()),
             "user_id": user["user_id"],
             "business_id": user.get("business_id"),
+            "app": payload.app,
             "endpoint": payload.endpoint,
             "keys": {"p256dh": payload.keys.p256dh, "auth": payload.keys.auth},
             "created_at": now_utc().isoformat(),
@@ -1686,6 +1688,16 @@ async def push_subscribe(payload: PushSubscriptionIn, user=Depends(get_current_u
 async def push_unsubscribe(payload: PushUnsubscribeIn, user=Depends(get_current_user)):
     await db.push_subscriptions.delete_one({"endpoint": payload.endpoint, "user_id": user["user_id"]})
     return {"success": True}
+
+@api_router.post("/push/subscribe/status")
+async def push_subscribe_status(payload: PushUnsubscribeIn, user=Depends(get_current_user)):
+    """Lets a device check whether its own subscription predates the "app"
+    tag (added to stop e.g. business alerts reaching a Pulse-only device) so
+    the UI can prompt for a one-tap refresh instead of silently mis-routing."""
+    sub = await db.push_subscriptions.find_one(
+        {"endpoint": payload.endpoint, "user_id": user["user_id"]}, {"_id": 0, "app": 1}
+    )
+    return {"needs_retag": bool(sub) and not sub.get("app")}
 
 
 # ---- Exchange rates (informational only - not used in any totals/conversion) ----
