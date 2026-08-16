@@ -440,6 +440,16 @@ def require_role(*roles):
     return checker
 
 
+async def require_business(user: dict = Depends(get_current_user)) -> dict:
+    """Guards every business-scoped route against personal-only accounts
+    (no active business), which _enrich_user leaves with no business_id key
+    at all rather than raising - without this, those routes would 500 on a
+    bare user["business_id"] subscript instead of failing cleanly."""
+    if not user.get("business_id"):
+        raise HTTPException(status_code=403, detail="This action requires an active business. Create or join one first.")
+    return user
+
+
 # App-level admin access (not the per-business owner/admin role above) - a
 # fixed allowlist of the developer's own accounts, for the internal /admin
 # dashboard that lists every user across all businesses.
@@ -459,6 +469,7 @@ class RegisterIn(BaseModel):
     business_name: Optional[str] = None
     currency: Optional[str] = "USD"
     invite_code: Optional[str] = None
+    create_business: bool = True  # False = personal-only signup, no business/membership created
 
 class LoginIn(BaseModel):
     email: EmailStr
@@ -480,6 +491,10 @@ class BusinessUpdateIn(BaseModel):
     name: str
     currency: str = "USD"
     invoice_reminder_days: int = Field(default=7, ge=1, le=90)
+
+class BusinessCreateIn(BaseModel):
+    name: str
+    currency: str = "USD"
 
 class AiKeyIn(BaseModel):
     api_key: str
@@ -647,12 +662,27 @@ async def register(request: Request, payload: RegisterIn, response: Response):
     if invite:
         await _create_membership(user_id, invite["business_id"], invite["role"])
         await db.invites.update_one({"code": invite["code"]}, {"$set": {"redeemed_at": now_utc().isoformat(), "redeemed_by": user_id}})
-    else:
+    elif payload.create_business:
         business = await _create_business(
             payload.business_name or f"{payload.name}'s Business", payload.currency or "USD", user_id,
             onboarding_complete=False,
         )
         await _create_membership(user_id, business["business_id"], "owner")
+    else:
+        # Personal-only signup: no business/membership at all. _enrich_user
+        # defaults active_context to "business" when unset, so this must be
+        # set explicitly or a business-less account would land in the wrong
+        # context on first load. currency is stored directly on the user doc
+        # since _enrich_user only ever sources it from a business record -
+        # with no business, this is the only place it can live. signup_type
+        # is a permanent record of how the account started - unlike "has no
+        # business", it survives the account later creating one via
+        # POST /businesses, so admin's Personal marker doesn't disappear
+        # the moment they add a business too.
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"active_context": "personal", "currency": payload.currency or "USD", "signup_type": "personal"}},
+        )
 
     token = create_access_token(user_id, email)
     response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=2592000, path="/")
@@ -800,7 +830,7 @@ def _hide_ai_key(biz: dict) -> dict:
     return biz
 
 @api_router.get("/business")
-async def get_business(user=Depends(get_current_user)):
+async def get_business(user=Depends(require_business)):
     biz = await db.businesses.find_one({"business_id": user["business_id"]}, {"_id": 0})
     if not biz:
         raise HTTPException(status_code=404, detail="Business not found")
@@ -967,6 +997,23 @@ async def redeem_invite(payload: InviteRedeemIn, user=Depends(get_current_user))
     return await _enrich_user(updated)
 
 
+# ---- Businesses (create an additional one) ----
+@api_router.post("/businesses")
+async def create_additional_business(payload: BusinessCreateIn, user=Depends(get_current_user)):
+    """Lets an already-authenticated user spin up a second (or third, ...)
+    business of their own - the only other way to gain a business membership
+    is being invited into someone else's. Mirrors register()'s no-invite
+    business-creation branch exactly, but skips onboarding (name/currency are
+    already collected here, and everything else - logo, AI key - is already
+    optional/deferrable via Settings, same as a first business's "Skip for
+    now")."""
+    business = await _create_business(payload.name.strip() or f"{user['name']}'s Business", payload.currency, user["user_id"], onboarding_complete=True)
+    await _create_membership(user["user_id"], business["business_id"], "owner")  # also sets active_business_id
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_context": "business"}})
+    updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    return await _enrich_user(updated)
+
+
 # ---- Memberships ----
 @api_router.get("/memberships")
 async def list_memberships(user=Depends(get_current_user)):
@@ -998,14 +1045,22 @@ async def switch_membership(payload: MembershipSwitchIn, user=Depends(get_curren
 # a stale or wrong active_context can never expose or hide the wrong data.
 @api_router.post("/context/switch")
 async def switch_context(payload: ContextSwitchIn, user=Depends(get_current_user)):
-    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_context": payload.context}})
+    update = {"active_context": payload.context}
+    if payload.context == "personal":
+        # One-way marker: a business account that has ever switched into
+        # Personal stays flagged as a Personal user in admin even after
+        # switching back to Business - unlike active_context itself, this
+        # never gets unset, so the admin marker doesn't flicker off just
+        # because they're currently looking at their business side.
+        update["used_personal"] = True
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": update})
     updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     return await _enrich_user(updated)
 
 
 # ---- Transactions ----
 @api_router.get("/transactions")
-async def list_transactions(has_receipt: Optional[bool] = None, user=Depends(get_current_user)):
+async def list_transactions(has_receipt: Optional[bool] = None, user=Depends(require_business)):
     query = {"business_id": user["business_id"]}
     if has_receipt:
         query["receipt_image"] = {"$ne": None}
@@ -1013,7 +1068,7 @@ async def list_transactions(has_receipt: Optional[bool] = None, user=Depends(get
     return await cursor.to_list(2000)
 
 @api_router.post("/transactions")
-async def create_transaction(payload: TransactionIn, user=Depends(get_current_user)):
+async def create_transaction(payload: TransactionIn, user=Depends(require_business)):
     tx = payload.model_dump()
     tx["id"] = str(uuid.uuid4())
     tx["user_id"] = user["user_id"]
@@ -1024,7 +1079,7 @@ async def create_transaction(payload: TransactionIn, user=Depends(get_current_us
     return tx
 
 @api_router.put("/transactions/{tx_id}")
-async def update_transaction(tx_id: str, payload: TransactionIn, user=Depends(get_current_user)):
+async def update_transaction(tx_id: str, payload: TransactionIn, user=Depends(require_business)):
     upd = payload.model_dump()
     res = await db.transactions.update_one({"id": tx_id, "business_id": user["business_id"]}, {"$set": upd})
     if res.matched_count == 0:
@@ -1033,7 +1088,7 @@ async def update_transaction(tx_id: str, payload: TransactionIn, user=Depends(ge
     return tx
 
 @api_router.delete("/transactions/{tx_id}")
-async def delete_transaction(tx_id: str, user=Depends(get_current_user)):
+async def delete_transaction(tx_id: str, user=Depends(require_business)):
     res = await db.transactions.delete_one({"id": tx_id, "business_id": user["business_id"]})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1042,11 +1097,11 @@ async def delete_transaction(tx_id: str, user=Depends(get_current_user)):
 
 # ---- Inventory ----
 @api_router.get("/inventory")
-async def list_inventory(user=Depends(get_current_user)):
+async def list_inventory(user=Depends(require_business)):
     return await db.inventory.find({"business_id": user["business_id"]}, {"_id": 0}).sort("name", 1).to_list(2000)
 
 @api_router.post("/inventory")
-async def create_inventory_item(payload: InventoryItemIn, user=Depends(get_current_user)):
+async def create_inventory_item(payload: InventoryItemIn, user=Depends(require_business)):
     item = payload.model_dump()
     item["id"] = str(uuid.uuid4())
     item["user_id"] = user["user_id"]
@@ -1062,7 +1117,7 @@ async def create_inventory_item(payload: InventoryItemIn, user=Depends(get_curre
     return item
 
 @api_router.put("/inventory/{item_id}")
-async def update_inventory_item(item_id: str, payload: InventoryItemIn, user=Depends(get_current_user)):
+async def update_inventory_item(item_id: str, payload: InventoryItemIn, user=Depends(require_business)):
     existing = await db.inventory.find_one({"id": item_id, "business_id": user["business_id"]}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1078,7 +1133,7 @@ async def update_inventory_item(item_id: str, payload: InventoryItemIn, user=Dep
     return await db.inventory.find_one({"id": item_id}, {"_id": 0})
 
 @api_router.delete("/inventory/{item_id}")
-async def delete_inventory_item(item_id: str, user=Depends(get_current_user)):
+async def delete_inventory_item(item_id: str, user=Depends(require_business)):
     res = await db.inventory.delete_one({"id": item_id, "business_id": user["business_id"]})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1087,11 +1142,11 @@ async def delete_inventory_item(item_id: str, user=Depends(get_current_user)):
 
 # ---- Clients & vendors ----
 @api_router.get("/clients")
-async def list_clients(user=Depends(get_current_user)):
+async def list_clients(user=Depends(require_business)):
     return await db.clients.find({"business_id": user["business_id"]}, {"_id": 0}).sort("name", 1).to_list(5000)
 
 @api_router.post("/clients")
-async def create_client(payload: ClientIn, user=Depends(get_current_user)):
+async def create_client(payload: ClientIn, user=Depends(require_business)):
     doc = payload.model_dump()
     doc["id"] = str(uuid.uuid4())
     doc["user_id"] = user["user_id"]
@@ -1102,14 +1157,14 @@ async def create_client(payload: ClientIn, user=Depends(get_current_user)):
     return doc
 
 @api_router.put("/clients/{client_id}")
-async def update_client(client_id: str, payload: ClientIn, user=Depends(get_current_user)):
+async def update_client(client_id: str, payload: ClientIn, user=Depends(require_business)):
     res = await db.clients.update_one({"id": client_id, "business_id": user["business_id"]}, {"$set": payload.model_dump()})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     return await db.clients.find_one({"id": client_id}, {"_id": 0})
 
 @api_router.delete("/clients/{client_id}")
-async def delete_client(client_id: str, user=Depends(get_current_user)):
+async def delete_client(client_id: str, user=Depends(require_business)):
     res = await db.clients.delete_one({"id": client_id, "business_id": user["business_id"]})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1251,11 +1306,11 @@ async def _next_invoice_number(business_id: str) -> str:
     return f"INV-{count + 1:05d}"
 
 @api_router.get("/invoices")
-async def list_invoices(user=Depends(get_current_user)):
+async def list_invoices(user=Depends(require_business)):
     return await db.invoices.find({"business_id": user["business_id"]}, {"_id": 0}).sort("issue_date", -1).to_list(1000)
 
 @api_router.post("/invoices")
-async def create_invoice(payload: InvoiceIn, user=Depends(get_current_user)):
+async def create_invoice(payload: InvoiceIn, user=Depends(require_business)):
     inv = payload.model_dump()
     inv["id"] = str(uuid.uuid4())
     inv["user_id"] = user["user_id"]
@@ -1274,14 +1329,14 @@ async def create_invoice(payload: InvoiceIn, user=Depends(get_current_user)):
     return inv
 
 @api_router.get("/invoices/{inv_id}")
-async def get_invoice(inv_id: str, user=Depends(get_current_user)):
+async def get_invoice(inv_id: str, user=Depends(require_business)):
     inv = await db.invoices.find_one({"id": inv_id, "business_id": user["business_id"]}, {"_id": 0})
     if not inv:
         raise HTTPException(status_code=404, detail="Not found")
     return inv
 
 @api_router.put("/invoices/{inv_id}")
-async def update_invoice(inv_id: str, payload: InvoiceIn, user=Depends(get_current_user)):
+async def update_invoice(inv_id: str, payload: InvoiceIn, user=Depends(require_business)):
     existing = await db.invoices.find_one({"id": inv_id, "business_id": user["business_id"]}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1300,7 +1355,7 @@ async def update_invoice(inv_id: str, payload: InvoiceIn, user=Depends(get_curre
     return updated
 
 @api_router.delete("/invoices/{inv_id}")
-async def delete_invoice(inv_id: str, user=Depends(get_current_user)):
+async def delete_invoice(inv_id: str, user=Depends(require_business)):
     existing = await db.invoices.find_one({"id": inv_id, "business_id": user["business_id"]}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1450,7 +1505,7 @@ def _tax_pdf_story(data, cur):
     return story
 
 @api_router.get("/invoices/{inv_id}/pdf")
-async def invoice_pdf(inv_id: str, user=Depends(get_current_user)):
+async def invoice_pdf(inv_id: str, user=Depends(require_business)):
     inv = await db.invoices.find_one({"id": inv_id, "business_id": user["business_id"]}, {"_id": 0})
     if not inv:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1633,29 +1688,29 @@ async def run_payroll(payload: PayrollRunIn, user=Depends(require_role("owner", 
 
 # ---- Notifications ----
 @api_router.get("/notifications")
-async def list_notifications(user=Depends(get_current_user)):
+async def list_notifications(user=Depends(require_business)):
     await _check_overdue_invoices(user["business_id"])
     items = await db.notifications.find({"business_id": user["business_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
     unread_count = await db.notifications.count_documents({"business_id": user["business_id"], "read": False})
     return {"items": items, "unread_count": unread_count}
 
 @api_router.post("/notifications/read-all")
-async def mark_all_notifications_read(user=Depends(get_current_user)):
+async def mark_all_notifications_read(user=Depends(require_business)):
     await db.notifications.update_many({"business_id": user["business_id"], "read": False}, {"$set": {"read": True}})
     return {"success": True}
 
 @api_router.post("/notifications/{notif_id}/read")
-async def mark_notification_read(notif_id: str, user=Depends(get_current_user)):
+async def mark_notification_read(notif_id: str, user=Depends(require_business)):
     await db.notifications.update_one({"id": notif_id, "business_id": user["business_id"]}, {"$set": {"read": True}})
     return {"success": True}
 
 @api_router.delete("/notifications")
-async def clear_notifications(user=Depends(get_current_user)):
+async def clear_notifications(user=Depends(require_business)):
     await db.notifications.delete_many({"business_id": user["business_id"]})
     return {"success": True}
 
 @api_router.delete("/notifications/{notif_id}")
-async def delete_notification(notif_id: str, user=Depends(get_current_user)):
+async def delete_notification(notif_id: str, user=Depends(require_business)):
     res = await db.notifications.delete_one({"id": notif_id, "business_id": user["business_id"]})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1729,7 +1784,7 @@ async def exchange_rates(base: str = Query("USD")):
 async def dashboard_report(
     start: Optional[str] = Query(None, description="Scope Revenue/Expenses/Net Profit to this date (inclusive) onward"),
     end: Optional[str] = Query(None, description="Scope Revenue/Expenses/Net Profit through this date (inclusive)"),
-    user=Depends(get_current_user),
+    user=Depends(require_business),
 ):
     txs = await db.transactions.find({"business_id": user["business_id"]}, {"_id": 0}).to_list(5000)
 
@@ -1799,7 +1854,7 @@ async def dashboard_series(
     year: Optional[int] = Query(None, description="For week/month/year"),
     month: Optional[int] = Query(None, ge=1, le=12, description="For week/month"),
     week: Optional[int] = Query(None, ge=1, le=6, description="Which week of the month, for granularity=week"),
-    user=Depends(get_current_user),
+    user=Depends(require_business),
 ):
     """Bucketed cash flow / invoices / category data for one dashboard chart,
     for one exact period at the given granularity (not a range):
@@ -1946,7 +2001,7 @@ async def dashboard_series(
     }
 
 @api_router.get("/reports/pnl")
-async def pnl_report(start: str = Query(...), end: str = Query(...), user=Depends(get_current_user)):
+async def pnl_report(start: str = Query(...), end: str = Query(...), user=Depends(require_business)):
     txs = await db.transactions.find({"business_id": user["business_id"], "date": {"$gte": start, "$lte": end}}, {"_id": 0}).to_list(5000)
     income_by_cat, expense_by_cat = {}, {}
     for t in txs:
@@ -1964,7 +2019,7 @@ async def pnl_report(start: str = Query(...), end: str = Query(...), user=Depend
     }
 
 @api_router.get("/reports/tax")
-async def tax_report(start: str = Query(...), end: str = Query(...), user=Depends(get_current_user)):
+async def tax_report(start: str = Query(...), end: str = Query(...), user=Depends(require_business)):
     txs = await db.transactions.find({"business_id": user["business_id"], "date": {"$gte": start, "$lte": end}}, {"_id": 0}).to_list(5000)
     tax_collected = sum(t.get("tax_amount", 0) or 0 for t in txs if t["type"] == "income")
     tax_paid = sum(t.get("tax_amount", 0) or 0 for t in txs if t["type"] == "expense")
@@ -2057,7 +2112,7 @@ async def export_data(
     format: str = Query("csv"),
     start: Optional[str] = Query(None),
     end: Optional[str] = Query(None),
-    user=Depends(get_current_user),
+    user=Depends(require_business),
 ):
     if kind == "transactions":
         data = await db.transactions.find({"business_id": user["business_id"]}, {"_id": 0}).to_list(10000)
@@ -2330,15 +2385,20 @@ async def _check_and_bump_shared_quota(business_id: str):
     )
 
 async def _resolve_ai_key(user: dict) -> str:
-    biz = await db.businesses.find_one({"business_id": user["business_id"]}, {"_id": 0})
+    """Shared by business Insights and personal_router.py's Personal Insights
+    - a personal-only account has no business_id at all, so there's no
+    per-business key/quota record to check; it just rides the shared key with
+    no quota cap (there's no business to key a cap on)."""
+    business_id = user.get("business_id")
+    biz = await db.businesses.find_one({"business_id": business_id}, {"_id": 0}) if business_id else None
     own_key = (biz or {}).get("ai_api_key")
     api_key = own_key or GROQ_API_KEY
     if not api_key:
         raise HTTPException(status_code=400, detail=(
             "AI Insights isn't configured. Add a free Groq API key in Settings → Business → AI Insights."
         ))
-    if not own_key:
-        await _check_and_bump_shared_quota(user["business_id"])
+    if not own_key and business_id:
+        await _check_and_bump_shared_quota(business_id)
     return api_key
 
 ALLOWED_RECEIPT_TYPES = {"image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"}
@@ -2347,7 +2407,7 @@ RECEIPT_MAX_DIMENSION = 1600
 RECEIPT_JPEG_QUALITY = 85
 
 @api_router.post("/receipts/extract")
-async def extract_receipt(file: UploadFile = File(...), user=Depends(get_current_user)):
+async def extract_receipt(file: UploadFile = File(...), user=Depends(require_business)):
     """Resizes/compresses an uploaded receipt photo and (once OCR is wired
     up) asks a vision model to pull structured fields out of it. Returns the
     compressed image alongside the extraction so the client can submit both
@@ -2437,7 +2497,7 @@ Expense Categories: {stats['categories']['expense']}
 """
 
 @api_router.post("/insights/chat")
-async def insights_chat(payload: ChatIn, user=Depends(get_current_user)):
+async def insights_chat(payload: ChatIn, user=Depends(require_business)):
     message = payload.message.strip()
     if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
@@ -2539,14 +2599,14 @@ async def insights_chat(payload: ChatIn, user=Depends(get_current_user)):
     )
 
 @api_router.get("/insights/conversations")
-async def list_conversations(user=Depends(get_current_user)):
+async def list_conversations(user=Depends(require_business)):
     return await db.ai_conversations.find(
         {"user_id": user["user_id"], "business_id": user["business_id"]},
         {"_id": 0, "conversation_id": 1, "title": 1, "updated_at": 1},
     ).sort("updated_at", -1).to_list(100)
 
 @api_router.get("/insights/conversations/{conversation_id}")
-async def get_conversation(conversation_id: str, user=Depends(get_current_user)):
+async def get_conversation(conversation_id: str, user=Depends(require_business)):
     convo = await db.ai_conversations.find_one(
         {"conversation_id": conversation_id, "user_id": user["user_id"], "business_id": user["business_id"]},
         {"_id": 0},
@@ -2556,7 +2616,7 @@ async def get_conversation(conversation_id: str, user=Depends(get_current_user))
     return convo
 
 @api_router.put("/insights/conversations/{conversation_id}")
-async def rename_conversation(conversation_id: str, payload: ConversationRenameIn, user=Depends(get_current_user)):
+async def rename_conversation(conversation_id: str, payload: ConversationRenameIn, user=Depends(require_business)):
     title = payload.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title cannot be empty")
@@ -2569,7 +2629,7 @@ async def rename_conversation(conversation_id: str, payload: ConversationRenameI
     return {"success": True}
 
 @api_router.delete("/insights/conversations/{conversation_id}")
-async def delete_conversation(conversation_id: str, user=Depends(get_current_user)):
+async def delete_conversation(conversation_id: str, user=Depends(require_business)):
     res = await db.ai_conversations.delete_one(
         {"conversation_id": conversation_id, "user_id": user["user_id"], "business_id": user["business_id"]}
     )
@@ -2650,7 +2710,19 @@ async def admin_list_users(admin=Depends(require_admin)):
         biz = biz_by_id.get(u.get("active_business_id"))
         u["business_name"] = biz["name"] if biz else None
         u["has_business"] = u["user_id"] in business_user_ids
-        u["has_personal"] = u["user_id"] in personal_user_ids
+        # Personal even before any transaction/budget/bill/goal exists if the
+        # account has no business at all, has ever switched into Personal
+        # context (used_personal, a one-way marker set by /context/switch -
+        # a business account that tried Personal stays flagged even after
+        # switching back to Business), or originally signed up via "Ledgerly
+        # Personal" (signup_type, set once at registration - keeps the marker
+        # even after the account later adds a business via POST /businesses).
+        u["has_personal"] = (
+            (u["user_id"] in personal_user_ids)
+            or not u["has_business"]
+            or u.get("signup_type") == "personal"
+            or u.get("used_personal") is True
+        )
         u["last_active"] = await _last_active(u["user_id"])
     return {"total": len(users), "users": users}
 

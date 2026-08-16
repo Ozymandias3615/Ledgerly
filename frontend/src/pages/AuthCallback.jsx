@@ -24,7 +24,7 @@ export default function AuthCallback() {
       try {
         const { data } = await api.post("/auth/google-session", { session_id: sessionId });
         setUser(data);
-        navigate(data.onboarding_complete ? "/dashboard" : "/onboarding", { replace: true });
+        navigate(data.business_id ? (data.onboarding_complete ? "/dashboard" : "/onboarding") : "/personal/dashboard", { replace: true });
       } catch (e) {
         setMsg("Sign-in failed. Redirecting...");
         setTimeout(() => navigate("/login"), 1500);

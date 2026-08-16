@@ -41,8 +41,19 @@ function OnboardingRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen grid place-items-center text-slate-500">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  // Personal-only accounts have no business at all, so there's nothing here
+  // to onboard - and its actions (PUT /business, etc.) now 403 for them.
+  if (!user.business_id) return <Navigate to="/personal/dashboard" replace />;
   if (user.onboarding_complete) return <Navigate to="/dashboard" replace />;
   return children;
+}
+
+function Root() {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="min-h-screen grid place-items-center text-slate-500">Loading...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  const goPersonal = !user.business_id || user.active_context === "personal";
+  return <Navigate to={goPersonal ? "/personal/dashboard" : "/dashboard"} replace />;
 }
 
 function AppRouter() {
@@ -72,8 +83,8 @@ function AppRouter() {
       <Route path="/personal/goals" element={<Protected><PersonalGoalsPage /></Protected>} />
       <Route path="/personal/reports" element={<Protected><PersonalReportsPage /></Protected>} />
       <Route path="/personal/insights" element={<Protected><PersonalInsightsPage /></Protected>} />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Root />} />
+      <Route path="*" element={<Root />} />
     </Routes>
   );
 }

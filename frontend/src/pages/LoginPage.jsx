@@ -25,9 +25,9 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      await login(email, password);
+      const user = await login(email, password);
       toast.success("Welcome back");
-      navigate("/dashboard");
+      navigate(user.business_id ? "/dashboard" : "/personal/dashboard");
     } catch (err) {
       setError(formatApiError(err));
     } finally {
@@ -49,7 +49,7 @@ export default function LoginPage() {
       const firebaseIdToken = await result.user.getIdToken();
       const user = await loginWithFirebaseToken(firebaseIdToken);
       toast.success("Welcome back");
-      navigate(user.onboarding_complete ? "/dashboard" : "/onboarding");
+      navigate(user.business_id ? (user.onboarding_complete ? "/dashboard" : "/onboarding") : "/personal/dashboard");
     } catch (err) {
       setError(formatApiError(err));
     } finally {

@@ -700,10 +700,12 @@ async def list_goal_contributions(goal_id: str, user=Depends(get_current_user)):
 
 
 # ---- AI Insights ----
-# Reuses server._resolve_ai_key (shared Groq key/quota lives on the business
-# record, and get_current_user always attaches business_id regardless of
-# active_context) - the quota is per-account, not per-context. Everything
-# else here stays user_id-scoped like the rest of this file.
+# Reuses server._resolve_ai_key. A personal-only account (no business at all)
+# has no business_id, so it rides the shared Groq key with no per-business
+# quota cap - _resolve_ai_key handles that case explicitly. An account that
+# does have a business shares that business's key/quota regardless of
+# active_context. Everything else here stays user_id-scoped like the rest of
+# this file.
 async def _personal_context(user: dict) -> str:
     user_id = user["user_id"]
     currency = user.get("currency", "USD")

@@ -64,6 +64,13 @@ export default function LoginScreen() {
       const result = await signInWithCredential(auth, credential);
       const firebaseIdToken = await result.user.getIdToken();
       const { data } = await api.post("/auth/firebase-session", { id_token: firebaseIdToken });
+      // Personal-only accounts have no business at all - Go is business-only,
+      // so every screen would 403 immediately. Redirect them instead of
+      // letting that happen.
+      if (!data.business_id) {
+        setError("Ledgerly Go is for business accounts. Use Pulse or the desktop app's Personal mode instead.");
+        return;
+      }
       setSession(data.token, data);
       navigate("/");
     } catch (err) {
@@ -77,6 +84,10 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const { data } = await api.post("/auth/login", { email, password });
+      if (!data.business_id) {
+        setError("Ledgerly Go is for business accounts. Use Pulse or the desktop app's Personal mode instead.");
+        return;
+      }
       setSession(data.token, data);
       navigate("/");
     } catch (err) {

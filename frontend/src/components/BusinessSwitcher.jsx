@@ -3,10 +3,13 @@ import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CaretUpDown, Check, UserPlus } from "@phosphor-icons/react";
-import { formatApiError } from "@/lib/utils_app";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CaretUpDown, Check, Plus, UserPlus } from "@phosphor-icons/react";
+import { CURRENCIES, formatApiError } from "@/lib/utils_app";
 import { toast } from "sonner";
 
 export default function BusinessSwitcher() {
@@ -17,6 +20,10 @@ export default function BusinessSwitcher() {
   const [loading, setLoading] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [joining, setJoining] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newCurrency, setNewCurrency] = useState("USD");
+  const [creating, setCreating] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -75,7 +82,27 @@ export default function BusinessSwitcher() {
     }
   };
 
+  const createBusiness = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      await api.post("/businesses", { name: newName.trim(), currency: newCurrency });
+      await refresh();
+      toast.success("Business created");
+      setNewName("");
+      setNewCurrency("USD");
+      setCreateOpen(false);
+      setOpen(false);
+      navigate("/dashboard");
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
+    <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
@@ -124,6 +151,14 @@ export default function BusinessSwitcher() {
               <span className="text-xs text-slate-400 uppercase tracking-wide shrink-0 ml-2">{m.role}</span>
             </button>
           ))}
+          <button
+            onClick={() => { setOpen(false); setCreateOpen(true); }}
+            className="w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-md text-sm text-slate-600 hover:bg-slate-100"
+            data-testid="open-create-business-button"
+          >
+            <Plus size={14} className="shrink-0" />
+            <span>Create a business</span>
+          </button>
         </div>
         <div className="border-t border-slate-100 pt-2">
           <div className="text-[10px] uppercase tracking-[0.15em] text-slate-500 px-2 py-1">Join another business</div>
@@ -142,5 +177,38 @@ export default function BusinessSwitcher() {
         </div>
       </PopoverContent>
     </Popover>
+    <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Create a business</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Business name</Label>
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="e.g. Beezy & Partners"
+              data-testid="create-business-name-input"
+            />
+          </div>
+          <div>
+            <Label>Default currency</Label>
+            <Select value={newCurrency} onValueChange={setNewCurrency}>
+              <SelectTrigger data-testid="create-business-currency-select"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CURRENCIES.map((c) => (
+                  <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={createBusiness} disabled={creating || !newName.trim()} data-testid="create-business-submit-button">
+            {creating ? "Creating..." : "Create business"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
