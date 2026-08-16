@@ -1673,7 +1673,7 @@ async def push_subscribe(payload: PushSubscriptionIn, user=Depends(get_current_u
         {"$set": {
             "id": str(uuid.uuid4()),
             "user_id": user["user_id"],
-            "business_id": user["business_id"],
+            "business_id": user.get("business_id"),
             "endpoint": payload.endpoint,
             "keys": {"p256dh": payload.keys.p256dh, "auth": payload.keys.auth},
             "created_at": now_utc().isoformat(),
