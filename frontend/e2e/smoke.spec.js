@@ -8,8 +8,11 @@ test("login, create a transaction, and create an invoice", async ({ page }) => {
   const email = uniqueEmail();
   const password = "SmokeTest123!";
 
-  // Register (auto-logs in), then finish onboarding.
+  // Register (auto-logs in), then finish onboarding. Registration now opens
+  // on a Business/Personal chooser before the form itself - pick Business to
+  // exercise the same flow this suite always has.
   await page.goto("/register");
+  await page.getByTestId("choose-business-button").click();
   await page.getByTestId("register-name-input").fill("Smoke Test");
   await page.getByTestId("register-email-input").fill(email);
   await page.getByTestId("register-password-input").fill(password);
