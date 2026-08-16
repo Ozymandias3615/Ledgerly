@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Key, SignOut } from "@phosphor-icons/react";
+import { ArrowsClockwise, Key, SignOut } from "@phosphor-icons/react";
 import { clearToken, getUser } from "../lib/auth";
 import api from "../lib/api";
 import Toaster from "./Toaster";
@@ -23,6 +23,12 @@ export default function AdminShell({ children }) {
   const user = getUser();
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [unreadSupport, setUnreadSupport] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshApp = () => {
+    setRefreshing(true);
+    window.location.reload();
+  };
 
   useEffect(() => {
     const checkUnread = () => {
@@ -55,6 +61,7 @@ export default function AdminShell({ children }) {
             <div>{user?.name}</div>
             <div className="topbar-user-email">{user?.email}</div>
           </div>
+          <button className="btn btn-outline" onClick={refreshApp} disabled={refreshing} title="Refresh"><ArrowsClockwise size={14} className={refreshing ? "spin" : undefined} /></button>
           <button className="btn btn-outline" onClick={() => setShowSetPassword(true)}><Key size={14} /> Set password</button>
           <button className="btn btn-outline" onClick={signOut}><SignOut size={14} /> Sign out</button>
         </div>
