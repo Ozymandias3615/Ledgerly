@@ -282,6 +282,28 @@ def create_access_token(user_id: str, email: str) -> str:
     payload = {"sub": user_id, "email": email, "exp": datetime.now(timezone.utc) + timedelta(days=30), "type": "access"}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+def _create_pending_token(email: str, name: str, picture: str, extra: Optional[dict] = None) -> str:
+    """Carries a verified Google/Firebase identity forward for a few minutes
+    without creating an account yet, so a first-time OAuth sign-in can ask
+    Business vs Personal (same choice /auth/register offers) before the
+    account is actually created - stateless, no server-side session needed."""
+    payload = {
+        "pending_email": email, "pending_name": name, "pending_picture": picture,
+        "type": "pending_oauth", "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
+    }
+    if extra:
+        payload.update(extra)
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def _verify_pending_token(token: str) -> dict:
+    try:
+        claims = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        raise HTTPException(status_code=401, detail="This sign-in has expired - please continue with Google again.")
+    if claims.get("type") != "pending_oauth":
+        raise HTTPException(status_code=401, detail="Invalid sign-in token.")
+    return claims
+
 def now_utc():
     return datetime.now(timezone.utc)
 
@@ -481,6 +503,12 @@ class GoogleSessionIn(BaseModel):
 class FirebaseSessionIn(BaseModel):
     id_token: str
 
+class OAuthCompleteIn(BaseModel):
+    pending_token: str
+    create_business: bool = True
+    business_name: Optional[str] = None
+    currency: Optional[str] = "USD"
+
 class UserUpdateIn(BaseModel):
     name: str
 
@@ -614,6 +642,40 @@ async def _create_business(name: str, currency: str, owner_user_id: str, onboard
     }
     await db.businesses.insert_one(doc)
     return doc
+
+async def _register_from_pending(claims: dict, payload: OAuthCompleteIn) -> tuple[str, str]:
+    """Creates a new user from a verified pending-OAuth token (see
+    _create_pending_token), honoring the caller's Business/Personal choice
+    exactly like RegisterIn's no-invite branch. Returns (user_id, email)."""
+    email = claims["pending_email"]
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        # Someone else registered this email in the few minutes between the
+        # pending token being issued and this call completing.
+        raise HTTPException(status_code=400, detail="This email was already registered. Please sign in instead.")
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    name = claims["pending_name"]
+    await db.users.insert_one({
+        "user_id": user_id,
+        "email": email,
+        "name": name,
+        "picture": claims.get("pending_picture", ""),
+        "auth_provider": "google",
+        "created_at": now_utc().isoformat(),
+    })
+    await _send_email_safe(_send_welcome_email(name, email), "welcome")
+    if payload.create_business:
+        business = await _create_business(
+            payload.business_name or f"{name}'s Business", payload.currency or "USD", user_id,
+            onboarding_complete=False,
+        )
+        await _create_membership(user_id, business["business_id"], "owner")
+    else:
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"active_context": "personal", "currency": payload.currency or "USD", "signup_type": "personal"}},
+        )
+    return user_id, email
 
 async def _generate_invite_code() -> str:
     alphabet = string.ascii_uppercase + string.digits
@@ -750,28 +812,37 @@ async def google_session(payload: GoogleSessionIn, response: Response):
             raise HTTPException(status_code=409, detail="This email is already registered with a password. Sign in with your password instead.")
         user_id = existing["user_id"]
         await db.users.update_one({"user_id": user_id}, {"$set": {"name": data.get("name", existing.get("name")), "picture": data.get("picture", "")}})
-    else:
-        user_id = f"user_{uuid.uuid4().hex[:12]}"
-        name = data.get("name", email.split("@")[0])
-        await db.users.insert_one({
+        expires_at = now_utc() + timedelta(days=7)
+        await db.user_sessions.insert_one({
             "user_id": user_id,
-            "email": email,
-            "name": name,
-            "picture": data.get("picture", ""),
-            "auth_provider": "google",
+            "session_token": data["session_token"],
+            "expires_at": expires_at.isoformat(),
             "created_at": now_utc().isoformat(),
         })
-        await _send_email_safe(_send_welcome_email(name, email), "welcome")
-        business = await _create_business(f"{name}'s Business", "USD", user_id, onboarding_complete=False)
-        await _create_membership(user_id, business["business_id"], "owner")
+        response.set_cookie("session_token", data["session_token"], httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+        user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+        return await _enrich_user(user)
+
+    # First-time sign-in: don't create the account yet - let the frontend ask
+    # Business vs Personal (same choice /auth/register offers) before this
+    # actually happens. The Emergent session_token is single-use per exchange,
+    # so it's carried forward in the pending token rather than re-fetched.
+    name = data.get("name", email.split("@")[0])
+    pending_token = _create_pending_token(email, name, data.get("picture", ""), extra={"pending_session_token": data["session_token"]})
+    return {"pending": True, "pending_token": pending_token, "name": name, "email": email}
+
+@api_router.post("/auth/google-session/complete")
+async def google_session_complete(payload: OAuthCompleteIn, response: Response):
+    claims = _verify_pending_token(payload.pending_token)
+    user_id, email = await _register_from_pending(claims, payload)
     expires_at = now_utc() + timedelta(days=7)
     await db.user_sessions.insert_one({
         "user_id": user_id,
-        "session_token": data["session_token"],
+        "session_token": claims["pending_session_token"],
         "expires_at": expires_at.isoformat(),
         "created_at": now_utc().isoformat(),
     })
-    response.set_cookie("session_token", data["session_token"], httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+    response.set_cookie("session_token", claims["pending_session_token"], httponly=True, secure=True, samesite="none", max_age=604800, path="/")
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     return await _enrich_user(user)
 
@@ -802,24 +873,27 @@ async def firebase_session(payload: FirebaseSessionIn, response: Response):
             raise HTTPException(status_code=409, detail="This email is already registered with a password. Sign in with your password instead.")
         user_id = existing["user_id"]
         await db.users.update_one({"user_id": user_id}, {"$set": {"name": name, "picture": picture}})
-    else:
-        user_id = f"user_{uuid.uuid4().hex[:12]}"
-        await db.users.insert_one({
-            "user_id": user_id,
-            "email": email,
-            "name": name,
-            "picture": picture,
-            "auth_provider": "google",
-            "created_at": now_utc().isoformat(),
-        })
-        await _send_email_safe(_send_welcome_email(name, email), "welcome")
-        business = await _create_business(f"{name}'s Business", "USD", user_id, onboarding_complete=False)
-        await _create_membership(user_id, business["business_id"], "owner")
+        token = create_access_token(user_id, email)
+        response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=2592000, path="/")
+        user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+        # Also returned in the body, same reason as /auth/login: the mobile PWA
+        # uses this as a Bearer token instead of the cross-origin cookie.
+        user_dict = await _enrich_user(user)
+        return {**user_dict, "token": token}
+
+    # First-time sign-in: don't create the account yet - let the frontend ask
+    # Business vs Personal (same choice /auth/register offers) before this
+    # actually happens.
+    pending_token = _create_pending_token(email, name, picture)
+    return {"pending": True, "pending_token": pending_token, "name": name, "email": email}
+
+@api_router.post("/auth/firebase-session/complete")
+async def firebase_session_complete(payload: OAuthCompleteIn, response: Response):
+    claims = _verify_pending_token(payload.pending_token)
+    user_id, email = await _register_from_pending(claims, payload)
     token = create_access_token(user_id, email)
     response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=2592000, path="/")
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
-    # Also returned in the body, same reason as /auth/login: the mobile PWA
-    # uses this as a Bearer token instead of the cross-origin cookie.
     user_dict = await _enrich_user(user)
     return {**user_dict, "token": token}
 

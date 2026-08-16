@@ -63,7 +63,14 @@ export default function LoginScreen() {
       const credential = GoogleAuthProvider.credential(response.credential);
       const result = await signInWithCredential(auth, credential);
       const firebaseIdToken = await result.user.getIdToken();
-      const { data } = await api.post("/auth/firebase-session", { id_token: firebaseIdToken });
+      let { data } = await api.post("/auth/firebase-session", { id_token: firebaseIdToken });
+      if (data.pending) {
+        // Brand-new Google account - Go is business-only with no personal
+        // screens at all, so unlike the desktop app there's no real choice
+        // to offer here; silently finish signup as a business, same as
+        // every first-time Google sign-in on Go did before pending existed.
+        ({ data } = await api.post("/auth/firebase-session/complete", { pending_token: data.pending_token, create_business: true }));
+      }
       // Personal-only accounts have no business at all - Go is business-only,
       // so every screen would 403 immediately. Redirect them instead of
       // letting that happen.

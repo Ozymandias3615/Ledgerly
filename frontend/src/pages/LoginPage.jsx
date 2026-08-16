@@ -11,14 +11,16 @@ import { Wallet, GoogleLogo } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
+import OAuthAccountTypeChooser from "@/components/OAuthAccountTypeChooser";
 
 export default function LoginPage() {
-  const { login, loginWithFirebaseToken } = useAuth();
+  const { login, loginWithFirebaseToken, completeFirebaseSignup } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [pendingOAuth, setPendingOAuth] = useState(null); // {pending_token, name} once Google confirms a brand-new account
 
   const submit = async (e) => {
     e.preventDefault();
@@ -48,10 +50,45 @@ export default function LoginPage() {
       const result = await signInWithCredential(auth, credential);
       const firebaseIdToken = await result.user.getIdToken();
       const user = await loginWithFirebaseToken(firebaseIdToken);
+      if (user.pending) {
+        // Brand-new Google account - ask Business vs Personal before it's created.
+        setPendingOAuth(user);
+        return;
+      }
       toast.success("Welcome back");
       navigate(user.business_id ? (user.onboarding_complete ? "/dashboard" : "/onboarding") : "/personal/dashboard");
     } catch (err) {
       setError(formatApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const finishOAuthBusiness = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const user = await completeFirebaseSignup(pendingOAuth.pending_token, true);
+      toast.success("Account created");
+      navigate(user.onboarding_complete ? "/dashboard" : "/onboarding");
+    } catch (err) {
+      setError(formatApiError(err));
+      setPendingOAuth(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const finishOAuthPersonal = async (currency) => {
+    setLoading(true);
+    setError("");
+    try {
+      await completeFirebaseSignup(pendingOAuth.pending_token, false, currency);
+      toast.success("Account created");
+      navigate("/personal/dashboard");
+    } catch (err) {
+      setError(formatApiError(err));
+      setPendingOAuth(null);
     } finally {
       setLoading(false);
     }
@@ -88,47 +125,68 @@ export default function LoginPage() {
 
       <div className="flex items-center justify-center p-8 lg:p-16">
         <div className="w-full max-w-md">
-          <div className="mb-8">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Sign in</div>
-            <h2 className="text-3xl font-extrabold tracking-tight mt-1" style={{ fontFamily: "Manrope, sans-serif" }}>Welcome back</h2>
-            <p className="text-sm text-slate-500 mt-2">Enter your credentials or continue with Google.</p>
-          </div>
+          {pendingOAuth ? (
+            <>
+              <div className="mb-8">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Sign in</div>
+                <h2 className="text-3xl font-extrabold tracking-tight mt-1" style={{ fontFamily: "Manrope, sans-serif" }}>Almost there</h2>
+                <p className="text-sm text-slate-500 mt-2">Your Google account is confirmed - just one more step.</p>
+              </div>
+              <Card className="p-6 shadow-none border-slate-200">
+                {error && <div className="text-sm text-red-600 mb-4" data-testid="login-error">{error}</div>}
+                <OAuthAccountTypeChooser
+                  name={pendingOAuth.name}
+                  loading={loading}
+                  onChooseBusiness={finishOAuthBusiness}
+                  onChoosePersonal={finishOAuthPersonal}
+                />
+              </Card>
+            </>
+          ) : (
+            <>
+              <div className="mb-8">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Sign in</div>
+                <h2 className="text-3xl font-extrabold tracking-tight mt-1" style={{ fontFamily: "Manrope, sans-serif" }}>Welcome back</h2>
+                <p className="text-sm text-slate-500 mt-2">Enter your credentials or continue with Google.</p>
+              </div>
 
-          <Card className="p-6 shadow-none border-slate-200">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full h-11 mb-4"
-              onClick={googleLogin}
-              disabled={loading}
-              data-testid="google-login-button"
-            >
-              <GoogleLogo size={18} weight="bold" className="mr-2" /> Continue with Google
-            </Button>
-            <div className="flex items-center gap-3 my-4">
-              <div className="h-px flex-1 bg-slate-200" />
-              <span className="text-[10px] uppercase tracking-[0.2em] text-slate-400">or email</span>
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
-            <form onSubmit={submit} className="space-y-4">
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" data-testid="login-email-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </div>
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <PasswordInput id="password" data-testid="login-password-input" value={password} onChange={(e) => setPassword(e.target.value)} required />
-              </div>
-              {error && <div className="text-sm text-red-600" data-testid="login-error">{error}</div>}
-              <Button type="submit" disabled={loading} data-testid="login-submit-button" className="w-full h-11">
-                {loading ? "Signing in..." : "Sign in"}
-              </Button>
-            </form>
-            <div className="text-sm text-slate-600 mt-4 text-center">
-              New here?{" "}
-              <Link to="/register" className="font-semibold text-slate-900 underline underline-offset-4" data-testid="link-register">Create an account</Link>
-            </div>
-          </Card>
+              <Card className="p-6 shadow-none border-slate-200">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-11 mb-4"
+                  onClick={googleLogin}
+                  disabled={loading}
+                  data-testid="google-login-button"
+                >
+                  <GoogleLogo size={18} weight="bold" className="mr-2" /> Continue with Google
+                </Button>
+                <div className="flex items-center gap-3 my-4">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-slate-400">or email</span>
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+                <form onSubmit={submit} className="space-y-4">
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" data-testid="login-email-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  </div>
+                  <div>
+                    <Label htmlFor="password">Password</Label>
+                    <PasswordInput id="password" data-testid="login-password-input" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                  </div>
+                  {error && <div className="text-sm text-red-600" data-testid="login-error">{error}</div>}
+                  <Button type="submit" disabled={loading} data-testid="login-submit-button" className="w-full h-11">
+                    {loading ? "Signing in..." : "Sign in"}
+                  </Button>
+                </form>
+                <div className="text-sm text-slate-600 mt-4 text-center">
+                  New here?{" "}
+                  <Link to="/register" className="font-semibold text-slate-900 underline underline-offset-4" data-testid="link-register">Create an account</Link>
+                </div>
+              </Card>
+            </>
+          )}
         </div>
       </div>
     </div>

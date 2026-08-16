@@ -58,7 +58,14 @@ export default function LoginScreen() {
       const credential = GoogleAuthProvider.credential(response.credential);
       const result = await signInWithCredential(auth, credential);
       const firebaseIdToken = await result.user.getIdToken();
-      const { data } = await api.post("/auth/firebase-session", { id_token: firebaseIdToken });
+      let { data } = await api.post("/auth/firebase-session", { id_token: firebaseIdToken });
+      if (data.pending) {
+        // Brand-new Google account - Pulse is personal-only with no business
+        // screens at all, so unlike the desktop app there's no real choice
+        // to offer here; silently finish signup as personal-only instead of
+        // wasting a business record nobody in this app will ever see.
+        ({ data } = await api.post("/auth/firebase-session/complete", { pending_token: data.pending_token, create_business: false }));
+      }
       setSession(data.token, data);
       navigate("/");
     } catch (err) {

@@ -55,6 +55,17 @@ export function AuthProvider({ children }) {
 
   const loginWithFirebaseToken = async (idToken) => {
     const { data } = await api.post("/auth/firebase-session", { id_token: idToken });
+    // First-time sign-in: no account exists yet, so there's no user to set -
+    // the caller shows a Business/Personal chooser and calls
+    // completeFirebaseSignup once the person has picked one.
+    if (!data.pending) setUser(data);
+    return data;
+  };
+
+  const completeFirebaseSignup = async (pendingToken, createBusiness, currency) => {
+    const { data } = await api.post("/auth/firebase-session/complete", {
+      pending_token: pendingToken, create_business: createBusiness, currency,
+    });
     setUser(data);
     return data;
   };
@@ -65,7 +76,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, loginWithFirebaseToken, refresh: checkAuth, bumpRefresh, refreshNonce, setUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, loginWithFirebaseToken, completeFirebaseSignup, refresh: checkAuth, bumpRefresh, refreshNonce, setUser }}>
       {children}
     </AuthContext.Provider>
   );
