@@ -39,7 +39,8 @@ export default function ReportsPage() {
     finally { setLoading(false); }
   };
 
-  React.useEffect(() => { run(); /* eslint-disable-next-line */ }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  React.useEffect(() => { run(); }, []);
 
   const exportReport = (kind, format) => exportAndDownload(
     async () => (await api.get(`/export/${kind}`, { params: { format, ...range }, responseType: "blob" })).data,
