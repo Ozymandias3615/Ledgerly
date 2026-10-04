@@ -9,6 +9,7 @@ import { useSupportUnread } from "../lib/support";
 import { unsubscribeFromPush } from "../lib/push";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
+import NotesButton from "../components/NotesButton";
 
 function currentMonthKey() {
   const now = new Date();
@@ -65,6 +66,7 @@ export default function HomeScreen() {
         <div className="top-row">
           <Brand />
           <div className="top-row-left">
+            <NotesButton />
             <button
               type="button"
               className="icon-btn"

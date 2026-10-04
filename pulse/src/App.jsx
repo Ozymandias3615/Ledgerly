@@ -12,6 +12,7 @@ import GoalsScreen from "./screens/GoalsScreen";
 import GoalDetailScreen from "./screens/GoalDetailScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import NotificationsScreen from "./screens/NotificationsScreen";
+import NotesScreen from "./screens/NotesScreen";
 import SupportScreen from "./screens/SupportScreen";
 import SupportChatScreen from "./screens/SupportChatScreen";
 import { isAuthenticated } from "./lib/auth";
@@ -133,6 +134,14 @@ export default function App() {
         element={
           <RequireAuth>
             <SettingsScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/notes"
+        element={
+          <RequireAuth>
+            <NotesScreen />
           </RequireAuth>
         }
       />

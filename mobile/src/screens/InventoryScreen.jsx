@@ -5,6 +5,7 @@ import api from "../lib/api";
 import { isLowStock, stockRatio, stockBarColor } from "../lib/format";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
+import NotesButton from "../components/NotesButton";
 
 export default function InventoryScreen() {
   const navigate = useNavigate();
@@ -61,9 +62,12 @@ export default function InventoryScreen() {
       <div className="screen screen-narrow">
         <div className="top-row">
           <Brand compact />
-          <button type="button" className="icon-btn" aria-label="Add item" title="Add item" onClick={() => navigate("/inventory/new")}>
-            <Plus size={18} />
-          </button>
+          <div className="top-row-left">
+            <NotesButton />
+            <button type="button" className="icon-btn" aria-label="Add item" title="Add item" onClick={() => navigate("/inventory/new")}>
+              <Plus size={18} />
+            </button>
+          </div>
         </div>
         <div className="eyebrow">Stock</div>
         <h2 className="heading">Inventory</h2>

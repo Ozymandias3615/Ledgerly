@@ -4,6 +4,7 @@ import { fmtAmount, budgetRatio, budgetBarColor } from "../lib/format";
 import { getUser } from "../lib/auth";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
+import NotesButton from "../components/NotesButton";
 
 // "YYYY-MM" in local time - the key get_budgets_summary's `month` param takes.
 function monthKeyOf(d) {
@@ -57,6 +58,7 @@ export default function BudgetsScreen() {
       <div className="screen screen-narrow">
         <div className="top-row">
           <Brand compact />
+          <NotesButton />
         </div>
         <div className="eyebrow">Personal</div>
         <h2 className="heading">Budgets</h2>

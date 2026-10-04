@@ -3,6 +3,7 @@ import api from "../lib/api";
 import { fmtAmount, fmtDate } from "../lib/format";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
+import NotesButton from "../components/NotesButton";
 
 const DUE_SOON_DAYS = 3;
 
@@ -61,6 +62,7 @@ export default function BillsScreen() {
       <div className="screen screen-narrow">
         <div className="top-row">
           <Brand compact />
+          <NotesButton />
         </div>
         <div className="eyebrow">Personal</div>
         <h2 className="heading">Bills</h2>

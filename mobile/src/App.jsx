@@ -9,6 +9,7 @@ import InventoryItemFormScreen from "./screens/InventoryItemFormScreen";
 import InvoicesScreen from "./screens/InvoicesScreen";
 import InvoiceDetailScreen from "./screens/InvoiceDetailScreen";
 import NotificationsScreen from "./screens/NotificationsScreen";
+import NotesScreen from "./screens/NotesScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import SupportScreen from "./screens/SupportScreen";
 import SupportChatScreen from "./screens/SupportChatScreen";
@@ -91,6 +92,14 @@ export default function App() {
         element={
           <RequireAuth>
             <InvoiceDetailScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/notes"
+        element={
+          <RequireAuth>
+            <NotesScreen />
           </RequireAuth>
         }
       />

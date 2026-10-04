@@ -4,6 +4,7 @@ import api from "../lib/api";
 import { fmtAmount, fmtDate } from "../lib/format";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
+import NotesButton from "../components/NotesButton";
 
 function goalRatio(current, target) {
   if (target <= 0) return 0;
@@ -27,6 +28,7 @@ export default function GoalsScreen() {
       <div className="screen screen-narrow">
         <div className="top-row">
           <Brand compact />
+          <NotesButton />
         </div>
         <div className="eyebrow">Personal</div>
         <h2 className="heading">Goals</h2>

@@ -6,6 +6,7 @@ import { fmtDate, fmtAmount } from "../lib/format";
 import { flushQueuedReceipts, listQueuedReceipts, removeQueuedReceipt } from "../lib/offlineQueue";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
+import NotesButton from "../components/NotesButton";
 
 export default function ReceiptsScreen() {
   const navigate = useNavigate();
@@ -75,9 +76,12 @@ export default function ReceiptsScreen() {
       <div className="screen screen-narrow">
         <div className="top-row">
           <Brand compact />
-          <button type="button" className="icon-btn" aria-label="Capture a receipt" title="Capture a receipt" onClick={() => navigate("/capture")}>
-            <Plus size={18} />
-          </button>
+          <div className="top-row-left">
+            <NotesButton />
+            <button type="button" className="icon-btn" aria-label="Capture a receipt" title="Capture a receipt" onClick={() => navigate("/capture")}>
+              <Plus size={18} />
+            </button>
+          </div>
         </div>
         <div className="eyebrow">History</div>
         <h2 className="heading">Your receipts</h2>

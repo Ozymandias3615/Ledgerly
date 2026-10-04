@@ -6,6 +6,7 @@ import { fmtDate, fmtAmount } from "../lib/format";
 import { getUser } from "../lib/auth";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
+import NotesButton from "../components/NotesButton";
 
 function currentMonthKey() {
   const now = new Date();
@@ -55,6 +56,7 @@ export default function TransactionsScreen() {
         <div className="top-row">
           <Brand compact />
           <div className="top-row-left">
+            <NotesButton />
             <button type="button" className="icon-btn" aria-label="Scan a receipt" title="Scan a receipt" onClick={() => navigate("/capture")}>
               <Camera size={18} />
             </button>

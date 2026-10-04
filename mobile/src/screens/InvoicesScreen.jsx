@@ -4,6 +4,7 @@ import api from "../lib/api";
 import { fmt, fmtDate } from "../lib/format";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
+import NotesButton from "../components/NotesButton";
 
 export default function InvoicesScreen() {
   const navigate = useNavigate();
@@ -30,6 +31,7 @@ export default function InvoicesScreen() {
       <div className="screen screen-narrow">
         <div className="top-row">
           <Brand compact />
+          <NotesButton />
         </div>
         <div className="eyebrow">Billing</div>
         <h2 className="heading">Invoices</h2>
