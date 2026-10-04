@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Article, PiggyBank, Calendar, Target, Receipt, CaretRight, SignOut, Bell, Gear } from "@phosphor-icons/react";
+import { Article, PiggyBank, Calendar, Target, Receipt, CaretRight, SignOut, Bell, Gear, ChatCircle } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { clearToken, getUser } from "../lib/auth";
 import { fmtAmount } from "../lib/format";
 import { useUnreadCount } from "../lib/notifications";
+import { useSupportUnread } from "../lib/support";
 import { unsubscribeFromPush } from "../lib/push";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
@@ -48,6 +49,7 @@ export default function HomeScreen() {
   }, []);
 
   const unreadCount = useUnreadCount();
+  const supportUnread = useSupportUnread();
 
   const handleLogout = async () => {
     // Best-effort - the subscription record just goes stale (and gets
@@ -73,6 +75,17 @@ export default function HomeScreen() {
             >
               <Bell size={18} />
               {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              style={{ position: "relative" }}
+              aria-label={supportUnread ? "Support (new reply)" : "Support"}
+              title="Support"
+              onClick={() => navigate("/support")}
+            >
+              <ChatCircle size={18} />
+              {supportUnread && <span className="notif-badge" style={{ minWidth: "0.625rem", height: "0.625rem", padding: 0, top: "-2px", right: "-2px" }} />}
             </button>
             <button type="button" className="icon-btn" aria-label="Settings" title="Settings" onClick={() => navigate("/settings")}>
               <Gear size={18} />

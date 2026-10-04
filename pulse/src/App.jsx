@@ -12,6 +12,8 @@ import GoalsScreen from "./screens/GoalsScreen";
 import GoalDetailScreen from "./screens/GoalDetailScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import NotificationsScreen from "./screens/NotificationsScreen";
+import SupportScreen from "./screens/SupportScreen";
+import SupportChatScreen from "./screens/SupportChatScreen";
 import { isAuthenticated } from "./lib/auth";
 
 function RequireAuth({ children }) {
@@ -107,6 +109,22 @@ export default function App() {
         element={
           <RequireAuth>
             <GoalDetailScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/support"
+        element={
+          <RequireAuth>
+            <SupportScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/support/:id"
+        element={
+          <RequireAuth>
+            <SupportChatScreen />
           </RequireAuth>
         }
       />

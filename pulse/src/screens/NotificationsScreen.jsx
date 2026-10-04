@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Calendar, Trash, X } from "@phosphor-icons/react";
+import { Bell, Calendar, ChatCircle, Trash, X } from "@phosphor-icons/react";
 import api from "../lib/api";
 import Brand from "../components/Brand";
 import BackButton from "../components/BackButton";
 
 const TYPE_ICON = {
   bill_due_soon: Calendar,
+  support_reply: ChatCircle,
 };
 
 function timeAgo(iso) {
