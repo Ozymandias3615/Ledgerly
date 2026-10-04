@@ -87,3 +87,58 @@ async def test_budget_spend_tracks_a_custom_category(client):
     [budget] = r.json()
     assert budget["category"] == "Pets"
     assert budget["spent"] == 30
+
+
+async def test_rename_carries_existing_records_along(client):
+    token, _ = await register_and_login(client)
+    headers = auth_headers(token)
+
+    r = await client.post("/api/personal/categories", json={"type": "expense", "name": "Pets"}, headers=headers)
+    cat_id = r.json()["id"]
+    # Same name as income too - must be left alone by the expense rename.
+    await client.post("/api/personal/categories", json={"type": "income", "name": "Pets"}, headers=headers)
+    await client.post("/api/personal/budgets", json={"category": "Pets", "monthly_limit": 100}, headers=headers)
+    await client.post("/api/personal/bills", json={"name": "Vet plan", "category": "Pets", "amount": 20, "due_date": "2026-03-20"}, headers=headers)
+    await client.post("/api/personal/transactions", json={"type": "expense", "amount": 30, "category": "Pets", "date": "2026-03-10"}, headers=headers)
+    await client.post("/api/personal/transactions", json={"type": "income", "amount": 50, "category": "Pets", "date": "2026-03-11"}, headers=headers)
+
+    r = await client.put(f"/api/personal/categories/{cat_id}", json={"name": "Pet care"}, headers=headers)
+    assert r.status_code == 200, r.text
+    assert r.json()["name"] == "Pet care"
+
+    r = await client.get("/api/personal/categories", headers=headers)
+    assert "Pet care" in r.json()["expense"] and "Pets" not in r.json()["expense"]
+    assert "Pets" in r.json()["income"]
+
+    r = await client.get("/api/personal/budgets/summary", params={"month": "2026-03"}, headers=headers)
+    [budget] = r.json()
+    assert budget["category"] == "Pet care"
+    assert budget["spent"] == 30
+
+    r = await client.get("/api/personal/bills", headers=headers)
+    assert r.json()[0]["category"] == "Pet care"
+
+    r = await client.get("/api/personal/transactions", headers=headers)
+    by_type = {t["type"]: t["category"] for t in r.json()}
+    assert by_type == {"expense": "Pet care", "income": "Pets"}
+
+
+async def test_rename_rejects_clashes_but_allows_case_change(client):
+    token, _ = await register_and_login(client)
+    headers = auth_headers(token)
+
+    r = await client.post("/api/personal/categories", json={"type": "expense", "name": "pets"}, headers=headers)
+    cat_id = r.json()["id"]
+    await client.post("/api/personal/categories", json={"type": "expense", "name": "Hobbies"}, headers=headers)
+
+    r = await client.put(f"/api/personal/categories/{cat_id}", json={"name": "hobbies"}, headers=headers)
+    assert r.status_code == 400
+    r = await client.put(f"/api/personal/categories/{cat_id}", json={"name": "Dining"}, headers=headers)
+    assert r.status_code == 400
+    r = await client.put(f"/api/personal/categories/{cat_id}", json={"name": "Pets"}, headers=headers)
+    assert r.status_code == 200
+    assert r.json()["name"] == "Pets"
+
+    other_token, _ = await register_and_login(client, email="other@example.com")
+    r = await client.put(f"/api/personal/categories/{cat_id}", json={"name": "Mine"}, headers=auth_headers(other_token))
+    assert r.status_code == 404

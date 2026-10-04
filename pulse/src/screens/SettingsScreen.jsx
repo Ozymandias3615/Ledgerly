@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { ArrowsClockwise, Bell, Check, Monitor, Moon, Sun, Trash } from "@phosphor-icons/react";
+import { ArrowsClockwise, Bell, Check, Monitor, Moon, PencilSimple, Sun, Trash, X } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { getUser, updateStoredUser } from "../lib/auth";
 import { getStoredTheme, setTheme } from "../lib/theme";
-import { addPersonalCategory, removePersonalCategory, usePersonalCategories, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "../lib/categories";
+import { addPersonalCategory, renamePersonalCategory, removePersonalCategory, usePersonalCategories, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "../lib/categories";
 import { checkNeedsRetag, getPushSubscriptionState, isIosNotInstalled, subscribeToPush, unsubscribeFromPush } from "../lib/push";
 import Brand from "../components/Brand";
 import BackButton from "../components/BackButton";
@@ -195,6 +195,7 @@ function CategoryGroup({ type, title, builtIns, custom }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [removingId, setRemovingId] = useState(null);
+  const [renaming, setRenaming] = useState(null); // { id, name }
   const [error, setError] = useState("");
 
   const add = async (e) => {
@@ -207,6 +208,20 @@ function CategoryGroup({ type, title, builtIns, custom }) {
       setName("");
     } catch (err) {
       setError(err.response?.data?.detail || "Couldn't add this category.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveRename = async () => {
+    if (!renaming.name.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      await renamePersonalCategory(renaming.id, renaming.name);
+      setRenaming(null);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Couldn't rename this category.");
     } finally {
       setBusy(false);
     }
@@ -231,22 +246,58 @@ function CategoryGroup({ type, title, builtIns, custom }) {
       <p className="list-meta" style={{ margin: "0.25rem 0 0.75rem" }}>Built in: {builtIns.join(", ")}</p>
       {custom.length > 0 && (
         <div className="list">
-          {custom.map((c) => (
-            <div className="list-card" key={c.id}>
-              <div className="list-info">
-                <div className="list-title">{c.name}</div>
+          {custom.map((c) =>
+            renaming?.id === c.id ? (
+              <div className="list-card" key={c.id} style={{ gap: "0.5rem" }}>
+                <input
+                  type="text"
+                  autoFocus
+                  maxLength={40}
+                  value={renaming.name}
+                  onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      saveRename();
+                    }
+                  }}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <button type="button" className="icon-btn" aria-label="Save name" disabled={busy || !renaming.name.trim()} onClick={saveRename}>
+                  <Check size={16} />
+                </button>
+                <button type="button" className="icon-btn" aria-label="Cancel rename" onClick={() => setRenaming(null)}>
+                  <X size={16} />
+                </button>
               </div>
-              <button
-                type="button"
-                className="icon-btn list-delete-btn"
-                aria-label={`Remove ${c.name}`}
-                disabled={removingId === c.id}
-                onClick={() => remove(c)}
-              >
-                <Trash size={16} />
-              </button>
-            </div>
-          ))}
+            ) : (
+              <div className="list-card" key={c.id} style={{ gap: "0.5rem" }}>
+                <div className="list-info">
+                  <div className="list-title">{c.name}</div>
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label={`Rename ${c.name}`}
+                  onClick={() => {
+                    setError("");
+                    setRenaming({ id: c.id, name: c.name });
+                  }}
+                >
+                  <PencilSimple size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn list-delete-btn"
+                  aria-label={`Remove ${c.name}`}
+                  disabled={removingId === c.id}
+                  onClick={() => remove(c)}
+                >
+                  <Trash size={16} />
+                </button>
+              </div>
+            )
+          )}
         </div>
       )}
       <form onSubmit={add} style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>

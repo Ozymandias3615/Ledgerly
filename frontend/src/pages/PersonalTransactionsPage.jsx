@@ -105,7 +105,7 @@ export default function PersonalTransactionsPage() {
           <div className="text-sm text-slate-500 mt-1">Your income and spending</div>
         </div>
         <div className="flex items-center gap-2">
-        <ManagePersonalCategoriesDialog />
+        <ManagePersonalCategoriesDialog onChanged={load} />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={openNew} data-testid="add-personal-transaction-button">

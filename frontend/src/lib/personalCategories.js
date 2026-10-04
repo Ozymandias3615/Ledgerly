@@ -35,6 +35,13 @@ export async function addPersonalCategory(type, name) {
   return data;
 }
 
+// Also renames it on every transaction/budget/bill already using it.
+export async function renamePersonalCategory(id, name) {
+  const { data } = await api.put(`/personal/categories/${id}`, { name });
+  await fetchCategories();
+  return data;
+}
+
 export async function removePersonalCategory(id) {
   await api.delete(`/personal/categories/${id}`);
   await fetchCategories();

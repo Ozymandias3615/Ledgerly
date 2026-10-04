@@ -51,6 +51,10 @@ class PersonalCategoryIn(BaseModel):
     name: str
 
 
+class PersonalCategoryRenameIn(BaseModel):
+    name: str
+
+
 class PersonalBudgetIn(BaseModel):
     category: str
     monthly_limit: float
@@ -514,17 +518,22 @@ async def list_personal_categories(user=Depends(get_current_user)):
         "custom": custom,
     }
 
-@personal_router.post("/categories")
-async def create_personal_category(payload: PersonalCategoryIn, user=Depends(get_current_user)):
-    name = " ".join(payload.name.split())
+async def _validate_category_name(raw: str, type: str, user_id: str, exclude_id: Optional[str] = None) -> str:
+    name = " ".join(raw.split())
     if not name:
         raise HTTPException(status_code=400, detail="Category name can't be empty")
     if len(name) > MAX_CATEGORY_NAME_LEN:
         raise HTTPException(status_code=400, detail=f"Category name must be {MAX_CATEGORY_NAME_LEN} characters or fewer")
-    defaults = DEFAULT_INCOME_CATEGORIES if payload.type == "income" else DEFAULT_EXPENSE_CATEGORIES
-    customs = await db.personal_categories.find({"user_id": user["user_id"], "type": payload.type}, {"name": 1}).to_list(500)
-    if name.lower() in {c.lower() for c in defaults + [c["name"] for c in customs]}:
+    defaults = DEFAULT_INCOME_CATEGORIES if type == "income" else DEFAULT_EXPENSE_CATEGORIES
+    customs = await db.personal_categories.find({"user_id": user_id, "type": type}, {"id": 1, "name": 1}).to_list(500)
+    taken = defaults + [c["name"] for c in customs if c["id"] != exclude_id]
+    if name.lower() in {c.lower() for c in taken}:
         raise HTTPException(status_code=400, detail=f"You already have a category called {name}")
+    return name
+
+@personal_router.post("/categories")
+async def create_personal_category(payload: PersonalCategoryIn, user=Depends(get_current_user)):
+    name = await _validate_category_name(payload.name, payload.type, user["user_id"])
     category = {
         "id": str(uuid.uuid4()),
         "user_id": user["user_id"],
@@ -534,6 +543,35 @@ async def create_personal_category(payload: PersonalCategoryIn, user=Depends(get
     }
     await db.personal_categories.insert_one(category)
     category.pop("_id", None)
+    category.pop("user_id", None)
+    return category
+
+@personal_router.put("/categories/{category_id}")
+async def rename_personal_category(category_id: str, payload: PersonalCategoryRenameIn, user=Depends(get_current_user)):
+    uid = user["user_id"]
+    category = await db.personal_categories.find_one({"id": category_id, "user_id": uid}, {"_id": 0})
+    if not category:
+        raise HTTPException(status_code=404, detail="Not found")
+    old, type = category["name"], category["type"]
+    new = await _validate_category_name(payload.name, type, uid, exclude_id=category_id)
+    if new == old:
+        category.pop("user_id", None)
+        return category
+
+    # Unlike delete, a rename carries existing records along - otherwise a
+    # budget would stop matching its own transactions. Scoped by type, since
+    # the same name can exist once as income and once as expense; budgets and
+    # bills are expense-only.
+    if type == "expense":
+        # Budgets are one-per-category - don't let a rename collide with a
+        # budget still sitting on the new name (e.g. a removed category's).
+        if await db.personal_budgets.find_one({"user_id": uid, "category": old}) and                 await db.personal_budgets.find_one({"user_id": uid, "category": new}):
+            raise HTTPException(status_code=400, detail=f"You already have a budget for {new}")
+        await db.personal_budgets.update_many({"user_id": uid, "category": old}, {"$set": {"category": new}})
+        await db.personal_bills.update_many({"user_id": uid, "category": old}, {"$set": {"category": new}})
+    await db.personal_transactions.update_many({"user_id": uid, "type": type, "category": old}, {"$set": {"category": new}})
+    await db.personal_categories.update_one({"id": category_id}, {"$set": {"name": new}})
+    category["name"] = new
     category.pop("user_id", None)
     return category
 

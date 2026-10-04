@@ -40,6 +40,13 @@ export async function addPersonalCategory(type, name) {
   return data;
 }
 
+// Also renames it on every transaction/budget/bill already using it.
+export async function renamePersonalCategory(id, name) {
+  const { data } = await api.put(`/personal/categories/${id}`, { name });
+  await fetchCategories();
+  return data;
+}
+
 // Only removes it from the pickers - records already using the name keep it.
 export async function removePersonalCategory(id) {
   await api.delete(`/personal/categories/${id}`);
