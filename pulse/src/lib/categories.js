@@ -40,6 +40,12 @@ export async function addPersonalCategory(type, name) {
   return data;
 }
 
+// Only removes it from the pickers - records already using the name keep it.
+export async function removePersonalCategory(id) {
+  await api.delete(`/personal/categories/${id}`);
+  await fetchCategories();
+}
+
 export function usePersonalCategories() {
   const [categories, setCategories] = useState(cache || EMPTY);
   useEffect(() => {

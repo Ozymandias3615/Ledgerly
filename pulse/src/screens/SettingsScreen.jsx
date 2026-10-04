@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { ArrowsClockwise, Bell, Check, Monitor, Moon, Sun } from "@phosphor-icons/react";
+import { ArrowsClockwise, Bell, Check, Monitor, Moon, Sun, Trash } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { getUser, updateStoredUser } from "../lib/auth";
 import { getStoredTheme, setTheme } from "../lib/theme";
+import { addPersonalCategory, removePersonalCategory, usePersonalCategories, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "../lib/categories";
 import { checkNeedsRetag, getPushSubscriptionState, isIosNotInstalled, subscribeToPush, unsubscribeFromPush } from "../lib/push";
 import Brand from "../components/Brand";
 import BackButton from "../components/BackButton";
@@ -190,6 +191,85 @@ function AppearanceSection() {
   );
 }
 
+function CategoryGroup({ type, title, builtIns, custom }) {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [removingId, setRemovingId] = useState(null);
+  const [error, setError] = useState("");
+
+  const add = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      await addPersonalCategory(type, name);
+      setName("");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Couldn't add this category.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (c) => {
+    if (!window.confirm(`Remove ${c.name}? It won't be offered for new entries, but anything already using it keeps it.`)) return;
+    setRemovingId(c.id);
+    setError("");
+    try {
+      await removePersonalCategory(c.id);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Couldn't remove this category.");
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: "1.5rem" }}>
+      <div className="eyebrow">{title}</div>
+      <p className="list-meta" style={{ margin: "0.25rem 0 0.75rem" }}>Built in: {builtIns.join(", ")}</p>
+      {custom.length > 0 && (
+        <div className="list">
+          {custom.map((c) => (
+            <div className="list-card" key={c.id}>
+              <div className="list-info">
+                <div className="list-title">{c.name}</div>
+              </div>
+              <button
+                type="button"
+                className="icon-btn list-delete-btn"
+                aria-label={`Remove ${c.name}`}
+                disabled={removingId === c.id}
+                onClick={() => remove(c)}
+              >
+                <Trash size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <form onSubmit={add} style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+        <input type="text" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} placeholder={`New ${type} category`} style={{ flex: 1 }} />
+        <button type="submit" className="btn-primary" disabled={busy || !name.trim()}>
+          Add
+        </button>
+      </form>
+      {error && <p className="error-text">{error}</p>}
+    </div>
+  );
+}
+
+function CategoriesSection() {
+  const custom = usePersonalCategories().custom || [];
+  return (
+    <>
+      <CategoryGroup type="expense" title="Spending" builtIns={EXPENSE_CATEGORIES} custom={custom.filter((c) => c.type === "expense")} />
+      <CategoryGroup type="income" title="Income" builtIns={INCOME_CATEGORIES} custom={custom.filter((c) => c.type === "income")} />
+    </>
+  );
+}
+
 function UpdatesSection() {
   return (
     <div className="settings-row">
@@ -210,6 +290,7 @@ export default function SettingsScreen() {
   const tabs = [
     { key: "profile", label: "Profile" },
     { key: "notifications", label: "Notifications" },
+    { key: "categories", label: "Categories" },
     { key: "appearance", label: "Appearance" },
     { key: "updates", label: "Check for Updates" },
   ];
@@ -236,6 +317,7 @@ export default function SettingsScreen() {
 
       {tab === "profile" && <ProfileSection user={user} onSaved={(name) => setUser(updateStoredUser({ name }))} />}
       {tab === "notifications" && <NotificationsSection />}
+      {tab === "categories" && <CategoriesSection />}
       {tab === "appearance" && <AppearanceSection />}
       {tab === "updates" && <UpdatesSection />}
     </div>
