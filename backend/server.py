@@ -2423,6 +2423,7 @@ async def _delete_user_and_data(user_id: str):
     await db.personal_ai_conversations.delete_many({"user_id": user_id})
     await db.personal_notifications.delete_many({"user_id": user_id})
     await db.push_subscriptions.delete_many({"user_id": user_id})
+    await db.user_notes.delete_many({"user_id": user_id})
     await db.users.delete_one({"user_id": user_id})
 
 
@@ -3173,6 +3174,67 @@ async def admin_broadcast(payload: AdminBroadcastIn, admin=Depends(require_admin
     return {"businesses_notified": len(business_ids), "users_notified": len(user_ids), "push_sent": push_sent}
 
 
+# ---- Notes ----
+# Private scratch notes from the floating Notes panel on every page. Scoped
+# to user_id only (not business_id) - they're the person's own notes, not
+# shared with teammates on a business. `page` is just the path the note was
+# written on, so the panel can offer a "This page" filter.
+MAX_NOTE_LENGTH = 20000
+
+
+class NoteIn(BaseModel):
+    body: str = Field(default="", max_length=MAX_NOTE_LENGTH)
+    page: Optional[str] = Field(default=None, max_length=300)
+
+
+class NoteUpdateIn(BaseModel):
+    body: str = Field(default="", max_length=MAX_NOTE_LENGTH)
+
+
+@api_router.get("/notes")
+async def list_notes(page: Optional[str] = None, user=Depends(get_current_user)):
+    query = {"user_id": user["user_id"]}
+    if page:
+        query["page"] = page
+    return await db.user_notes.find(query, {"_id": 0, "user_id": 0}).sort("updated_at", -1).to_list(500)
+
+
+@api_router.post("/notes")
+async def create_note(payload: NoteIn, user=Depends(get_current_user)):
+    now = now_utc().isoformat()
+    note = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        "body": payload.body,
+        "page": payload.page,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.user_notes.insert_one(note)
+    note.pop("_id", None)
+    note.pop("user_id", None)
+    return note
+
+
+@api_router.put("/notes/{note_id}")
+async def update_note(note_id: str, payload: NoteUpdateIn, user=Depends(get_current_user)):
+    res = await db.user_notes.update_one(
+        {"id": note_id, "user_id": user["user_id"]},
+        {"$set": {"body": payload.body, "updated_at": now_utc().isoformat()}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return await db.user_notes.find_one({"id": note_id}, {"_id": 0, "user_id": 0})
+
+
+@api_router.delete("/notes/{note_id}")
+async def delete_note(note_id: str, user=Depends(get_current_user)):
+    res = await db.user_notes.delete_one({"id": note_id, "user_id": user["user_id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return {"success": True}
+
+
 # ---- Support inbox ----
 # Many threads per user_id (not per business) - a support conversation
 # belongs to the account, not whichever business happens to be active, and a
@@ -3444,6 +3506,7 @@ async def on_startup():
     except Exception:
         pass
     await db.support_threads.create_index([("user_id", 1), ("updated_at", -1)])
+    await db.user_notes.create_index([("user_id", 1), ("updated_at", -1)])
     await db.support_threads.create_index([("status", 1), ("updated_at", -1)])
     await db.support_messages.create_index([("thread_id", 1), ("created_at", 1)])
 

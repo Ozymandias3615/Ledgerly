@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import BusinessSwitcher from "@/components/BusinessSwitcher";
 import RefreshButton from "@/components/RefreshButton";
 import NotificationBell from "@/components/NotificationBell";
+import NotesWidget from "@/components/NotesWidget";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", Icon: House, testId: "nav-dashboard" },
@@ -109,6 +110,7 @@ export default function AppLayout({ children }) {
       </aside>
       <main className="flex-1 min-w-0 overflow-auto flex flex-col">
         <div className="shrink-0 h-14 border-b border-slate-200 flex items-center justify-end gap-2 px-6 sticky top-0 bg-background/90 backdrop-blur z-10">
+          <NotesWidget />
           <NotificationBell />
           <RefreshButton />
         </div>
