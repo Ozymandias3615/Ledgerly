@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Gear, Receipt, Package, FileText, SignOut, CaretRight, X } from "@phosphor-icons/react";
+import { Bell, Gear, Receipt, Package, FileText, SignOut, CaretRight, X, ChatCircle } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { clearToken, getUser, updateStoredUser } from "../lib/auth";
 import { fmtAmount, isLowStock } from "../lib/format";
 import { useUnreadCount } from "../lib/notifications";
+import { useSupportUnread } from "../lib/support";
 import { unsubscribeFromPush } from "../lib/push";
 import Brand from "../components/Brand";
 import AppShell from "../components/AppShell";
@@ -28,6 +29,7 @@ export default function HomeScreen() {
   const navigate = useNavigate();
   const user = getUser();
   const unreadCount = useUnreadCount();
+  const supportUnread = useSupportUnread();
   const [summary, setSummary] = useState(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
   // Business currency can change after login (e.g. desktop Settings > Business),
@@ -87,6 +89,17 @@ export default function HomeScreen() {
             >
               <Bell size={18} />
               {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              style={{ position: "relative" }}
+              aria-label={supportUnread ? "Support (new reply)" : "Support"}
+              title="Support"
+              onClick={() => navigate("/support")}
+            >
+              <ChatCircle size={18} />
+              {supportUnread && <span className="notif-badge" style={{ minWidth: "0.625rem", height: "0.625rem", padding: 0, top: "-2px", right: "-2px" }} />}
             </button>
             <button type="button" className="icon-btn" aria-label="Settings" title="Settings" onClick={() => navigate("/settings")}>
               <Gear size={18} />

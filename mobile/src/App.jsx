@@ -10,6 +10,8 @@ import InvoicesScreen from "./screens/InvoicesScreen";
 import InvoiceDetailScreen from "./screens/InvoiceDetailScreen";
 import NotificationsScreen from "./screens/NotificationsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
+import SupportScreen from "./screens/SupportScreen";
+import SupportChatScreen from "./screens/SupportChatScreen";
 import { isAuthenticated } from "./lib/auth";
 
 function RequireAuth({ children }) {
@@ -97,6 +99,22 @@ export default function App() {
         element={
           <RequireAuth>
             <NotificationsScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/support"
+        element={
+          <RequireAuth>
+            <SupportScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/support/:id"
+        element={
+          <RequireAuth>
+            <SupportChatScreen />
           </RequireAuth>
         }
       />
