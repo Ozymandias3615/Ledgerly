@@ -5,17 +5,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import AnimatedBar from "@/components/AnimatedBar";
 import { fmt, fmtDate, formatApiError } from "@/lib/utils_app";
-import { Plus, PencilSimple, Trash, Receipt } from "@phosphor-icons/react";
+import { Plus, PencilSimple, Trash, Receipt, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { toast } from "sonner";
-
-// Same ground-truth list as PersonalTransactionsPage.jsx's CATS_EXPENSE -
-// budget spend-vs-limit only lines up if these match exactly.
-const CATS_EXPENSE = ["Groceries", "Rent/Mortgage", "Utilities", "Subscriptions", "Dining", "Transportation", "Healthcare", "Entertainment", "Shopping", "Bills"];
+import PersonalCategorySelect from "@/components/PersonalCategorySelect";
+import { DEFAULT_EXPENSE as CATS_EXPENSE } from "@/lib/personalCategories";
 
 // Same thresholds as pulse/src/lib/format.js's budgetRatio/budgetBarColor -
 // red at/over the limit, amber >=75%, green under.
@@ -29,6 +26,19 @@ function barColor(spent, limit) {
   if (r >= 1) return "bg-red-600";
   if (r >= 0.75) return "bg-amber-500";
   return "bg-emerald-600";
+}
+
+// "YYYY-MM" in local time - the key get_budgets_summary's `month` param takes.
+function monthKeyOf(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function shiftMonth(key, delta) {
+  const [y, m] = key.split("-").map(Number);
+  return monthKeyOf(new Date(y, m - 1 + delta, 1));
+}
+function monthLabel(key) {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
 export default function PersonalBudgetsPage() {
@@ -48,8 +58,12 @@ export default function PersonalBudgetsPage() {
   const [detailBudget, setDetailBudget] = useState(null);
   const [detailTransactions, setDetailTransactions] = useState(null);
 
-  const load = () => api.get("/personal/budgets/summary").then(({ data }) => setBudgets(data));
-  useEffect(() => { load(); }, []);
+  const currentMonth = monthKeyOf(new Date());
+  const [month, setMonth] = useState(currentMonth);
+  const isCurrentMonth = month === currentMonth;
+
+  const load = () => api.get("/personal/budgets/summary", { params: { month } }).then(({ data }) => setBudgets(data));
+  useEffect(() => { setBudgets(null); load(); }, [month]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openDetail = (b) => {
     setDetailBudget(b);
@@ -57,9 +71,8 @@ export default function PersonalBudgetsPage() {
     // Same month window the backend sums into "spent" (see
     // get_budgets_summary's date range) so this list always matches the
     // number shown on the card.
-    const monthKey = new Date().toISOString().slice(0, 7);
     api.get("/personal/transactions", {
-      params: { category: b.category, type: "expense", date_from: `${monthKey}-01`, date_to: `${monthKey}-32` },
+      params: { category: b.category, type: "expense", date_from: `${month}-01`, date_to: `${month}-32` },
     }).then(({ data }) => setDetailTransactions(data));
   };
 
@@ -127,7 +140,23 @@ export default function PersonalBudgetsPage() {
         <div>
           <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Personal</div>
           <h1 className="text-4xl font-extrabold tracking-tight mt-1" style={{ fontFamily: "Manrope, sans-serif" }}>Budgets</h1>
-          <div className="text-sm text-slate-500 mt-1">Where you stand against this month's limits</div>
+          <div className="text-sm text-slate-500 mt-1">
+            {/* Limits aren't versioned per month, so a past month is always
+                compared against today's limit. */}
+            {isCurrentMonth ? "Where you stand against this month's limits" : `How you did in ${monthLabel(month)} against your current limits`}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 ml-auto" data-testid="budget-month-nav">
+          <Button variant="outline" size="icon" onClick={() => setMonth(shiftMonth(month, -1))} title="Previous month" data-testid="budget-month-prev">
+            <CaretLeft size={16} />
+          </Button>
+          <div className="min-w-[9rem] text-center text-sm font-semibold" data-testid="budget-month-label">{monthLabel(month)}</div>
+          <Button variant="outline" size="icon" onClick={() => setMonth(shiftMonth(month, 1))} disabled={isCurrentMonth} title="Next month" data-testid="budget-month-next">
+            <CaretRight size={16} />
+          </Button>
+          {!isCurrentMonth && (
+            <Button variant="ghost" size="sm" onClick={() => setMonth(currentMonth)} data-testid="budget-month-today">This month</Button>
+          )}
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -140,12 +169,7 @@ export default function PersonalBudgetsPage() {
             <form onSubmit={save} className="space-y-3">
               <div>
                 <Label>Category</Label>
-                <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })} disabled={!!editing}>
-                  <SelectTrigger data-testid="budget-category-select"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CATS_EXPENSE.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <PersonalCategorySelect type="expense" value={form.category} onChange={(v) => setForm((prev) => ({ ...prev, category: v }))} disabled={!!editing} testId="budget-category-select" />
               </div>
               <div>
                 <Label>Monthly limit</Label>
@@ -246,16 +270,16 @@ export default function PersonalBudgetsPage() {
           {detailBudget && (
             <div className="space-y-4">
               <div className="text-sm text-slate-500">
-                {fmt(detailBudget.spent, detailBudget.currency)} of {fmt(detailBudget.monthly_limit, detailBudget.currency)} spent this month
+                {fmt(detailBudget.spent, detailBudget.currency)} of {fmt(detailBudget.monthly_limit, detailBudget.currency)} spent {isCurrentMonth ? "this month" : `in ${monthLabel(month)}`}
               </div>
               <AnimatedBar pct={ratio(detailBudget.spent, detailBudget.monthly_limit) * 100} colorClass={barColor(detailBudget.spent, detailBudget.monthly_limit)} className="h-2" />
 
               <div>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-2">Transactions this month</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-2">Transactions {isCurrentMonth ? "this month" : `in ${monthLabel(month)}`}</div>
                 {detailTransactions === null ? (
                   <div className="text-sm text-slate-500 py-4">Loading...</div>
                 ) : detailTransactions.length === 0 ? (
-                  <div className="text-sm text-slate-500 py-4">No transactions in this category yet.</div>
+                  <div className="text-sm text-slate-500 py-4">No transactions in this category {isCurrentMonth ? "yet" : "that month"}.</div>
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {detailTransactions.map((t) => (

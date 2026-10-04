@@ -4,10 +4,11 @@ import api from "../lib/api";
 import { getUser } from "../lib/auth";
 import { compressImageFile } from "../lib/imageCompress";
 import { useOnlineStatus } from "../lib/useOnlineStatus";
-import { EXPENSE_CATEGORIES } from "../lib/categories";
+import { EXPENSE_CATEGORIES, usePersonalCategories } from "../lib/categories";
 import { fmtAmount, fmtDate } from "../lib/format";
 import Brand from "../components/Brand";
 import BackButton from "../components/BackButton";
+import CategorySelect from "../components/CategorySelect";
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -28,6 +29,11 @@ export default function ReviewScreen() {
   const [date, setDate] = useState(todayIso());
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
   const [extraCategory, setExtraCategory] = useState(null);
+  // Extraction resolves asynchronously - read the latest list through a ref
+  // so a custom category loaded after the photo was taken still matches.
+  const expenseCategories = usePersonalCategories().expense;
+  const expenseCategoriesRef = useRef(expenseCategories);
+  expenseCategoriesRef.current = expenseCategories;
   const [billId, setBillId] = useState("");
   const [bills, setBills] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -104,7 +110,7 @@ export default function ReviewScreen() {
         if (ex.currency) setCurrency(ex.currency);
         if (ex.date) setDate(ex.date);
         if (ex.category) {
-          const match = EXPENSE_CATEGORIES.find((c) => c.toLowerCase() === ex.category.toLowerCase());
+          const match = expenseCategoriesRef.current.find((c) => c.toLowerCase() === ex.category.toLowerCase());
           if (match) {
             setCategory(match);
             setExtraCategory(null);
@@ -248,12 +254,13 @@ export default function ReviewScreen() {
           </label>
           <label>
             Category
-            <select value={category} onChange={(e) => setCategory(e.target.value)}>
-              {extraCategory && <option value={extraCategory}>{extraCategory} (suggested)</option>}
-              {EXPENSE_CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+            <CategorySelect
+              type="expense"
+              value={category}
+              onChange={setCategory}
+              extra={extraCategory}
+              extraLabel={`${extraCategory} (suggested)`}
+            />
           </label>
           {bills.length > 0 && (
             <label>

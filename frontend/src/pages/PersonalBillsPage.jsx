@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -15,8 +14,8 @@ import { fmt, fmtDate, formatApiError } from "@/lib/utils_app";
 import { Plus, DotsThreeVertical, PencilSimple, Trash, Check } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
-// Same ground-truth list as PersonalTransactionsPage.jsx's CATS_EXPENSE.
-const CATS_EXPENSE = ["Groceries", "Rent/Mortgage", "Utilities", "Subscriptions", "Dining", "Transportation", "Healthcare", "Entertainment", "Shopping", "Bills"];
+import PersonalCategorySelect from "@/components/PersonalCategorySelect";
+import { DEFAULT_EXPENSE as CATS_EXPENSE } from "@/lib/personalCategories";
 
 const DUE_SOON_DAYS = 3;
 
@@ -111,12 +110,7 @@ export default function PersonalBillsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Category</Label>
-                  <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-                    <SelectTrigger data-testid="bill-category-select"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {CATS_EXPENSE.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <PersonalCategorySelect type="expense" value={form.category} onChange={(v) => setForm((prev) => ({ ...prev, category: v }))} testId="bill-category-select" />
                 </div>
                 <div>
                   <Label>Amount</Label>

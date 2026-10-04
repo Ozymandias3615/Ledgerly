@@ -13,12 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { fmt, fmtDate, formatApiError } from "@/lib/utils_app";
 import { Plus, DotsThreeVertical, PencilSimple, Trash } from "@phosphor-icons/react";
 import { toast } from "sonner";
-
-// Ground-truth categories - must match what personal_budgets/personal_bills
-// use so budget spend-vs-limit computes correctly (see pulse/src/lib/categories.js,
-// same list, established after discovering an earlier mismatch on Pulse).
-const CATS_INCOME = ["Salary", "Freelance", "Gifts", "Refunds"];
-const CATS_EXPENSE = ["Groceries", "Rent/Mortgage", "Utilities", "Subscriptions", "Dining", "Transportation", "Healthcare", "Entertainment", "Shopping", "Bills"];
+import PersonalCategorySelect from "@/components/PersonalCategorySelect";
+import ManagePersonalCategoriesDialog from "@/components/ManagePersonalCategoriesDialog";
+import { DEFAULT_INCOME as CATS_INCOME, DEFAULT_EXPENSE as CATS_EXPENSE } from "@/lib/personalCategories";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -99,8 +96,6 @@ export default function PersonalTransactionsPage() {
     load();
   };
 
-  const cats = form.type === "income" ? CATS_INCOME : CATS_EXPENSE;
-
   return (
     <div className="p-8 space-y-6" data-testid="personal-transactions-page">
       <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -109,6 +104,8 @@ export default function PersonalTransactionsPage() {
           <h1 className="text-4xl font-extrabold tracking-tight mt-1" style={{ fontFamily: "Manrope, sans-serif" }}>Transactions</h1>
           <div className="text-sm text-slate-500 mt-1">Your income and spending</div>
         </div>
+        <div className="flex items-center gap-2">
+        <ManagePersonalCategoriesDialog />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={openNew} data-testid="add-personal-transaction-button">
@@ -141,12 +138,7 @@ export default function PersonalTransactionsPage() {
                 </div>
                 <div>
                   <Label>Category</Label>
-                  <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-                    <SelectTrigger data-testid="ptx-category-select"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {cats.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <PersonalCategorySelect type={form.type} value={form.category} onChange={(v) => setForm((prev) => ({ ...prev, category: v }))} testId="ptx-category-select" />
                 </div>
               </div>
               {form.type === "expense" && bills.length > 0 && (
@@ -171,6 +163,7 @@ export default function PersonalTransactionsPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">

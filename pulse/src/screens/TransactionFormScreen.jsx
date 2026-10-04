@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import api from "../lib/api";
 import { getUser } from "../lib/auth";
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "../lib/categories";
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, usePersonalCategories } from "../lib/categories";
 import { fmtAmount, fmtDate } from "../lib/format";
 import Brand from "../components/Brand";
 import BackButton from "../components/BackButton";
+import CategorySelect from "../components/CategorySelect";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -35,6 +36,7 @@ export default function TransactionFormScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [bills, setBills] = useState([]);
+  const allCategories = usePersonalCategories();
 
   useEffect(() => {
     api.get("/personal/bills").then(({ data }) => setBills(data)).catch(() => {});
@@ -65,10 +67,8 @@ export default function TransactionFormScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, id]);
 
-  const categories = form.type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-
   const setType = (type) => {
-    const nextCategories = type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    const nextCategories = allCategories[type];
     setForm({ ...form, type, category: nextCategories.includes(form.category) ? form.category : nextCategories[0] });
   };
 
@@ -142,11 +142,7 @@ export default function TransactionFormScreen() {
             </label>
             <label>
               Category
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                {categories.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+              <CategorySelect type={form.type} value={form.category} onChange={(category) => setForm((prev) => ({ ...prev, category }))} />
             </label>
             {form.type === "expense" && bills.length > 0 && (
               <label>

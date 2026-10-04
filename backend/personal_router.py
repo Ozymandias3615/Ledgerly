@@ -46,6 +46,11 @@ class PersonalTransactionIn(BaseModel):
     receipt_content_type: Optional[str] = None
 
 
+class PersonalCategoryIn(BaseModel):
+    type: Literal["income", "expense"]
+    name: str
+
+
 class PersonalBudgetIn(BaseModel):
     category: str
     monthly_limit: float
@@ -489,6 +494,57 @@ async def export_personal_category(
         )
     else:
         raise HTTPException(status_code=400, detail="Unknown format")
+
+
+# ---- Categories ----
+# Built-in categories every user gets. Category is stored on transactions/
+# budgets/bills as a plain string, so a custom category is just a saved name
+# the pickers offer alongside these - budget spend still matches by exact
+# string, same as the defaults.
+DEFAULT_INCOME_CATEGORIES = ["Salary", "Freelance", "Gifts", "Refunds"]
+DEFAULT_EXPENSE_CATEGORIES = ["Groceries", "Rent/Mortgage", "Utilities", "Subscriptions", "Dining", "Transportation", "Healthcare", "Entertainment", "Shopping", "Bills"]
+MAX_CATEGORY_NAME_LEN = 40
+
+@personal_router.get("/categories")
+async def list_personal_categories(user=Depends(get_current_user)):
+    custom = await db.personal_categories.find({"user_id": user["user_id"]}, {"_id": 0, "user_id": 0}).sort("name", 1).to_list(500)
+    return {
+        "income": DEFAULT_INCOME_CATEGORIES + [c["name"] for c in custom if c["type"] == "income"],
+        "expense": DEFAULT_EXPENSE_CATEGORIES + [c["name"] for c in custom if c["type"] == "expense"],
+        "custom": custom,
+    }
+
+@personal_router.post("/categories")
+async def create_personal_category(payload: PersonalCategoryIn, user=Depends(get_current_user)):
+    name = " ".join(payload.name.split())
+    if not name:
+        raise HTTPException(status_code=400, detail="Category name can't be empty")
+    if len(name) > MAX_CATEGORY_NAME_LEN:
+        raise HTTPException(status_code=400, detail=f"Category name must be {MAX_CATEGORY_NAME_LEN} characters or fewer")
+    defaults = DEFAULT_INCOME_CATEGORIES if payload.type == "income" else DEFAULT_EXPENSE_CATEGORIES
+    customs = await db.personal_categories.find({"user_id": user["user_id"], "type": payload.type}, {"name": 1}).to_list(500)
+    if name.lower() in {c.lower() for c in defaults + [c["name"] for c in customs]}:
+        raise HTTPException(status_code=400, detail=f"You already have a category called {name}")
+    category = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        "type": payload.type,
+        "name": name,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.personal_categories.insert_one(category)
+    category.pop("_id", None)
+    category.pop("user_id", None)
+    return category
+
+@personal_router.delete("/categories/{category_id}")
+async def delete_personal_category(category_id: str, user=Depends(get_current_user)):
+    # Only removes it from the pickers - transactions/budgets/bills already
+    # using the name keep it, so no history is rewritten.
+    res = await db.personal_categories.delete_one({"id": category_id, "user_id": user["user_id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"success": True}
 
 
 # ---- Budgets ----

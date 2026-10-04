@@ -13,9 +13,7 @@ import { fmt, fmtDate, exportAndDownload, loadPersisted, savePersisted } from "@
 import { Play, Download } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
-// Same ground-truth lists as PersonalTransactionsPage.jsx/PersonalBudgetsPage.jsx.
-const CATS_INCOME = ["Salary", "Freelance", "Gifts", "Refunds"];
-const CATS_EXPENSE = ["Groceries", "Rent/Mortgage", "Utilities", "Subscriptions", "Dining", "Transportation", "Healthcare", "Entertainment", "Shopping", "Bills"];
+import { usePersonalCategories, DEFAULT_EXPENSE as CATS_EXPENSE } from "@/lib/personalCategories";
 
 const firstDayOfYear = () => `${new Date().getFullYear()}-01-01`;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -44,6 +42,9 @@ export default function PersonalReportsPage() {
   const [range, setRange] = useState(() => loadPersisted(REPORTS_RANGE_KEY, { start: firstDayOfYear(), end: today() }));
   const [scope, setScope] = useState("all"); // "all" | "category" | "budget"
   const [selectedCategory, setSelectedCategory] = useState(CATS_EXPENSE[0]);
+  const categories = usePersonalCategories();
+  // A custom name can exist as both an income and an expense category.
+  const allCategories = Array.from(new Set([...categories.income, ...categories.expense]));
   const [budgets, setBudgets] = useState([]);
   const [selectedBudgetId, setSelectedBudgetId] = useState("");
   const [pnl, setPnl] = useState(null);
@@ -78,7 +79,7 @@ export default function PersonalReportsPage() {
         const months = monthsInRange(range.start, range.end);
         setCategoryReport({
           category,
-          isIncome: CATS_INCOME.includes(category),
+          isIncome: categories.income.includes(category) && !categories.expense.includes(category),
           total,
           transactions: data,
           months,
@@ -160,8 +161,7 @@ export default function PersonalReportsPage() {
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
               <SelectTrigger className="w-[170px]" data-testid="personal-report-category"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {CATS_INCOME.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                {CATS_EXPENSE.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                {allCategories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

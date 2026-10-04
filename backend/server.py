@@ -2416,6 +2416,7 @@ async def _delete_user_and_data(user_id: str):
     # covered by the per-business wipe above and has to be cleared separately.
     await db.personal_transactions.delete_many({"user_id": user_id})
     await db.personal_budgets.delete_many({"user_id": user_id})
+    await db.personal_categories.delete_many({"user_id": user_id})
     await db.personal_bills.delete_many({"user_id": user_id})
     await db.personal_savings_goals.delete_many({"user_id": user_id})
     await db.personal_goal_contributions.delete_many({"user_id": user_id})
