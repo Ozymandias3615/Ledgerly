@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatApiError } from "@/lib/utils_app";
-import { PaperPlaneTilt, Plus, Paperclip, File as FileIcon, X } from "@phosphor-icons/react";
+import { ArrowDown, PaperPlaneTilt, Plus, Paperclip, File as FileIcon, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -12,6 +12,24 @@ const ALLOWED_ATTACHMENT_TYPES = [
   "image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf",
   "video/mp4", "video/webm", "video/quicktime",
 ];
+
+// Same live-chat timings as admin/src/screens/SupportScreen.jsx - the
+// server shows "typing" for 6s after a ping.
+const MESSAGE_POLL_MS = 3000;
+const TYPING_PING_MS = 2500;
+const NEAR_BOTTOM_PX = 80;
+
+function TypingBubble() {
+  return (
+    <div className="flex justify-start" aria-live="polite" data-testid="support-admin-typing">
+      <div className="rounded-lg px-4 py-3 bg-slate-100 text-slate-500 flex items-center gap-1" aria-label="Ledgerly Support is typing" title="Ledgerly Support is typing">
+        {[0, 150, 300].map((delay) => (
+          <span key={delay} className="h-1.5 w-1.5 rounded-full bg-current animate-bounce motion-reduce:animate-none" style={{ animationDelay: `${delay}ms` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleString(undefined, {
@@ -101,7 +119,12 @@ export default function SupportPage() {
   const [pendingAttachment, setPendingAttachment] = useState(null); // { attachment_data, attachment_content_type, attachment_filename }
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [preview, setPreview] = useState(null);
-  const bottomRef = useRef(null);
+  const [hasUnseenBelow, setHasUnseenBelow] = useState(false);
+  const listRef = useRef(null);
+  const nearBottomRef = useRef(true);
+  const scrollIntentRef = useRef(null); // "jump" | "own" | "follow" | "follow-if-near"
+  const selectedIdRef = useRef(null);
+  const lastTypingPingRef = useRef(0);
   const fileInputRef = useRef(null);
   // Guards the initial auto-select-on-load below against a race with the
   // user clicking "New conversation" before the list finishes loading -
@@ -126,16 +149,80 @@ export default function SupportPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(loadThreads, []);
 
+  // Poll the open conversation for Support's replies, typing state and
+  // status changes (e.g. resolved), asking only for newer messages.
+  const lastCreatedAt = detail?.messages?.length ? detail.messages[detail.messages.length - 1].created_at : null;
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!selectedId || selectedId === "new" || !detail) return undefined;
+    const threadId = selectedId;
+    const id = setInterval(() => {
+      if (document.hidden) return;
+      api.get(`/support/threads/${threadId}/messages`, { params: lastCreatedAt ? { after: lastCreatedAt } : {} })
+        .then(({ data }) => {
+          if (selectedIdRef.current !== threadId) return;
+          setDetail((prev) => {
+            if (!prev) return prev;
+            const known = new Set(prev.messages.map((m) => m.message_id));
+            const fresh = data.messages.filter((m) => !known.has(m.message_id));
+            if (fresh.length) scrollIntentRef.current = "follow";
+            else if (data.thread.admin_typing !== prev.thread.admin_typing) scrollIntentRef.current = "follow-if-near";
+            return { thread: { ...prev.thread, ...data.thread }, messages: fresh.length ? [...prev.messages, ...fresh] : prev.messages };
+          });
+        })
+        .catch(() => {});
+    }, MESSAGE_POLL_MS);
+    return () => clearInterval(id);
+  }, [selectedId, !!detail, lastCreatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Opening a thread or sending jumps to the bottom; new replies only follow
+  // along if you haven't scrolled up to read earlier messages.
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    const intent = scrollIntentRef.current;
+    scrollIntentRef.current = null;
+    if (!el || !intent) return;
+    if (intent === "jump" || intent === "own") {
+      el.scrollTop = el.scrollHeight;
+      nearBottomRef.current = true;
+      setHasUnseenBelow(false);
+    } else if (nearBottomRef.current) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else if (intent === "follow") {
+      setHasUnseenBelow(true);
+    }
   }, [detail]);
+
+  const onListScroll = () => {
+    const el = listRef.current;
+    if (!el) return;
+    nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+    if (nearBottomRef.current) setHasUnseenBelow(false);
+  };
+
+  const scrollToBottom = () => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    setHasUnseenBelow(false);
+  };
+
+  const onBodyChange = (e) => {
+    setBody(e.target.value);
+    const now = Date.now();
+    if (e.target.value.trim() && selectedId && selectedId !== "new" && now - lastTypingPingRef.current > TYPING_PING_MS) {
+      lastTypingPingRef.current = now;
+      api.post(`/support/threads/${selectedId}/typing`).catch(() => {});
+    }
+  };
 
   const openThread = (threadId) => {
     setSelectedId(threadId);
+    selectedIdRef.current = threadId;
     setDetail(null);
     setDetailError("");
+    setHasUnseenBelow(false);
     api.get(`/support/threads/${threadId}/messages`)
       .then(({ data }) => {
+        if (selectedIdRef.current !== threadId) return;
+        scrollIntentRef.current = "jump";
         setDetail(data);
         setThreads((prev) => prev && prev.map((t) => (t.thread_id === threadId ? { ...t, unread_by_user: false } : t)));
         if (user?.support_unread) refresh();
@@ -145,6 +232,7 @@ export default function SupportPage() {
 
   const startNew = () => {
     setSelectedId("new");
+    selectedIdRef.current = "new";
     setDetail(null);
     setDetailError("");
     setBody("");
@@ -187,12 +275,16 @@ export default function SupportPage() {
       const payload = { body: text, ...(pendingAttachment || {}) };
       if (selectedId === "new") {
         const { data } = await api.post("/support/threads", payload);
+        scrollIntentRef.current = "own";
         setSelectedId(data.thread.thread_id);
+        selectedIdRef.current = data.thread.thread_id;
         setDetail(data);
         setThreads((prev) => [data.thread, ...(prev || [])]);
       } else {
         const { data } = await api.post(`/support/threads/${selectedId}/messages`, payload);
-        setDetail((prev) => ({ ...prev, messages: [...prev.messages, data] }));
+        scrollIntentRef.current = "own";
+        lastTypingPingRef.current = 0;
+        setDetail((prev) => (prev.messages.some((m) => m.message_id === data.message_id) ? prev : { ...prev, messages: [...prev.messages, data] }));
         loadThreads();
       }
       setBody("");
@@ -235,8 +327,9 @@ export default function SupportPage() {
           )}
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 relative flex flex-col">
+          <div ref={listRef} onScroll={onListScroll} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4" data-testid="support-message-list">
             {composing ? (
               <div className="text-sm text-slate-500 text-center mt-8">
                 Say hello below to start a new conversation.
@@ -256,7 +349,18 @@ export default function SupportPage() {
                 </div>
               ))
             )}
-            <div ref={bottomRef} />
+            {!composing && detail?.thread?.admin_typing && detail.thread.status !== "resolved" && <TypingBubble />}
+          </div>
+          {hasUnseenBelow && (
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-slate-900 text-white text-xs px-3 py-1.5 shadow-md flex items-center gap-1"
+              data-testid="support-new-messages-button"
+            >
+              <ArrowDown size={12} /> New messages
+            </button>
+          )}
           </div>
 
           {resolved ? (
@@ -284,7 +388,7 @@ export default function SupportPage() {
                 </Button>
                 <Textarea
                   value={body}
-                  onChange={(e) => setBody(e.target.value)}
+                  onChange={onBodyChange}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e); }
                   }}

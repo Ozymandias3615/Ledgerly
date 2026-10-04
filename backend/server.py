@@ -3232,6 +3232,33 @@ async def _support_thread_owned_by(thread_id: str, user_id: str) -> dict:
     return thread
 
 
+# Typing indicators are poll-based like the rest of the inbox: whoever is
+# typing pings /typing every few seconds, and the other side's message poll
+# reports them as typing while the last ping is fresher than this. Judged on
+# the server clock so client clock skew can't matter.
+SUPPORT_TYPING_TTL_SECONDS = 6
+
+
+def _is_typing(ts: Optional[str]) -> bool:
+    if not ts:
+        return False
+    return (now_utc() - datetime.fromisoformat(ts)).total_seconds() < SUPPORT_TYPING_TTL_SECONDS
+
+
+async def _support_thread_view(thread: dict, after: Optional[str], other_typing_field: str, typing_key: str) -> dict:
+    """Shared GET body for both sides. `after` (an ISO created_at) limits the
+    response to newer messages, so the open conversation can be polled every
+    few seconds without re-downloading every attachment each time."""
+    query = {"thread_id": thread["thread_id"]}
+    if after:
+        query["created_at"] = {"$gt": after}
+    messages = await db.support_messages.find(query, {"_id": 0}).sort("created_at", 1).to_list(1000)
+    typing = _is_typing(thread.get(other_typing_field))
+    thread = {k: v for k, v in thread.items() if k not in ("user_typing_at", "admin_typing_at")}
+    thread[typing_key] = typing
+    return {"thread": thread, "messages": messages}
+
+
 def _support_message_doc(thread_id: str, sender: str, sender_name: str, payload: SupportMessageIn, now: str) -> dict:
     return {
         "message_id": str(uuid.uuid4()),
@@ -3285,11 +3312,17 @@ async def create_support_thread(payload: SupportMessageIn, user=Depends(get_curr
 
 
 @api_router.get("/support/threads/{thread_id}/messages")
-async def get_support_thread_messages(thread_id: str, user=Depends(get_current_user)):
+async def get_support_thread_messages(thread_id: str, after: Optional[str] = None, user=Depends(get_current_user)):
     thread = await _support_thread_owned_by(thread_id, user["user_id"])
     await db.support_threads.update_one({"thread_id": thread_id}, {"$set": {"unread_by_user": False}})
-    messages = await db.support_messages.find({"thread_id": thread_id}, {"_id": 0}).sort("created_at", 1).to_list(1000)
-    return {"thread": thread, "messages": messages}
+    return await _support_thread_view(thread, after, "admin_typing_at", "admin_typing")
+
+
+@api_router.post("/support/threads/{thread_id}/typing")
+async def support_user_typing(thread_id: str, user=Depends(get_current_user)):
+    await _support_thread_owned_by(thread_id, user["user_id"])
+    await db.support_threads.update_one({"thread_id": thread_id}, {"$set": {"user_typing_at": now_utc().isoformat()}})
+    return {"success": True}
 
 
 @api_router.post("/support/threads/{thread_id}/messages")
@@ -3306,7 +3339,7 @@ async def post_support_thread_message(thread_id: str, payload: SupportMessageIn,
     await db.support_messages.insert_one(msg)
     msg.pop("_id", None)
     await db.support_threads.update_one(
-        {"thread_id": thread_id}, {"$set": {"unread_by_admin": True, "updated_at": now}}
+        {"thread_id": thread_id}, {"$set": {"unread_by_admin": True, "updated_at": now, "user_typing_at": None}}
     )
     await _send_email_safe(
         _send_support_alert_email(thread["user_name"], thread["user_email"], _message_preview(payload)),
@@ -3328,13 +3361,20 @@ async def admin_list_support_threads(status: Optional[str] = Query(None), admin=
 
 
 @api_router.get("/admin/support/threads/{thread_id}/messages")
-async def admin_get_support_thread(thread_id: str, admin=Depends(require_admin)):
+async def admin_get_support_thread(thread_id: str, after: Optional[str] = None, admin=Depends(require_admin)):
     thread = await db.support_threads.find_one({"thread_id": thread_id}, {"_id": 0})
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
     await db.support_threads.update_one({"thread_id": thread_id}, {"$set": {"unread_by_admin": False}})
-    messages = await db.support_messages.find({"thread_id": thread_id}, {"_id": 0}).sort("created_at", 1).to_list(1000)
-    return {"thread": thread, "messages": messages}
+    return await _support_thread_view(thread, after, "user_typing_at", "user_typing")
+
+
+@api_router.post("/admin/support/threads/{thread_id}/typing")
+async def admin_support_typing(thread_id: str, admin=Depends(require_admin)):
+    res = await db.support_threads.update_one({"thread_id": thread_id}, {"$set": {"admin_typing_at": now_utc().isoformat()}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    return {"success": True}
 
 
 @api_router.post("/admin/support/attachments")
@@ -3356,7 +3396,7 @@ async def admin_reply_support_thread(thread_id: str, payload: SupportMessageIn, 
     await db.support_messages.insert_one(msg)
     msg.pop("_id", None)
     await db.support_threads.update_one(
-        {"thread_id": thread_id}, {"$set": {"unread_by_user": True, "updated_at": now}}
+        {"thread_id": thread_id}, {"$set": {"unread_by_user": True, "updated_at": now, "admin_typing_at": None}}
     )
     # Personal notifications (not the business bell, which is shared across
     # a whole team) are the only correctly-scoped place for this - a support

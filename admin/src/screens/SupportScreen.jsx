@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { CheckCircle, PaperPlaneTilt, Paperclip, File as FileIcon, X } from "@phosphor-icons/react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ArrowDown, CheckCircle, PaperPlaneTilt, Paperclip, File as FileIcon, X } from "@phosphor-icons/react";
 import api from "../lib/api";
 import { toast } from "../lib/toast";
 
@@ -102,6 +102,27 @@ function ThreadRow({ thread, active, onClick }) {
   );
 }
 
+// The open conversation polls for new messages + the user's typing state;
+// the list refreshes less often just to surface new conversations.
+const MESSAGE_POLL_MS = 3000;
+const THREAD_LIST_POLL_MS = 15000;
+// The server shows "typing" for 6s after a ping, so pinging at most every
+// 2.5s keeps the dots steady while the admin types without spamming it.
+const TYPING_PING_MS = 2500;
+// How close to the bottom still counts as "following along" - new messages
+// only auto-scroll when you haven't scrolled up to read history.
+const NEAR_BOTTOM_PX = 80;
+
+function TypingBubble({ name }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "flex-start" }} aria-live="polite">
+      <div style={{ borderRadius: "0.5rem", padding: "0.55rem 0.75rem", background: "hsl(var(--secondary))", color: "hsl(var(--secondary-foreground))" }} title={`${name} is typing`}>
+        <span className="typing-dots" aria-label={`${name} is typing`}><span /><span /><span /></span>
+      </div>
+    </div>
+  );
+}
+
 const STATUS_FILTERS = [
   { key: "open", label: "Open" },
   { key: "resolved", label: "Resolved" },
@@ -120,29 +141,115 @@ export default function SupportScreen() {
   const [pendingAttachment, setPendingAttachment] = useState(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [hasUnseenBelow, setHasUnseenBelow] = useState(false);
   const fileInputRef = useRef(null);
+  const listRef = useRef(null);
+  const nearBottomRef = useRef(true);
+  // Set right before messages are added so the layout effect below knows
+  // whether to jump (opening a thread), follow (own send / already at the
+  // bottom), or leave the scroll position alone.
+  const scrollIntentRef = useRef(null);
+  const selectedIdRef = useRef(null);
+  const lastTypingPingRef = useRef(0);
 
-  const loadThreads = (status = statusFilter) => {
-    setThreadsError("");
+  const loadThreads = (status = statusFilter, { quiet = false } = {}) => {
+    if (!quiet) setThreadsError("");
     api.get("/admin/support/threads", { params: status === "all" ? {} : { status } })
-      .then(({ data }) => setThreads(data))
-      .catch((err) => setThreadsError(err.response?.data?.detail || "Failed to load conversations"));
+      .then(({ data }) => {
+        // Keep the open thread's dot cleared - it's being read right now.
+        setThreads(data.map((t) => (t.thread_id === selectedIdRef.current ? { ...t, unread_by_admin: false } : t)));
+      })
+      .catch((err) => { if (!quiet) setThreadsError(err.response?.data?.detail || "Failed to load conversations"); });
   };
   useEffect(() => { loadThreads(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const id = setInterval(() => { if (!document.hidden) loadThreads(statusFilter, { quiet: true }); }, THREAD_LIST_POLL_MS);
+    return () => clearInterval(id);
+  }, [statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Poll the open conversation for new messages + typing state. Only asks
+  // for messages after the newest one we have, so attachments aren't
+  // re-downloaded every few seconds.
+  const lastCreatedAt = detail?.messages?.length ? detail.messages[detail.messages.length - 1].created_at : null;
+  useEffect(() => {
+    if (!selectedId || !detail) return undefined;
+    const threadId = selectedId;
+    const id = setInterval(() => {
+      if (document.hidden) return;
+      api.get(`/admin/support/threads/${threadId}/messages`, { params: lastCreatedAt ? { after: lastCreatedAt } : {} })
+        .then(({ data }) => {
+          if (selectedIdRef.current !== threadId) return;
+          setDetail((prev) => {
+            if (!prev) return prev;
+            const known = new Set(prev.messages.map((m) => m.message_id));
+            const fresh = data.messages.filter((m) => !known.has(m.message_id));
+            if (fresh.length) scrollIntentRef.current = "follow";
+            else if (data.thread.user_typing !== prev.thread.user_typing) scrollIntentRef.current = "follow-if-near";
+            return { thread: { ...prev.thread, ...data.thread }, messages: fresh.length ? [...prev.messages, ...fresh] : prev.messages };
+          });
+        })
+        .catch(() => {});
+    }, MESSAGE_POLL_MS);
+    return () => clearInterval(id);
+  }, [selectedId, !!detail, lastCreatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    const intent = scrollIntentRef.current;
+    scrollIntentRef.current = null;
+    if (!el || !intent) return;
+    if (intent === "jump" || intent === "own") {
+      el.scrollTop = el.scrollHeight;
+      nearBottomRef.current = true;
+      setHasUnseenBelow(false);
+    } else if (nearBottomRef.current) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else if (intent === "follow") {
+      setHasUnseenBelow(true);
+    }
+  }, [detail]);
+
+  const onListScroll = () => {
+    const el = listRef.current;
+    if (!el) return;
+    nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+    if (nearBottomRef.current) setHasUnseenBelow(false);
+  };
+
+  const scrollToBottom = () => {
+    const el = listRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    setHasUnseenBelow(false);
+  };
+
+  const onBodyChange = (e) => {
+    setBody(e.target.value);
+    const now = Date.now();
+    if (e.target.value.trim() && selectedId && now - lastTypingPingRef.current > TYPING_PING_MS) {
+      lastTypingPingRef.current = now;
+      api.post(`/admin/support/threads/${selectedId}/typing`).catch(() => {});
+    }
+  };
 
   const changeFilter = (status) => {
     setStatusFilter(status);
     setSelectedId(null);
+    selectedIdRef.current = null;
     setDetail(null);
     loadThreads(status);
   };
 
   const openThread = (threadId) => {
     setSelectedId(threadId);
+    selectedIdRef.current = threadId;
     setDetail(null);
     setDetailError("");
     setPendingAttachment(null);
+    setHasUnseenBelow(false);
     api.get(`/admin/support/threads/${threadId}/messages`).then(({ data }) => {
+      if (selectedIdRef.current !== threadId) return;
+      scrollIntentRef.current = "jump";
       setDetail(data);
       // Clear this thread's unread dot in the list without a full reload.
       setThreads((prev) => prev.map((t) => (t.thread_id === threadId ? { ...t, unread_by_admin: false } : t)));
@@ -184,7 +291,9 @@ export default function SupportScreen() {
     try {
       const payload = { body: text, ...(pendingAttachment || {}) };
       const { data } = await api.post(`/admin/support/threads/${selectedId}/messages`, payload);
-      setDetail((prev) => ({ ...prev, messages: [...prev.messages, data] }));
+      scrollIntentRef.current = "own";
+      lastTypingPingRef.current = 0;
+      setDetail((prev) => (prev.messages.some((m) => m.message_id === data.message_id) ? prev : { ...prev, messages: [...prev.messages, data] }));
       setBody("");
       setPendingAttachment(null);
       loadThreads();
@@ -205,6 +314,7 @@ export default function SupportScreen() {
       // would otherwise keep showing a thread that's no longer in the list.
       if (statusFilter === "open") {
         setSelectedId(null);
+        selectedIdRef.current = null;
         setDetail(null);
       } else {
         setDetail((prev) => (prev ? { ...prev, thread: { ...prev.thread, status: "resolved" } } : prev));
@@ -251,7 +361,7 @@ export default function SupportScreen() {
           )}
         </div>
 
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
           {!selectedId ? (
             <div className="muted" style={{ margin: "auto" }}>Select a conversation</div>
           ) : detailError ? (
@@ -272,7 +382,11 @@ export default function SupportScreen() {
                 )}
               </div>
 
-              <div style={{ flex: 1, overflowY: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+              {/* minHeight: 0 is what lets this scroll - a flex child's default
+                  min-height is its content, so without it the list grew past
+                  the card and got clipped instead of scrolling. */}
+              <div ref={listRef} onScroll={onListScroll} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 {detail.messages.length === 0 ? (
                   <p className="muted">No messages yet.</p>
                 ) : (
@@ -290,6 +404,20 @@ export default function SupportScreen() {
                     </div>
                   ))
                 )}
+                {detail.thread.user_typing && detail.thread.status !== "resolved" && (
+                  <TypingBubble name={detail.thread.user_name || detail.thread.user_email} />
+                )}
+              </div>
+              {hasUnseenBelow && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={scrollToBottom}
+                  style={{ position: "absolute", bottom: "0.75rem", left: "50%", transform: "translateX(-50%)", borderRadius: "999px", fontSize: "0.75rem", padding: "0.35rem 0.8rem", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
+                >
+                  <ArrowDown size={12} /> New messages
+                </button>
+              )}
               </div>
 
               <form onSubmit={send} style={{ borderTop: "1px solid hsl(var(--border))", padding: "0.75rem 1rem" }}>
@@ -310,7 +438,7 @@ export default function SupportScreen() {
                   <textarea
                     className="input"
                     value={body}
-                    onChange={(e) => setBody(e.target.value)}
+                    onChange={onBodyChange}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e); } }}
                     placeholder="Reply..."
                     rows={1}
