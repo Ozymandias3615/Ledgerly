@@ -114,7 +114,11 @@ async function checkForUpdates(silent) {
 
   const latestVersion = String(release.tag_name || "").replace(/^v/, "");
   const currentVersion = app.getVersion();
-  if (!latestVersion || compareVersions(latestVersion, currentVersion) <= 0) {
+  const assetExt = process.platform === "darwin" ? ".dmg" : ".exe";
+  const asset = (release.assets || []).find((a) => a.name.endsWith(assetExt));
+  // Releases can be single-platform (e.g. Windows-only) - one without an
+  // installer for this platform isn't an update for this machine.
+  if (!latestVersion || !asset || compareVersions(latestVersion, currentVersion) <= 0) {
     if (!silent) {
       dialog.showMessageBox(mainWindow, {
         type: "info",
@@ -125,9 +129,7 @@ async function checkForUpdates(silent) {
     return;
   }
 
-  const assetExt = process.platform === "darwin" ? ".dmg" : ".exe";
-  const asset = (release.assets || []).find((a) => a.name.endsWith(assetExt));
-  const downloadUrl = asset ? asset.browser_download_url : release.html_url;
+  const downloadUrl = asset.browser_download_url;
 
   const { response } = await dialog.showMessageBox(mainWindow, {
     type: "info",

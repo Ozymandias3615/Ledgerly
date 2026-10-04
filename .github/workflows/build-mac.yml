@@ -20,6 +20,10 @@ permissions:
 
 jobs:
   build-mac:
+    # Windows-only releases: put [windows-only] in the tagged commit's
+    # message and this job is skipped on the tag push (manual
+    # workflow_dispatch still always runs).
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[windows-only]') }}
     runs-on: macos-latest
     defaults:
       run:
